@@ -35,7 +35,10 @@ const state = {
   presets: { ...DEFAULT_PRESETS },
 
   // Timer interval reference
-  intervalId: null
+  intervalId: null,
+
+  // Dark mode
+  darkMode: false
 };
 
 // ============================================
@@ -59,9 +62,6 @@ const elements = {
   customPresetBtn: document.getElementById('customPresetBtn'),
   customPresetDetail: document.getElementById('customPresetDetail'),
 
-  // Task input
-  taskInput: document.getElementById('taskInput'),
-
   // Session info
   sessionCount: document.getElementById('sessionCount'),
   totalTime: document.getElementById('totalTime'),
@@ -73,8 +73,8 @@ const elements = {
   modalCancelBtn: document.getElementById('modalCancelBtn'),
   modalSaveBtn: document.getElementById('modalSaveBtn'),
 
-  // Audio
-  notificationSound: document.getElementById('notificationSound')
+  // Dark mode
+  darkModeToggle: document.getElementById('darkModeToggle')
 };
 
 // ============================================
@@ -104,9 +104,10 @@ function loadFromStorage() {
         state.totalFocusedMinutes = data.totalFocusedMinutes || 0;
       }
 
-      // Restore task
-      if (data.task) {
-        elements.taskInput.value = data.task;
+      // Restore dark mode preference
+      if (data.darkMode) {
+        state.darkMode = true;
+        document.documentElement.setAttribute('data-theme', 'dark');
       }
     }
   } catch (e) {
@@ -121,7 +122,7 @@ function saveToStorage() {
       currentPreset: state.currentPreset,
       sessionCount: state.sessionCount,
       totalFocusedMinutes: state.totalFocusedMinutes,
-      task: elements.taskInput.value,
+      darkMode: state.darkMode,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -179,14 +180,19 @@ function resetTimer() {
 }
 
 function skipTimer() {
-  // Track focused time if skipping during work
-  if (state.mode === 'work' && state.status === 'running') {
-    const focusedSeconds = state.totalSeconds - state.remainingSeconds;
-    state.totalFocusedMinutes += Math.round(focusedSeconds / 60);
-    saveToStorage();
-  }
+  // Don't count skipped sessions - just move to the next mode
+  clearInterval(state.intervalId);
+  state.intervalId = null;
 
-  completeTimer();
+  // Switch mode without counting the session
+  state.mode = state.mode === 'work' ? 'break' : 'work';
+
+  const preset = state.presets[state.currentPreset];
+  state.totalSeconds = (state.mode === 'work' ? preset.work : preset.break) * 60;
+  state.remainingSeconds = state.totalSeconds;
+  state.status = 'idle';
+
+  updateUI();
 }
 
 function completeTimer() {
@@ -453,12 +459,11 @@ function showBrowserNotification() {
 }
 
 function createNotification() {
-  const task = elements.taskInput.value;
   let title, body;
 
   if (state.mode === 'work') {
     title = '🍅 Work session complete!';
-    body = task ? `Great job on "${task}"! Time for a break.` : 'Time for a well-deserved break!';
+    body = 'Time for a well-deserved break!';
   } else {
     title = '☕ Break is over!';
     body = 'Ready to get back to work?';
@@ -470,6 +475,22 @@ function createNotification() {
     tag: 'pomo-notification',
     requireInteraction: true
   });
+}
+
+// ============================================
+// Dark Mode
+// ============================================
+
+function toggleDarkMode() {
+  state.darkMode = !state.darkMode;
+
+  if (state.darkMode) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+
+  saveToStorage();
 }
 
 // Request notification permission on first interaction
@@ -540,10 +561,8 @@ function initEventListeners() {
     }
   });
 
-  // Task input - save on change
-  elements.taskInput.addEventListener('input', () => {
-    saveToStorage();
-  });
+  // Dark mode toggle
+  elements.darkModeToggle.addEventListener('click', toggleDarkMode);
 
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
@@ -576,6 +595,12 @@ function initEventListeners() {
           }
         }
         break;
+      case 'KeyD':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          toggleDarkMode();
+        }
+        break;
     }
   });
 
@@ -600,7 +625,7 @@ function init() {
   // Initial UI update
   updateUI();
 
-  console.log('🍅 Pomo initialized. Keyboard shortcuts: Space (start/pause), R (reset), S (skip)');
+  console.log('🍅 Pomo initialized. Keyboard shortcuts: Space (start/pause), R (reset), S (skip), D (dark mode)');
 }
 
 // Start the app

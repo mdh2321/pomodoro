@@ -5,7 +5,7 @@
 
 /* CSS Custom Properties (Design Tokens) */
 :root {
-  /* Colors - Blue/Teal Theme */
+  /* Colors - Blue/Teal Theme (Light Mode) */
   --color-primary: #0891b2;
   --color-primary-dark: #0e7490;
   --color-primary-light: #22d3ee;
@@ -24,6 +24,27 @@
 
   --color-border: #e2e8f0;
   --color-border-focus: #0891b2;
+}
+
+/* Dark Mode Colors */
+[data-theme="dark"] {
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-elevated: #334155;
+
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+
+  --color-border: #334155;
+  --color-border-focus: #22d3ee;
+
+  --color-primary: #22d3ee;
+  --color-primary-dark: #0891b2;
+  --color-primary-light: #67e8f9;
+
+  --color-work: #22d3ee;
+  --color-break: #34d399;
 
   /* Typography */
   --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -108,32 +129,61 @@ body {
   gap: var(--spacing-xl);
 }
 
-/* Task Input Section */
-.task-section {
+/* Header */
+.header {
   width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.task-input {
-  width: 100%;
-  padding: var(--spacing-md);
-  font-family: inherit;
-  font-size: var(--font-size-base);
+.app-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
+  margin: 0;
+}
+
+/* Dark Mode Toggle */
+.dark-mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   background-color: var(--color-surface);
   border: 2px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  outline: none;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-  text-align: center;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
-.task-input::placeholder {
-  color: var(--color-text-muted);
+.dark-mode-toggle:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-background);
 }
 
-.task-input:focus {
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px rgb(8 145 178 / 0.1);
+.dark-mode-toggle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.dark-mode-toggle .icon-sun {
+  display: block;
+}
+
+.dark-mode-toggle .icon-moon {
+  display: none;
+}
+
+[data-theme="dark"] .dark-mode-toggle .icon-sun {
+  display: none;
+}
+
+[data-theme="dark"] .dark-mode-toggle .icon-moon {
+  display: block;
 }
 
 /* Timer Container */
@@ -213,8 +263,8 @@ body {
 .controls {
   display: flex;
   gap: var(--spacing-sm);
-  flex-wrap: wrap;
   justify-content: center;
+  width: 100%;
 }
 
 .btn {
@@ -230,6 +280,8 @@ body {
   cursor: pointer;
   transition: all var(--transition-fast);
   min-width: 80px;
+  flex: 1;
+  max-width: 100px;
 }
 
 .btn:focus-visible {

@@ -10,16 +10,13 @@
 </head>
 <body>
   <div class="app">
-    <!-- Task Label -->
-    <div class="task-section">
-      <input
-        type="text"
-        id="taskInput"
-        class="task-input"
-        placeholder="What are you working on?"
-        maxlength="100"
-        aria-label="Current task description"
-      >
+    <!-- Header with dark mode toggle -->
+    <div class="header">
+      <h1 class="app-title">Pomo</h1>
+      <button class="dark-mode-toggle" id="darkModeToggle" aria-label="Toggle dark mode">
+        <span class="icon-sun">☀️</span>
+        <span class="icon-moon">🌙</span>
+      </button>
     </div>
 
     <!-- Timer Display -->
@@ -123,11 +120,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Audio for notifications -->
-  <audio id="notificationSound" preload="auto">
-    <source src="sounds/chime.mp3" type="audio/mpeg">
-  </audio>
 
   <script src="app.js"></script>
 </body>
