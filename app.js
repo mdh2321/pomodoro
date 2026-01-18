@@ -42,7 +42,10 @@ const state = {
 
   // Ambient sounds
   currentSound: 'off', // 'off' | 'rain' | 'whitenoise' | 'fireplace'
-  volume: 50
+  volume: 50,
+
+  // History tracking (all-time)
+  history: {} // { "2026-01-18": { sessions: 4, minutes: 100 }, ... }
 };
 
 // Audio context and nodes for ambient sounds
@@ -90,7 +93,14 @@ const elements = {
 
   // Sound controls
   soundBtns: document.querySelectorAll('.sound-btn'),
-  volumeSlider: document.getElementById('volumeSlider')
+  volumeSlider: document.getElementById('volumeSlider'),
+
+  // Stats
+  statsBtn: document.getElementById('statsBtn'),
+  statsOverlay: document.getElementById('statsOverlay'),
+  statsCloseBtn: document.getElementById('statsCloseBtn'),
+  statsChart: document.getElementById('statsChart'),
+  statsSummary: document.getElementById('statsSummary')
 };
 
 // ============================================
@@ -134,6 +144,11 @@ function loadFromStorage() {
         state.volume = data.volume;
         elements.volumeSlider.value = data.volume;
       }
+
+      // Restore history
+      if (data.history) {
+        state.history = data.history;
+      }
     }
   } catch (e) {
     console.warn('Failed to load from storage:', e);
@@ -150,6 +165,7 @@ function saveToStorage() {
       darkMode: state.darkMode,
       currentSound: state.currentSound,
       volume: state.volume,
+      history: state.history,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -239,8 +255,18 @@ function completeTimer() {
 
   // Track completed work session
   if (state.mode === 'work') {
-    state.totalFocusedMinutes += Math.round(state.totalSeconds / 60);
+    const minutes = Math.round(state.totalSeconds / 60);
+    state.totalFocusedMinutes += minutes;
     state.sessionCount++;
+
+    // Record in history
+    const today = getTodayDate();
+    if (!state.history[today]) {
+      state.history[today] = { sessions: 0, minutes: 0 };
+    }
+    state.history[today].sessions++;
+    state.history[today].minutes += minutes;
+
     saveToStorage();
   }
 
@@ -708,6 +734,110 @@ function updateAmbientSoundForMode() {
 }
 
 // ============================================
+// Statistics
+// ============================================
+
+function openStatsModal() {
+  updateStatsDisplay();
+  elements.statsOverlay.classList.add('active');
+  elements.statsOverlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeStatsModal() {
+  elements.statsOverlay.classList.remove('active');
+  elements.statsOverlay.setAttribute('aria-hidden', 'true');
+}
+
+function updateStatsDisplay() {
+  // Calculate summary stats
+  const today = getTodayDate();
+  const todayData = state.history[today] || { sessions: 0, minutes: 0 };
+
+  // Get dates for this week and month
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  let weekSessions = 0;
+  let monthSessions = 0;
+  let totalSessions = 0;
+
+  for (const [dateStr, data] of Object.entries(state.history)) {
+    const date = new Date(dateStr);
+    totalSessions += data.sessions;
+
+    if (date >= weekStart) {
+      weekSessions += data.sessions;
+    }
+    if (date >= monthStart) {
+      monthSessions += data.sessions;
+    }
+  }
+
+  // Update summary cards
+  document.getElementById('statToday').textContent = todayData.sessions;
+  document.getElementById('statWeek').textContent = weekSessions;
+  document.getElementById('statMonth').textContent = monthSessions;
+  document.getElementById('statTotal').textContent = totalSessions;
+
+  // Generate chart
+  generateChart();
+}
+
+function generateChart() {
+  const chartContainer = elements.statsChart;
+  chartContainer.innerHTML = '';
+
+  // Get last 14 days
+  const days = [];
+  const now = new Date();
+
+  for (let i = 13; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(now.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+
+    days.push({
+      date: date,
+      dateStr: dateStr,
+      sessions: data.sessions,
+      label: date.getDate().toString()
+    });
+  }
+
+  // Find max sessions for scaling
+  const maxSessions = Math.max(...days.map(d => d.sessions), 1);
+
+  // Create bars
+  days.forEach(day => {
+    const bar = document.createElement('div');
+    bar.className = 'chart-bar';
+
+    const fill = document.createElement('div');
+    fill.className = 'chart-bar-fill' + (day.sessions === 0 ? ' empty' : '');
+    const heightPercent = (day.sessions / maxSessions) * 100;
+    fill.style.height = Math.max(heightPercent, 4) + 'px';
+
+    const label = document.createElement('span');
+    label.className = 'chart-bar-label';
+    label.textContent = day.label;
+
+    if (day.sessions > 0) {
+      const value = document.createElement('span');
+      value.className = 'chart-bar-value';
+      value.textContent = day.sessions;
+      bar.appendChild(value);
+    }
+
+    bar.appendChild(fill);
+    bar.appendChild(label);
+    chartContainer.appendChild(bar);
+  });
+}
+
+// ============================================
 // Dark Mode
 // ============================================
 
@@ -803,6 +933,20 @@ function initEventListeners() {
 
   elements.volumeSlider.addEventListener('input', (e) => {
     updateVolume(parseInt(e.target.value, 10));
+  });
+
+  // Stats modal
+  elements.statsBtn.addEventListener('click', openStatsModal);
+  elements.statsCloseBtn.addEventListener('click', closeStatsModal);
+  elements.statsOverlay.addEventListener('click', (e) => {
+    if (e.target === elements.statsOverlay) {
+      closeStatsModal();
+    }
+  });
+  elements.statsOverlay.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeStatsModal();
+    }
   });
 
   // Keyboard shortcuts

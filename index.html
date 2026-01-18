@@ -109,6 +109,7 @@
       <span class="session-count" id="sessionCount">Session #1</span>
       <span class="session-separator">•</span>
       <span class="total-time" id="totalTime">0 min focused today</span>
+      <button class="stats-btn" id="statsBtn" aria-label="View statistics">📊</button>
     </div>
   </div>
 
@@ -143,6 +144,42 @@
       <div class="modal-actions">
         <button class="btn btn--secondary" id="modalCancelBtn">Cancel</button>
         <button class="btn btn--primary" id="modalSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Modal -->
+  <div class="modal-overlay" id="statsOverlay" aria-hidden="true">
+    <div class="modal modal--stats" role="dialog" aria-labelledby="statsTitle" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="statsTitle">Statistics</h2>
+        <button class="modal-close" id="statsCloseBtn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-content">
+        <!-- Summary Stats -->
+        <div class="stats-summary" id="statsSummary">
+          <div class="stat-card">
+            <span class="stat-value" id="statToday">0</span>
+            <span class="stat-label">Today</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="statWeek">0</span>
+            <span class="stat-label">This Week</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="statMonth">0</span>
+            <span class="stat-label">This Month</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="statTotal">0</span>
+            <span class="stat-label">All Time</span>
+          </div>
+        </div>
+        <!-- Chart -->
+        <div class="stats-chart-container">
+          <h3 class="chart-title">Last 14 Days</h3>
+          <div class="stats-chart" id="statsChart"></div>
+        </div>
       </div>
     </div>
   </div>
