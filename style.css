@@ -330,8 +330,8 @@ body {
 .presets {
   display: flex;
   gap: var(--spacing-sm);
-  flex-wrap: wrap;
   justify-content: center;
+  width: 100%;
 }
 
 .preset-btn {
@@ -349,7 +349,8 @@ body {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
-  min-width: 80px;
+  flex: 1;
+  min-width: 0;
 }
 
 .preset-btn:hover {
