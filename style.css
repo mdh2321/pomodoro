@@ -24,27 +24,6 @@
 
   --color-border: #e2e8f0;
   --color-border-focus: #0891b2;
-}
-
-/* Dark Mode Colors */
-[data-theme="dark"] {
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-surface-elevated: #334155;
-
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
-
-  --color-border: #334155;
-  --color-border-focus: #22d3ee;
-
-  --color-primary: #22d3ee;
-  --color-primary-dark: #0891b2;
-  --color-primary-light: #67e8f9;
-
-  --color-work: #22d3ee;
-  --color-break: #34d399;
 
   /* Typography */
   --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -88,6 +67,27 @@
   /* Timer specific */
   --timer-size: 280px;
   --progress-stroke-width: 8px;
+}
+
+/* Dark Mode Colors */
+[data-theme="dark"] {
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-elevated: #334155;
+
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+
+  --color-border: #334155;
+  --color-border-focus: #22d3ee;
+
+  --color-primary: #22d3ee;
+  --color-primary-dark: #0891b2;
+  --color-primary-light: #67e8f9;
+
+  --color-work: #22d3ee;
+  --color-break: #34d399;
 }
 
 /* Reset & Base Styles */
