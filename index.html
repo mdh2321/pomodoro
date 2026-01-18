@@ -10,12 +10,13 @@
 </head>
 <body>
   <div class="app">
-    <!-- Header with dark mode toggle -->
+    <!-- Header with theme toggle -->
     <div class="header">
       <h1 class="app-title">Pomo</h1>
-      <button class="dark-mode-toggle" id="darkModeToggle" aria-label="Toggle dark mode">
-        <span class="icon-sun">☀️</span>
-        <span class="icon-moon">🌙</span>
+      <button class="theme-toggle" id="themeToggle" aria-label="Cycle theme">
+        <span class="theme-icon theme-icon--light"></span>
+        <span class="theme-icon theme-icon--dark"></span>
+        <span class="theme-icon theme-icon--synthwave"></span>
       </button>
     </div>
 
@@ -96,6 +97,10 @@
         <button class="sound-btn" data-sound="river" aria-pressed="false">
           <span class="sound-icon sound-icon--river"></span>
           <span class="sound-label">River</span>
+        </button>
+        <button class="sound-btn" data-sound="synth" aria-pressed="false">
+          <span class="sound-icon sound-icon--synth"></span>
+          <span class="sound-label">Synth</span>
         </button>
       </div>
       <div class="volume-control">

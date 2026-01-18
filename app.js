@@ -37,11 +37,11 @@ const state = {
   // Timer interval reference
   intervalId: null,
 
-  // Dark mode
-  darkMode: false,
+  // Theme: 'light' | 'dark' | 'synthwave'
+  theme: 'light',
 
   // Ambient sounds
-  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'river'
+  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'river' | 'synth'
   volume: 50,
 
   // History tracking (all-time)
@@ -88,8 +88,8 @@ const elements = {
   modalCancelBtn: document.getElementById('modalCancelBtn'),
   modalSaveBtn: document.getElementById('modalSaveBtn'),
 
-  // Dark mode
-  darkModeToggle: document.getElementById('darkModeToggle'),
+  // Theme toggle
+  themeToggle: document.getElementById('themeToggle'),
 
   // Sound controls
   soundBtns: document.querySelectorAll('.sound-btn'),
@@ -130,9 +130,15 @@ function loadFromStorage() {
         state.totalFocusedMinutes = data.totalFocusedMinutes || 0;
       }
 
-      // Restore dark mode preference
-      if (data.darkMode) {
-        state.darkMode = true;
+      // Restore theme preference (with backward compatibility)
+      if (data.theme) {
+        state.theme = data.theme;
+        if (data.theme !== 'light') {
+          document.documentElement.setAttribute('data-theme', data.theme);
+        }
+      } else if (data.darkMode) {
+        // Backward compatibility: convert old darkMode boolean
+        state.theme = 'dark';
         document.documentElement.setAttribute('data-theme', 'dark');
       }
 
@@ -162,7 +168,7 @@ function saveToStorage() {
       currentPreset: state.currentPreset,
       sessionCount: state.sessionCount,
       totalFocusedMinutes: state.totalFocusedMinutes,
-      darkMode: state.darkMode,
+      theme: state.theme,
       currentSound: state.currentSound,
       volume: state.volume,
       history: state.history,
@@ -946,6 +952,122 @@ function playRiver() {
   ambientNodes.nodes.push(shimmerFilter, shimmerGain);
 }
 
+// Driving synthwave ambient music
+function playSynthwave() {
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.4;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Layer 1: Deep bass drone (saw wave ~55Hz)
+  const bassOsc = ctx.createOscillator();
+  bassOsc.type = 'sawtooth';
+  bassOsc.frequency.value = 55;
+
+  const bassFilter = ctx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 200;
+  bassFilter.Q.value = 1;
+
+  const bassGain = ctx.createGain();
+  bassGain.gain.value = 0.3;
+
+  bassOsc.connect(bassFilter);
+  bassFilter.connect(bassGain);
+  bassGain.connect(masterGain);
+  bassOsc.start();
+
+  ambientNodes.sources.push(bassOsc);
+  ambientNodes.nodes.push(bassFilter, bassGain);
+
+  // Layer 2: Pulsing pad (square wave ~110Hz with LFO)
+  const padOsc = ctx.createOscillator();
+  padOsc.type = 'square';
+  padOsc.frequency.value = 110;
+
+  const padFilter = ctx.createBiquadFilter();
+  padFilter.type = 'lowpass';
+  padFilter.frequency.value = 800;
+  padFilter.Q.value = 2;
+
+  // LFO for filter sweep
+  const padLfo = ctx.createOscillator();
+  padLfo.type = 'sine';
+  padLfo.frequency.value = 0.1;
+  const padLfoGain = ctx.createGain();
+  padLfoGain.gain.value = 300;
+  padLfo.connect(padLfoGain);
+  padLfoGain.connect(padFilter.frequency);
+  padLfo.start();
+
+  const padGain = ctx.createGain();
+  padGain.gain.value = 0.15;
+
+  padOsc.connect(padFilter);
+  padFilter.connect(padGain);
+  padGain.connect(masterGain);
+  padOsc.start();
+
+  ambientNodes.sources.push(padOsc, padLfo);
+  ambientNodes.nodes.push(padFilter, padLfoGain, padGain);
+
+  // Layer 3: High shimmer arpeggio feel (sine wave with tremolo)
+  const highOsc = ctx.createOscillator();
+  highOsc.type = 'sine';
+  highOsc.frequency.value = 440;
+
+  // Tremolo LFO
+  const tremoloLfo = ctx.createOscillator();
+  tremoloLfo.type = 'sine';
+  tremoloLfo.frequency.value = 4;
+  const tremoloGain = ctx.createGain();
+  tremoloGain.gain.value = 0.3;
+
+  const highGain = ctx.createGain();
+  highGain.gain.value = 0.08;
+
+  tremoloLfo.connect(tremoloGain);
+  tremoloGain.connect(highGain.gain);
+  tremoloLfo.start();
+
+  highOsc.connect(highGain);
+  highGain.connect(masterGain);
+  highOsc.start();
+
+  ambientNodes.sources.push(highOsc, tremoloLfo);
+  ambientNodes.nodes.push(tremoloGain, highGain);
+
+  // Layer 4: Sub bass pulse
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.value = 27.5;
+
+  const subGain = ctx.createGain();
+  subGain.gain.value = 0.2;
+
+  // Slow pulse on sub
+  const subLfo = ctx.createOscillator();
+  subLfo.type = 'sine';
+  subLfo.frequency.value = 0.25;
+  const subLfoGain = ctx.createGain();
+  subLfoGain.gain.value = 0.1;
+  subLfo.connect(subLfoGain);
+  subLfoGain.connect(subGain.gain);
+  subLfo.start();
+
+  subOsc.connect(subGain);
+  subGain.connect(masterGain);
+  subOsc.start();
+
+  ambientNodes.sources.push(subOsc, subLfo);
+  ambientNodes.nodes.push(subLfoGain, subGain);
+}
+
 function playAmbientSound(soundType) {
   state.currentSound = soundType;
 
@@ -973,6 +1095,9 @@ function playAmbientSound(soundType) {
       case 'river':
         playRiver();
         break;
+      case 'synth':
+        playSynthwave();
+        break;
     }
   }
 
@@ -988,6 +1113,7 @@ function updateVolume(value) {
     if (state.currentSound === 'rain') scale = 0.6;
     if (state.currentSound === 'fireplace') scale = 0.5;
     if (state.currentSound === 'river') scale = 0.5;
+    if (state.currentSound === 'synth') scale = 0.4;
 
     ambientNodes.gain.gain.value = value / 100 * scale;
   }
@@ -1109,16 +1235,20 @@ function generateChart() {
 }
 
 // ============================================
-// Dark Mode
+// Theme Management
 // ============================================
 
-function toggleDarkMode() {
-  state.darkMode = !state.darkMode;
+const THEMES = ['light', 'dark', 'synthwave'];
 
-  if (state.darkMode) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  } else {
+function cycleTheme() {
+  const currentIndex = THEMES.indexOf(state.theme);
+  const nextIndex = (currentIndex + 1) % THEMES.length;
+  state.theme = THEMES[nextIndex];
+
+  if (state.theme === 'light') {
     document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', state.theme);
   }
 
   saveToStorage();
@@ -1192,8 +1322,8 @@ function initEventListeners() {
     }
   });
 
-  // Dark mode toggle
-  elements.darkModeToggle.addEventListener('click', toggleDarkMode);
+  // Theme toggle
+  elements.themeToggle.addEventListener('click', cycleTheme);
 
   // Sound controls
   elements.soundBtns.forEach(btn => {
@@ -1251,10 +1381,10 @@ function initEventListeners() {
           }
         }
         break;
-      case 'KeyD':
+      case 'KeyT':
         if (!e.ctrlKey && !e.metaKey) {
           e.preventDefault();
-          toggleDarkMode();
+          cycleTheme();
         }
         break;
     }
@@ -1288,7 +1418,7 @@ function init() {
   // Initial UI update
   updateUI();
 
-  console.log('🍅 Pomo initialized. Keyboard shortcuts: Space (start/pause), R (reset), S (skip), D (dark mode)');
+  console.log('🍅 Pomo initialized. Keyboard shortcuts: Space (start/pause), R (reset), S (skip), T (theme)');
 }
 
 // Start the app
