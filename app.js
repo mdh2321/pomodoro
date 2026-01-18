@@ -41,7 +41,7 @@ const state = {
   darkMode: false,
 
   // Ambient sounds
-  currentSound: 'off', // 'off' | 'rain' | 'whitenoise' | 'fireplace'
+  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'river'
   volume: 50,
 
   // History tracking (all-time)
@@ -541,14 +541,13 @@ function createNotification() {
 }
 
 // ============================================
-// Ambient Sounds
+// Ambient Sounds (High Quality)
 // ============================================
 
 function initAudioContext() {
   if (!audioContext) {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
-  // Resume if suspended (browser autoplay policy)
   if (audioContext.state === 'suspended') {
     audioContext.resume();
   }
@@ -556,124 +555,333 @@ function initAudioContext() {
 }
 
 function stopAmbientSound() {
+  // Stop all sources and nodes
+  if (ambientNodes.sources) {
+    ambientNodes.sources.forEach(s => {
+      try { s.stop(); } catch(e) {}
+      s.disconnect();
+    });
+  }
   if (ambientNodes.source) {
-    try {
-      ambientNodes.source.stop();
-    } catch (e) {
-      // Already stopped
-    }
+    try { ambientNodes.source.stop(); } catch(e) {}
     ambientNodes.source.disconnect();
-    ambientNodes.source = null;
+  }
+  if (ambientNodes.nodes) {
+    ambientNodes.nodes.forEach(n => n.disconnect());
   }
   if (ambientNodes.gain) {
     ambientNodes.gain.disconnect();
-    ambientNodes.gain = null;
   }
-  if (ambientNodes.filter) {
-    ambientNodes.filter.disconnect();
-    ambientNodes.filter = null;
+  if (ambientNodes.interval) {
+    clearInterval(ambientNodes.interval);
   }
+
+  ambientNodes = { source: null, gain: null, filter: null, sources: [], nodes: [], interval: null };
 }
 
-function createNoiseBuffer(ctx, type) {
-  const bufferSize = ctx.sampleRate * 2; // 2 seconds of audio
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
+// Create noise buffer with specified characteristics
+function createNoiseBuffer(ctx, type, duration = 4) {
+  const bufferSize = ctx.sampleRate * duration;
+  const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate); // Stereo
+  const dataL = buffer.getChannelData(0);
+  const dataR = buffer.getChannelData(1);
 
   if (type === 'white') {
-    // White noise: random values
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
+      dataL[i] = Math.random() * 2 - 1;
+      dataR[i] = Math.random() * 2 - 1;
     }
-  } else if (type === 'brown') {
-    // Brown noise: integrated white noise (smoother)
-    let lastOut = 0;
+  } else if (type === 'pink') {
+    // Pink noise using Paul Kellet's refined method
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
-      data[i] = (lastOut + 0.02 * white) / 1.02;
-      lastOut = data[i];
-      data[i] *= 3.5; // Boost volume
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      b6 = white * 0.115926;
+      dataL[i] = pink;
+      // Slightly different for stereo width
+      const white2 = Math.random() * 2 - 1;
+      dataR[i] = pink * 0.7 + white2 * 0.3;
+    }
+  } else if (type === 'brown') {
+    let lastL = 0, lastR = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const whiteL = Math.random() * 2 - 1;
+      const whiteR = Math.random() * 2 - 1;
+      lastL = (lastL + 0.02 * whiteL) / 1.02;
+      lastR = (lastR + 0.02 * whiteR) / 1.02;
+      dataL[i] = lastL * 3.5;
+      dataR[i] = lastR * 3.5;
     }
   }
 
   return buffer;
 }
 
-function playWhiteNoise() {
+// Rain on tent - layered approach with patter and droplets
+function playRainOnTent() {
   const ctx = initAudioContext();
   stopAmbientSound();
 
-  const buffer = createNoiseBuffer(ctx, 'white');
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.loop = true;
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.6;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
 
-  const gain = ctx.createGain();
-  gain.gain.value = state.volume / 100 * 0.3; // Scale down for comfort
+  // Layer 1: Continuous rain patter (pink noise, low-passed)
+  const patterBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const patterSource = ctx.createBufferSource();
+  patterSource.buffer = patterBuffer;
+  patterSource.loop = true;
 
-  source.connect(gain);
-  gain.connect(ctx.destination);
-  source.start();
+  const patterFilter = ctx.createBiquadFilter();
+  patterFilter.type = 'lowpass';
+  patterFilter.frequency.value = 800;
+  patterFilter.Q.value = 0.5;
 
-  ambientNodes.source = source;
-  ambientNodes.gain = gain;
+  const patterGain = ctx.createGain();
+  patterGain.gain.value = 0.4;
+
+  patterSource.connect(patterFilter);
+  patterFilter.connect(patterGain);
+  patterGain.connect(masterGain);
+  patterSource.start();
+
+  ambientNodes.sources.push(patterSource);
+  ambientNodes.nodes.push(patterFilter, patterGain);
+
+  // Layer 2: Tent fabric resonance (filtered brown noise, mid frequencies)
+  const tentBuffer = createNoiseBuffer(ctx, 'brown', 4);
+  const tentSource = ctx.createBufferSource();
+  tentSource.buffer = tentBuffer;
+  tentSource.loop = true;
+
+  const tentFilter = ctx.createBiquadFilter();
+  tentFilter.type = 'bandpass';
+  tentFilter.frequency.value = 300;
+  tentFilter.Q.value = 1.5;
+
+  const tentGain = ctx.createGain();
+  tentGain.gain.value = 0.25;
+
+  tentSource.connect(tentFilter);
+  tentFilter.connect(tentGain);
+  tentGain.connect(masterGain);
+  tentSource.start();
+
+  ambientNodes.sources.push(tentSource);
+  ambientNodes.nodes.push(tentFilter, tentGain);
+
+  // Layer 3: High frequency droplet detail
+  const dropBuffer = createNoiseBuffer(ctx, 'white', 4);
+  const dropSource = ctx.createBufferSource();
+  dropSource.buffer = dropBuffer;
+  dropSource.loop = true;
+
+  const dropFilter = ctx.createBiquadFilter();
+  dropFilter.type = 'highpass';
+  dropFilter.frequency.value = 2000;
+
+  const dropFilter2 = ctx.createBiquadFilter();
+  dropFilter2.type = 'lowpass';
+  dropFilter2.frequency.value = 6000;
+
+  const dropGain = ctx.createGain();
+  dropGain.gain.value = 0.08;
+
+  dropSource.connect(dropFilter);
+  dropFilter.connect(dropFilter2);
+  dropFilter2.connect(dropGain);
+  dropGain.connect(masterGain);
+  dropSource.start();
+
+  ambientNodes.sources.push(dropSource);
+  ambientNodes.nodes.push(dropFilter, dropFilter2, dropGain);
 }
 
-function playRain() {
-  const ctx = initAudioContext();
-  stopAmbientSound();
-
-  // Rain: filtered brown noise
-  const buffer = createNoiseBuffer(ctx, 'brown');
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.loop = true;
-
-  // Low-pass filter for rain-like sound
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = 400;
-
-  const gain = ctx.createGain();
-  gain.gain.value = state.volume / 100 * 0.5;
-
-  source.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-  source.start();
-
-  ambientNodes.source = source;
-  ambientNodes.filter = filter;
-  ambientNodes.gain = gain;
-}
-
+// Fireplace with crackling
 function playFireplace() {
   const ctx = initAudioContext();
   stopAmbientSound();
 
-  // Fireplace: brown noise with bandpass filter
-  const buffer = createNoiseBuffer(ctx, 'brown');
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.loop = true;
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.5;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
 
-  // Bandpass filter for crackling fire sound
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = 200;
-  filter.Q.value = 0.5;
+  // Layer 1: Base fire roar (brown noise)
+  const baseBuffer = createNoiseBuffer(ctx, 'brown', 4);
+  const baseSource = ctx.createBufferSource();
+  baseSource.buffer = baseBuffer;
+  baseSource.loop = true;
 
-  const gain = ctx.createGain();
-  gain.gain.value = state.volume / 100 * 0.6;
+  const baseFilter = ctx.createBiquadFilter();
+  baseFilter.type = 'lowpass';
+  baseFilter.frequency.value = 500;
+  baseFilter.Q.value = 0.7;
 
-  source.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-  source.start();
+  const baseGain = ctx.createGain();
+  baseGain.gain.value = 0.5;
 
-  ambientNodes.source = source;
-  ambientNodes.filter = filter;
-  ambientNodes.gain = gain;
+  baseSource.connect(baseFilter);
+  baseFilter.connect(baseGain);
+  baseGain.connect(masterGain);
+  baseSource.start();
+
+  ambientNodes.sources.push(baseSource);
+  ambientNodes.nodes.push(baseFilter, baseGain);
+
+  // Layer 2: Mid crackle layer
+  const midBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const midSource = ctx.createBufferSource();
+  midSource.buffer = midBuffer;
+  midSource.loop = true;
+
+  const midFilter = ctx.createBiquadFilter();
+  midFilter.type = 'bandpass';
+  midFilter.frequency.value = 1000;
+  midFilter.Q.value = 1.0;
+
+  const midGain = ctx.createGain();
+  midGain.gain.value = 0.15;
+
+  midSource.connect(midFilter);
+  midFilter.connect(midGain);
+  midGain.connect(masterGain);
+  midSource.start();
+
+  ambientNodes.sources.push(midSource);
+  ambientNodes.nodes.push(midFilter, midGain);
+
+  // Layer 3: Random crackle pops
+  function playCrackle() {
+    if (!ambientNodes.gain) return;
+
+    const crackleGain = ctx.createGain();
+    const intensity = 0.1 + Math.random() * 0.2;
+    crackleGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
+    crackleGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05 + Math.random() * 0.1);
+    crackleGain.connect(masterGain);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 100 + Math.random() * 200;
+
+    const crackleFilter = ctx.createBiquadFilter();
+    crackleFilter.type = 'bandpass';
+    crackleFilter.frequency.value = 800 + Math.random() * 1500;
+    crackleFilter.Q.value = 5 + Math.random() * 10;
+
+    osc.connect(crackleFilter);
+    crackleFilter.connect(crackleGain);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  }
+
+  // Random crackles at varying intervals
+  ambientNodes.interval = setInterval(() => {
+    if (Math.random() > 0.3) {
+      playCrackle();
+    }
+  }, 200 + Math.random() * 400);
+}
+
+// River/stream sound
+function playRiver() {
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.5;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Layer 1: Deep water flow (brown noise, very low)
+  const deepBuffer = createNoiseBuffer(ctx, 'brown', 4);
+  const deepSource = ctx.createBufferSource();
+  deepSource.buffer = deepBuffer;
+  deepSource.loop = true;
+
+  const deepFilter = ctx.createBiquadFilter();
+  deepFilter.type = 'lowpass';
+  deepFilter.frequency.value = 200;
+
+  const deepGain = ctx.createGain();
+  deepGain.gain.value = 0.3;
+
+  deepSource.connect(deepFilter);
+  deepFilter.connect(deepGain);
+  deepGain.connect(masterGain);
+  deepSource.start();
+
+  ambientNodes.sources.push(deepSource);
+  ambientNodes.nodes.push(deepFilter, deepGain);
+
+  // Layer 2: Main water flow (pink noise with modulation)
+  const flowBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const flowSource = ctx.createBufferSource();
+  flowSource.buffer = flowBuffer;
+  flowSource.loop = true;
+
+  const flowFilter = ctx.createBiquadFilter();
+  flowFilter.type = 'bandpass';
+  flowFilter.frequency.value = 600;
+  flowFilter.Q.value = 0.5;
+
+  // Add subtle modulation for movement
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.3;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 100;
+  lfo.connect(lfoGain);
+  lfoGain.connect(flowFilter.frequency);
+  lfo.start();
+
+  const flowGain = ctx.createGain();
+  flowGain.gain.value = 0.4;
+
+  flowSource.connect(flowFilter);
+  flowFilter.connect(flowGain);
+  flowGain.connect(masterGain);
+  flowSource.start();
+
+  ambientNodes.sources.push(flowSource, lfo);
+  ambientNodes.nodes.push(flowFilter, lfoGain, flowGain);
+
+  // Layer 3: Bubbling/splashing high frequencies
+  const bubbleBuffer = createNoiseBuffer(ctx, 'white', 4);
+  const bubbleSource = ctx.createBufferSource();
+  bubbleSource.buffer = bubbleBuffer;
+  bubbleSource.loop = true;
+
+  const bubbleFilter = ctx.createBiquadFilter();
+  bubbleFilter.type = 'bandpass';
+  bubbleFilter.frequency.value = 3000;
+  bubbleFilter.Q.value = 2;
+
+  const bubbleGain = ctx.createGain();
+  bubbleGain.gain.value = 0.06;
+
+  bubbleSource.connect(bubbleFilter);
+  bubbleFilter.connect(bubbleGain);
+  bubbleGain.connect(masterGain);
+  bubbleSource.start();
+
+  ambientNodes.sources.push(bubbleSource);
+  ambientNodes.nodes.push(bubbleFilter, bubbleGain);
 }
 
 function playAmbientSound(soundType) {
@@ -695,13 +903,13 @@ function playAmbientSound(soundType) {
   if (soundType !== 'off' && shouldPlay) {
     switch (soundType) {
       case 'rain':
-        playRain();
-        break;
-      case 'whitenoise':
-        playWhiteNoise();
+        playRainOnTent();
         break;
       case 'fireplace':
         playFireplace();
+        break;
+      case 'river':
+        playRiver();
         break;
     }
   }
@@ -714,9 +922,10 @@ function updateVolume(value) {
 
   if (ambientNodes.gain) {
     // Scale based on sound type
-    let scale = 0.3;
-    if (state.currentSound === 'rain') scale = 0.5;
-    if (state.currentSound === 'fireplace') scale = 0.6;
+    let scale = 0.5;
+    if (state.currentSound === 'rain') scale = 0.6;
+    if (state.currentSound === 'fireplace') scale = 0.5;
+    if (state.currentSound === 'river') scale = 0.5;
 
     ambientNodes.gain.gain.value = value / 100 * scale;
   }
