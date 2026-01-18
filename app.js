@@ -38,7 +38,19 @@ const state = {
   intervalId: null,
 
   // Dark mode
-  darkMode: false
+  darkMode: false,
+
+  // Ambient sounds
+  currentSound: 'off', // 'off' | 'rain' | 'whitenoise' | 'fireplace'
+  volume: 50
+};
+
+// Audio context and nodes for ambient sounds
+let audioContext = null;
+let ambientNodes = {
+  source: null,
+  gain: null,
+  filter: null
 };
 
 // ============================================
@@ -74,7 +86,11 @@ const elements = {
   modalSaveBtn: document.getElementById('modalSaveBtn'),
 
   // Dark mode
-  darkModeToggle: document.getElementById('darkModeToggle')
+  darkModeToggle: document.getElementById('darkModeToggle'),
+
+  // Sound controls
+  soundBtns: document.querySelectorAll('.sound-btn'),
+  volumeSlider: document.getElementById('volumeSlider')
 };
 
 // ============================================
@@ -109,6 +125,15 @@ function loadFromStorage() {
         state.darkMode = true;
         document.documentElement.setAttribute('data-theme', 'dark');
       }
+
+      // Restore sound preferences
+      if (data.currentSound) {
+        state.currentSound = data.currentSound;
+      }
+      if (typeof data.volume === 'number') {
+        state.volume = data.volume;
+        elements.volumeSlider.value = data.volume;
+      }
     }
   } catch (e) {
     console.warn('Failed to load from storage:', e);
@@ -123,6 +148,8 @@ function saveToStorage() {
       sessionCount: state.sessionCount,
       totalFocusedMinutes: state.totalFocusedMinutes,
       darkMode: state.darkMode,
+      currentSound: state.currentSound,
+      volume: state.volume,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -145,6 +172,11 @@ function startTimer() {
   state.status = 'running';
   updateUI();
 
+  // Start ambient sound if in work mode
+  if (state.mode === 'work' && state.currentSound !== 'off') {
+    playAmbientSound(state.currentSound);
+  }
+
   state.intervalId = setInterval(() => {
     state.remainingSeconds--;
 
@@ -164,6 +196,7 @@ function pauseTimer() {
   clearInterval(state.intervalId);
   state.intervalId = null;
   state.status = 'paused';
+  stopAmbientSound();
   updateUI();
 }
 
@@ -201,6 +234,9 @@ function completeTimer() {
   state.remainingSeconds = 0;
   state.status = 'completed';
 
+  // Stop ambient sounds
+  stopAmbientSound();
+
   // Track completed work session
   if (state.mode === 'work') {
     state.totalFocusedMinutes += Math.round(state.totalSeconds / 60);
@@ -224,6 +260,7 @@ function switchMode() {
   state.status = 'idle';
 
   updateUI();
+  updateAmbientSoundForMode();
 }
 
 // ============================================
@@ -478,6 +515,199 @@ function createNotification() {
 }
 
 // ============================================
+// Ambient Sounds
+// ============================================
+
+function initAudioContext() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // Resume if suspended (browser autoplay policy)
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+  return audioContext;
+}
+
+function stopAmbientSound() {
+  if (ambientNodes.source) {
+    try {
+      ambientNodes.source.stop();
+    } catch (e) {
+      // Already stopped
+    }
+    ambientNodes.source.disconnect();
+    ambientNodes.source = null;
+  }
+  if (ambientNodes.gain) {
+    ambientNodes.gain.disconnect();
+    ambientNodes.gain = null;
+  }
+  if (ambientNodes.filter) {
+    ambientNodes.filter.disconnect();
+    ambientNodes.filter = null;
+  }
+}
+
+function createNoiseBuffer(ctx, type) {
+  const bufferSize = ctx.sampleRate * 2; // 2 seconds of audio
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+
+  if (type === 'white') {
+    // White noise: random values
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+  } else if (type === 'brown') {
+    // Brown noise: integrated white noise (smoother)
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      data[i] = (lastOut + 0.02 * white) / 1.02;
+      lastOut = data[i];
+      data[i] *= 3.5; // Boost volume
+    }
+  }
+
+  return buffer;
+}
+
+function playWhiteNoise() {
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const buffer = createNoiseBuffer(ctx, 'white');
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  const gain = ctx.createGain();
+  gain.gain.value = state.volume / 100 * 0.3; // Scale down for comfort
+
+  source.connect(gain);
+  gain.connect(ctx.destination);
+  source.start();
+
+  ambientNodes.source = source;
+  ambientNodes.gain = gain;
+}
+
+function playRain() {
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  // Rain: filtered brown noise
+  const buffer = createNoiseBuffer(ctx, 'brown');
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  // Low-pass filter for rain-like sound
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 400;
+
+  const gain = ctx.createGain();
+  gain.gain.value = state.volume / 100 * 0.5;
+
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  source.start();
+
+  ambientNodes.source = source;
+  ambientNodes.filter = filter;
+  ambientNodes.gain = gain;
+}
+
+function playFireplace() {
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  // Fireplace: brown noise with bandpass filter
+  const buffer = createNoiseBuffer(ctx, 'brown');
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  // Bandpass filter for crackling fire sound
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 200;
+  filter.Q.value = 0.5;
+
+  const gain = ctx.createGain();
+  gain.gain.value = state.volume / 100 * 0.6;
+
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  source.start();
+
+  ambientNodes.source = source;
+  ambientNodes.filter = filter;
+  ambientNodes.gain = gain;
+}
+
+function playAmbientSound(soundType) {
+  state.currentSound = soundType;
+
+  // Update UI
+  elements.soundBtns.forEach(btn => {
+    const isActive = btn.dataset.sound === soundType;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  // Stop current sound
+  stopAmbientSound();
+
+  // Only play during work mode or if timer is idle
+  const shouldPlay = state.mode === 'work' || state.status === 'idle';
+
+  if (soundType !== 'off' && shouldPlay) {
+    switch (soundType) {
+      case 'rain':
+        playRain();
+        break;
+      case 'whitenoise':
+        playWhiteNoise();
+        break;
+      case 'fireplace':
+        playFireplace();
+        break;
+    }
+  }
+
+  saveToStorage();
+}
+
+function updateVolume(value) {
+  state.volume = value;
+
+  if (ambientNodes.gain) {
+    // Scale based on sound type
+    let scale = 0.3;
+    if (state.currentSound === 'rain') scale = 0.5;
+    if (state.currentSound === 'fireplace') scale = 0.6;
+
+    ambientNodes.gain.gain.value = value / 100 * scale;
+  }
+
+  saveToStorage();
+}
+
+function updateAmbientSoundForMode() {
+  // Pause sounds during breaks, resume during work
+  if (state.mode === 'break' || state.status === 'completed') {
+    stopAmbientSound();
+  } else if (state.currentSound !== 'off' && state.status === 'running') {
+    playAmbientSound(state.currentSound);
+  }
+}
+
+// ============================================
 // Dark Mode
 // ============================================
 
@@ -564,6 +794,17 @@ function initEventListeners() {
   // Dark mode toggle
   elements.darkModeToggle.addEventListener('click', toggleDarkMode);
 
+  // Sound controls
+  elements.soundBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      playAmbientSound(btn.dataset.sound);
+    });
+  });
+
+  elements.volumeSlider.addEventListener('input', (e) => {
+    updateVolume(parseInt(e.target.value, 10));
+  });
+
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     // Don't trigger if typing in input
@@ -621,6 +862,13 @@ function init() {
   updateCustomPresetDisplay();
   selectPreset(state.currentPreset);
   initEventListeners();
+
+  // Restore sound button UI state
+  elements.soundBtns.forEach(btn => {
+    const isActive = btn.dataset.sound === state.currentSound;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
 
   // Initial UI update
   updateUI();
