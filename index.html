@@ -43,6 +43,28 @@
       </div>
     </div>
 
+    <!-- Task Intent -->
+    <div class="task-intent" id="taskIntent">
+      <div class="task-input-container" id="taskInputContainer">
+        <input
+          type="text"
+          class="task-input"
+          id="taskInput"
+          placeholder="What are you working on?"
+          maxlength="70"
+          aria-label="Current task"
+        >
+      </div>
+      <div class="task-display" id="taskDisplay" hidden>
+        <span class="task-text" id="taskText"></span>
+        <div class="task-actions">
+          <button class="task-btn task-btn--complete" id="taskCompleteBtn">Complete</button>
+          <button class="task-btn task-btn--clear" id="taskClearBtn">Clear</button>
+        </div>
+      </div>
+      <div class="task-celebration" id="taskCelebration" hidden></div>
+    </div>
+
     <!-- Control Buttons -->
     <div class="controls">
       <button class="btn btn--primary" id="startBtn" aria-label="Start timer">

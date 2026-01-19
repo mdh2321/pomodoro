@@ -40,6 +40,9 @@ const state = {
   // Theme: 'light' | 'dark' | 'synthwave'
   theme: 'light',
 
+  // Task intent
+  currentTask: '',
+
   // Ambient sounds
   currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'river' | 'synthDrive' | 'synthNeon' | 'synthGrid'
   volume: 50,
@@ -100,7 +103,16 @@ const elements = {
   statsOverlay: document.getElementById('statsOverlay'),
   statsCloseBtn: document.getElementById('statsCloseBtn'),
   statsChart: document.getElementById('statsChart'),
-  statsSummary: document.getElementById('statsSummary')
+  statsSummary: document.getElementById('statsSummary'),
+
+  // Task intent
+  taskInput: document.getElementById('taskInput'),
+  taskInputContainer: document.getElementById('taskInputContainer'),
+  taskDisplay: document.getElementById('taskDisplay'),
+  taskText: document.getElementById('taskText'),
+  taskCompleteBtn: document.getElementById('taskCompleteBtn'),
+  taskClearBtn: document.getElementById('taskClearBtn'),
+  taskCelebration: document.getElementById('taskCelebration')
 };
 
 // ============================================
@@ -155,6 +167,11 @@ function loadFromStorage() {
       if (data.history) {
         state.history = data.history;
       }
+
+      // Restore current task
+      if (data.currentTask) {
+        state.currentTask = data.currentTask;
+      }
     }
   } catch (e) {
     console.warn('Failed to load from storage:', e);
@@ -172,6 +189,7 @@ function saveToStorage() {
       currentSound: state.currentSound,
       volume: state.volume,
       history: state.history,
+      currentTask: state.currentTask,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -1496,6 +1514,69 @@ function generateChart() {
 }
 
 // ============================================
+// Task Intent
+// ============================================
+
+function setTask(text) {
+  const trimmed = text.trim().slice(0, 70);
+  if (!trimmed) return;
+
+  state.currentTask = trimmed;
+  elements.taskText.textContent = trimmed;
+  elements.taskInputContainer.hidden = true;
+  elements.taskDisplay.hidden = false;
+  saveToStorage();
+}
+
+function clearTask() {
+  state.currentTask = '';
+  elements.taskInput.value = '';
+  elements.taskInputContainer.hidden = false;
+  elements.taskDisplay.hidden = true;
+  saveToStorage();
+}
+
+function completeTask() {
+  playCelebration();
+  clearTask();
+}
+
+function playCelebration() {
+  const container = elements.taskCelebration;
+  container.hidden = false;
+  container.innerHTML = '';
+
+  const colors = ['#ff6b35', '#c77dff', '#4ade80', '#fbbf24', '#60a5fa'];
+
+  for (let i = 0; i < 20; i++) {
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti';
+    confetti.style.background = colors[i % colors.length];
+    confetti.style.left = `${(Math.random() - 0.5) * 200}px`;
+    confetti.style.top = `${(Math.random() - 0.5) * 100}px`;
+    confetti.style.animationDelay = `${Math.random() * 0.3}s`;
+    confetti.style.animationDuration = `${0.8 + Math.random() * 0.4}s`;
+    container.appendChild(confetti);
+  }
+
+  setTimeout(() => {
+    container.hidden = true;
+    container.innerHTML = '';
+  }, 1500);
+}
+
+function updateTaskUI() {
+  if (state.currentTask) {
+    elements.taskText.textContent = state.currentTask;
+    elements.taskInputContainer.hidden = true;
+    elements.taskDisplay.hidden = false;
+  } else {
+    elements.taskInputContainer.hidden = false;
+    elements.taskDisplay.hidden = true;
+  }
+}
+
+// ============================================
 // Theme Management
 // ============================================
 
@@ -1611,6 +1692,17 @@ function initEventListeners() {
     }
   });
 
+  // Task intent
+  elements.taskInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && elements.taskInput.value.trim()) {
+      setTask(elements.taskInput.value);
+      elements.taskInput.blur();
+    }
+  });
+
+  elements.taskCompleteBtn.addEventListener('click', completeTask);
+  elements.taskClearBtn.addEventListener('click', clearTask);
+
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     // Don't trigger if typing in input
@@ -1675,6 +1767,9 @@ function init() {
     btn.classList.toggle('active', isActive);
     btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
+
+  // Restore task UI state
+  updateTaskUI();
 
   // Initial UI update
   updateUI();
