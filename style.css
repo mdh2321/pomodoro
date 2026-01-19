@@ -690,30 +690,91 @@ body {
   height: 4px;
 }
 
-/* Synth icon - wave pattern */
-.sound-icon--synth::before {
-  content: '';
-  width: 16px;
-  height: 10px;
-  background: repeating-linear-gradient(
-    90deg,
-    currentColor 0px,
-    currentColor 2px,
-    transparent 2px,
-    transparent 4px
-  );
-  mask: linear-gradient(0deg, transparent 0%, black 30%, black 70%, transparent 100%);
-  -webkit-mask: linear-gradient(0deg, transparent 0%, black 30%, black 70%, transparent 100%);
+/* Theme-conditional sound buttons */
+/* Hide synth buttons by default (show only in synthwave theme) */
+.sound-btn--synth {
+  display: none;
 }
 
-.sound-icon--synth::after {
+/* Show synth buttons in synthwave theme, hide nature buttons */
+[data-theme="synthwave"] .sound-btn--synth {
+  display: flex;
+}
+
+[data-theme="synthwave"] .sound-btn--nature {
+  display: none;
+}
+
+/* Drive icon - car/road shape */
+.sound-icon--drive::before {
+  content: '';
+  width: 14px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  top: 2px;
+}
+
+.sound-icon--drive::after {
   content: '';
   position: absolute;
-  width: 14px;
-  height: 6px;
+  width: 16px;
+  height: 4px;
+  background: currentColor;
+  bottom: 2px;
+  border-radius: 2px;
+}
+
+/* Neon icon - glowing lines */
+.sound-icon--neon::before {
+  content: '';
+  width: 12px;
+  height: 12px;
   border: 2px solid currentColor;
-  border-radius: 0 0 50% 50% / 0 0 100% 100%;
-  top: 2px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.sound-icon--neon::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+/* Grid icon - perspective grid */
+.sound-icon--grid::before {
+  content: '';
+  width: 14px;
+  height: 10px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      currentColor 0px,
+      currentColor 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      currentColor 0px,
+      currentColor 1px,
+      transparent 1px,
+      transparent 4px
+    );
+}
+
+.sound-icon--grid::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 14px;
+  height: 4px;
+  background: currentColor;
+  clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
 }
 
 .sound-label {

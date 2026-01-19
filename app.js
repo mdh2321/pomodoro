@@ -41,7 +41,7 @@ const state = {
   theme: 'light',
 
   // Ambient sounds
-  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'river' | 'synth'
+  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'river' | 'synthDrive' | 'synthNeon' | 'synthGrid'
   volume: 50,
 
   // History tracking (all-time)
@@ -581,11 +581,14 @@ function stopAmbientSound() {
   if (ambientNodes.interval) {
     clearInterval(ambientNodes.interval);
   }
+  if (ambientNodes.extraInterval) {
+    clearInterval(ambientNodes.extraInterval);
+  }
   if (ambientNodes.thunderTimeout) {
     clearTimeout(ambientNodes.thunderTimeout);
   }
 
-  ambientNodes = { source: null, gain: null, filter: null, sources: [], nodes: [], interval: null, thunderTimeout: null };
+  ambientNodes = { source: null, gain: null, filter: null, sources: [], nodes: [], interval: null, extraInterval: null, thunderTimeout: null };
 }
 
 // Create noise buffer with specified characteristics
@@ -952,30 +955,205 @@ function playRiver() {
   ambientNodes.nodes.push(shimmerFilter, shimmerGain);
 }
 
-// Driving synthwave ambient music
-function playSynthwave() {
+// Synthwave Track 1: Drive - Energetic, pulsing, driving feel
+function playSynthDrive() {
   const ctx = initAudioContext();
   stopAmbientSound();
 
   const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.4;
+  masterGain.gain.value = state.volume / 100 * 0.35;
   masterGain.connect(ctx.destination);
   ambientNodes.gain = masterGain;
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Deep bass drone (saw wave ~55Hz)
+  // Driving bass - pulsing saw wave
   const bassOsc = ctx.createOscillator();
   bassOsc.type = 'sawtooth';
-  bassOsc.frequency.value = 55;
+  bassOsc.frequency.value = 55; // A1
+
+  const bassFilter = ctx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 400;
+  bassFilter.Q.value = 2;
+
+  // Rhythmic pulse on the bass (eighth notes feel)
+  const bassLfo = ctx.createOscillator();
+  bassLfo.type = 'square';
+  bassLfo.frequency.value = 2; // Pulsing rhythm
+  const bassLfoGain = ctx.createGain();
+  bassLfoGain.gain.value = 0.15;
+  bassLfo.connect(bassLfoGain);
+  bassLfoGain.connect(masterGain);
+
+  const bassGain = ctx.createGain();
+  bassGain.gain.value = 0.25;
+  bassLfo.start();
+
+  bassOsc.connect(bassFilter);
+  bassFilter.connect(bassGain);
+  bassGain.connect(masterGain);
+  bassOsc.start();
+
+  ambientNodes.sources.push(bassOsc, bassLfo);
+  ambientNodes.nodes.push(bassFilter, bassLfoGain, bassGain);
+
+  // Arpeggio layer - cycling through notes
+  const arpNotes = [220, 277.18, 329.63, 440]; // A3, C#4, E4, A4
+  let arpIndex = 0;
+
+  const arpOsc = ctx.createOscillator();
+  arpOsc.type = 'sawtooth';
+  arpOsc.frequency.value = arpNotes[0];
+
+  const arpFilter = ctx.createBiquadFilter();
+  arpFilter.type = 'lowpass';
+  arpFilter.frequency.value = 2000;
+  arpFilter.Q.value = 3;
+
+  // Filter sweep LFO
+  const arpFilterLfo = ctx.createOscillator();
+  arpFilterLfo.type = 'sine';
+  arpFilterLfo.frequency.value = 0.15;
+  const arpFilterLfoGain = ctx.createGain();
+  arpFilterLfoGain.gain.value = 1000;
+  arpFilterLfo.connect(arpFilterLfoGain);
+  arpFilterLfoGain.connect(arpFilter.frequency);
+  arpFilterLfo.start();
+
+  const arpGain = ctx.createGain();
+  arpGain.gain.value = 0.12;
+
+  arpOsc.connect(arpFilter);
+  arpFilter.connect(arpGain);
+  arpGain.connect(masterGain);
+  arpOsc.start();
+
+  // Cycle through arp notes
+  ambientNodes.interval = setInterval(() => {
+    if (!ambientNodes.gain) return;
+    arpIndex = (arpIndex + 1) % arpNotes.length;
+    arpOsc.frequency.setTargetAtTime(arpNotes[arpIndex], ctx.currentTime, 0.02);
+  }, 150);
+
+  ambientNodes.sources.push(arpOsc, arpFilterLfo);
+  ambientNodes.nodes.push(arpFilter, arpFilterLfoGain, arpGain);
+
+  // Pad layer - warm sustained chords
+  const padFreqs = [110, 138.59, 165]; // A2, C#3, E3 (A major)
+  padFreqs.forEach((freq, i) => {
+    const padOsc = ctx.createOscillator();
+    padOsc.type = 'sine';
+    padOsc.frequency.value = freq;
+
+    // Slight detuning for warmth
+    const detune = (i - 1) * 5;
+    padOsc.detune.value = detune;
+
+    const padGain = ctx.createGain();
+    padGain.gain.value = 0.06;
+
+    padOsc.connect(padGain);
+    padGain.connect(masterGain);
+    padOsc.start();
+
+    ambientNodes.sources.push(padOsc);
+    ambientNodes.nodes.push(padGain);
+  });
+
+  // Sub bass for depth
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.value = 27.5; // A0
+
+  const subGain = ctx.createGain();
+  subGain.gain.value = 0.18;
+
+  subOsc.connect(subGain);
+  subGain.connect(masterGain);
+  subOsc.start();
+
+  ambientNodes.sources.push(subOsc);
+  ambientNodes.nodes.push(subGain);
+}
+
+// Synthwave Track 2: Neon - Dreamy, atmospheric, lush
+function playSynthNeon() {
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.35;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Lush pad - layered triangle waves with slow modulation
+  const padFreqs = [130.81, 164.81, 196, 261.63]; // C3, E3, G3, C4 (C major)
+  padFreqs.forEach((freq, i) => {
+    const padOsc = ctx.createOscillator();
+    padOsc.type = 'triangle';
+    padOsc.frequency.value = freq;
+
+    // Slow vibrato
+    const vibLfo = ctx.createOscillator();
+    vibLfo.type = 'sine';
+    vibLfo.frequency.value = 0.3 + i * 0.1;
+    const vibGain = ctx.createGain();
+    vibGain.gain.value = freq * 0.01;
+    vibLfo.connect(vibGain);
+    vibGain.connect(padOsc.frequency);
+    vibLfo.start();
+
+    const padGain = ctx.createGain();
+    padGain.gain.value = 0.08;
+
+    padOsc.connect(padGain);
+    padGain.connect(masterGain);
+    padOsc.start();
+
+    ambientNodes.sources.push(padOsc, vibLfo);
+    ambientNodes.nodes.push(vibGain, padGain);
+  });
+
+  // Shimmering high layer
+  const shimmerOsc = ctx.createOscillator();
+  shimmerOsc.type = 'sine';
+  shimmerOsc.frequency.value = 523.25; // C5
+
+  // Tremolo effect
+  const shimmerLfo = ctx.createOscillator();
+  shimmerLfo.type = 'sine';
+  shimmerLfo.frequency.value = 6;
+  const shimmerLfoGain = ctx.createGain();
+  shimmerLfoGain.gain.value = 0.04;
+
+  const shimmerGain = ctx.createGain();
+  shimmerGain.gain.value = 0.04;
+
+  shimmerLfo.connect(shimmerLfoGain);
+  shimmerLfoGain.connect(shimmerGain.gain);
+  shimmerLfo.start();
+
+  shimmerOsc.connect(shimmerGain);
+  shimmerGain.connect(masterGain);
+  shimmerOsc.start();
+
+  ambientNodes.sources.push(shimmerOsc, shimmerLfo);
+  ambientNodes.nodes.push(shimmerLfoGain, shimmerGain);
+
+  // Deep bass drone
+  const bassOsc = ctx.createOscillator();
+  bassOsc.type = 'sine';
+  bassOsc.frequency.value = 65.41; // C2
 
   const bassFilter = ctx.createBiquadFilter();
   bassFilter.type = 'lowpass';
   bassFilter.frequency.value = 200;
-  bassFilter.Q.value = 1;
 
   const bassGain = ctx.createGain();
-  bassGain.gain.value = 0.3;
+  bassGain.gain.value = 0.2;
 
   bassOsc.connect(bassFilter);
   bassFilter.connect(bassGain);
@@ -985,87 +1163,162 @@ function playSynthwave() {
   ambientNodes.sources.push(bassOsc);
   ambientNodes.nodes.push(bassFilter, bassGain);
 
-  // Layer 2: Pulsing pad (square wave ~110Hz with LFO)
-  const padOsc = ctx.createOscillator();
-  padOsc.type = 'square';
-  padOsc.frequency.value = 110;
+  // Slow evolving filter sweep on noise for texture
+  const noiseBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const noiseSource = ctx.createBufferSource();
+  noiseSource.buffer = noiseBuffer;
+  noiseSource.loop = true;
 
-  const padFilter = ctx.createBiquadFilter();
-  padFilter.type = 'lowpass';
-  padFilter.frequency.value = 800;
-  padFilter.Q.value = 2;
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 800;
+  noiseFilter.Q.value = 2;
 
-  // LFO for filter sweep
-  const padLfo = ctx.createOscillator();
-  padLfo.type = 'sine';
-  padLfo.frequency.value = 0.1;
-  const padLfoGain = ctx.createGain();
-  padLfoGain.gain.value = 300;
-  padLfo.connect(padLfoGain);
-  padLfoGain.connect(padFilter.frequency);
-  padLfo.start();
+  // Slow sweep
+  const noiseLfo = ctx.createOscillator();
+  noiseLfo.type = 'sine';
+  noiseLfo.frequency.value = 0.05;
+  const noiseLfoGain = ctx.createGain();
+  noiseLfoGain.gain.value = 400;
+  noiseLfo.connect(noiseLfoGain);
+  noiseLfoGain.connect(noiseFilter.frequency);
+  noiseLfo.start();
 
-  const padGain = ctx.createGain();
-  padGain.gain.value = 0.15;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = 0.03;
 
-  padOsc.connect(padFilter);
-  padFilter.connect(padGain);
-  padGain.connect(masterGain);
-  padOsc.start();
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(masterGain);
+  noiseSource.start();
 
-  ambientNodes.sources.push(padOsc, padLfo);
-  ambientNodes.nodes.push(padFilter, padLfoGain, padGain);
+  ambientNodes.sources.push(noiseSource, noiseLfo);
+  ambientNodes.nodes.push(noiseFilter, noiseLfoGain, noiseGain);
+}
 
-  // Layer 3: High shimmer arpeggio feel (sine wave with tremolo)
-  const highOsc = ctx.createOscillator();
-  highOsc.type = 'sine';
-  highOsc.frequency.value = 440;
+// Synthwave Track 3: Grid - Retro, sequenced, classic 80s
+function playSynthGrid() {
+  const ctx = initAudioContext();
+  stopAmbientSound();
 
-  // Tremolo LFO
-  const tremoloLfo = ctx.createOscillator();
-  tremoloLfo.type = 'sine';
-  tremoloLfo.frequency.value = 4;
-  const tremoloGain = ctx.createGain();
-  tremoloGain.gain.value = 0.3;
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.35;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
 
-  const highGain = ctx.createGain();
-  highGain.gain.value = 0.08;
+  // Classic sequenced bass pattern (D minor)
+  const bassNotes = [73.42, 73.42, 87.31, 98]; // D2, D2, F2, G2
+  let bassIndex = 0;
 
-  tremoloLfo.connect(tremoloGain);
-  tremoloGain.connect(highGain.gain);
-  tremoloLfo.start();
+  const bassOsc = ctx.createOscillator();
+  bassOsc.type = 'square';
+  bassOsc.frequency.value = bassNotes[0];
 
-  highOsc.connect(highGain);
-  highGain.connect(masterGain);
-  highOsc.start();
+  const bassFilter = ctx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 600;
+  bassFilter.Q.value = 4;
 
-  ambientNodes.sources.push(highOsc, tremoloLfo);
-  ambientNodes.nodes.push(tremoloGain, highGain);
+  // Filter envelope simulation with LFO
+  const bassEnvLfo = ctx.createOscillator();
+  bassEnvLfo.type = 'sawtooth';
+  bassEnvLfo.frequency.value = 2;
+  const bassEnvGain = ctx.createGain();
+  bassEnvGain.gain.value = 300;
+  bassEnvLfo.connect(bassEnvGain);
+  bassEnvGain.connect(bassFilter.frequency);
+  bassEnvLfo.start();
 
-  // Layer 4: Sub bass pulse
+  const bassGain = ctx.createGain();
+  bassGain.gain.value = 0.15;
+
+  bassOsc.connect(bassFilter);
+  bassFilter.connect(bassGain);
+  bassGain.connect(masterGain);
+  bassOsc.start();
+
+  // Sequence the bass
+  ambientNodes.interval = setInterval(() => {
+    if (!ambientNodes.gain) return;
+    bassIndex = (bassIndex + 1) % bassNotes.length;
+    bassOsc.frequency.setTargetAtTime(bassNotes[bassIndex], ctx.currentTime, 0.01);
+  }, 250);
+
+  ambientNodes.sources.push(bassOsc, bassEnvLfo);
+  ambientNodes.nodes.push(bassFilter, bassEnvGain, bassGain);
+
+  // Arpeggiated lead (D minor: D, F, A, D)
+  const leadNotes = [293.66, 349.23, 440, 587.33]; // D4, F4, A4, D5
+  let leadIndex = 0;
+
+  const leadOsc = ctx.createOscillator();
+  leadOsc.type = 'sawtooth';
+  leadOsc.frequency.value = leadNotes[0];
+
+  const leadFilter = ctx.createBiquadFilter();
+  leadFilter.type = 'lowpass';
+  leadFilter.frequency.value = 3000;
+  leadFilter.Q.value = 2;
+
+  const leadGain = ctx.createGain();
+  leadGain.gain.value = 0.08;
+
+  leadOsc.connect(leadFilter);
+  leadFilter.connect(leadGain);
+  leadGain.connect(masterGain);
+  leadOsc.start();
+
+  // Faster arpeggio for lead
+  const leadInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(leadInterval);
+      return;
+    }
+    leadIndex = (leadIndex + 1) % leadNotes.length;
+    leadOsc.frequency.setTargetAtTime(leadNotes[leadIndex], ctx.currentTime, 0.01);
+  }, 125);
+
+  ambientNodes.sources.push(leadOsc);
+  ambientNodes.nodes.push(leadFilter, leadGain);
+
+  // Pad for fullness
+  const padFreqs = [146.83, 174.61, 220]; // D3, F3, A3
+  padFreqs.forEach((freq) => {
+    const padOsc = ctx.createOscillator();
+    padOsc.type = 'triangle';
+    padOsc.frequency.value = freq;
+
+    const padGain = ctx.createGain();
+    padGain.gain.value = 0.05;
+
+    padOsc.connect(padGain);
+    padGain.connect(masterGain);
+    padOsc.start();
+
+    ambientNodes.sources.push(padOsc);
+    ambientNodes.nodes.push(padGain);
+  });
+
+  // Sub bass
   const subOsc = ctx.createOscillator();
   subOsc.type = 'sine';
-  subOsc.frequency.value = 27.5;
+  subOsc.frequency.value = 36.71; // D1
 
   const subGain = ctx.createGain();
-  subGain.gain.value = 0.2;
-
-  // Slow pulse on sub
-  const subLfo = ctx.createOscillator();
-  subLfo.type = 'sine';
-  subLfo.frequency.value = 0.25;
-  const subLfoGain = ctx.createGain();
-  subLfoGain.gain.value = 0.1;
-  subLfo.connect(subLfoGain);
-  subLfoGain.connect(subGain.gain);
-  subLfo.start();
+  subGain.gain.value = 0.15;
 
   subOsc.connect(subGain);
   subGain.connect(masterGain);
   subOsc.start();
 
-  ambientNodes.sources.push(subOsc, subLfo);
-  ambientNodes.nodes.push(subLfoGain, subGain);
+  ambientNodes.sources.push(subOsc);
+  ambientNodes.nodes.push(subGain);
+
+  // Store extra interval for cleanup
+  const originalStop = stopAmbientSound;
+  ambientNodes.extraInterval = leadInterval;
 }
 
 function playAmbientSound(soundType) {
@@ -1095,8 +1348,14 @@ function playAmbientSound(soundType) {
       case 'river':
         playRiver();
         break;
-      case 'synth':
-        playSynthwave();
+      case 'synthDrive':
+        playSynthDrive();
+        break;
+      case 'synthNeon':
+        playSynthNeon();
+        break;
+      case 'synthGrid':
+        playSynthGrid();
         break;
     }
   }
@@ -1113,7 +1372,9 @@ function updateVolume(value) {
     if (state.currentSound === 'rain') scale = 0.6;
     if (state.currentSound === 'fireplace') scale = 0.5;
     if (state.currentSound === 'river') scale = 0.5;
-    if (state.currentSound === 'synth') scale = 0.4;
+    if (state.currentSound === 'synthDrive') scale = 0.35;
+    if (state.currentSound === 'synthNeon') scale = 0.35;
+    if (state.currentSound === 'synthGrid') scale = 0.35;
 
     ambientNodes.gain.gain.value = value / 100 * scale;
   }
