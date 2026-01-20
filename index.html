@@ -45,24 +45,37 @@
 
     <!-- Task Intent -->
     <div class="task-intent" id="taskIntent">
-      <div class="task-input-container" id="taskInputContainer">
+      <!-- Trigger button (when no task) -->
+      <button class="task-trigger" id="taskTrigger">
+        <span class="task-trigger-icon">+</span>
+        <span>Set focus</span>
+      </button>
+
+      <!-- Task card (when task is set) -->
+      <div class="task-card" id="taskDisplay" hidden>
+        <button class="task-check" id="taskCompleteBtn" aria-label="Complete task">
+          <span class="task-check-icon"></span>
+        </button>
+        <span class="task-card-text" id="taskText"></span>
+        <button class="task-clear" id="taskClearBtn" aria-label="Clear task">
+          <span class="task-clear-icon"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div class="task-modal-overlay" id="taskModalOverlay" hidden aria-hidden="true">
+      <div class="task-modal">
         <input
           type="text"
-          class="task-input"
+          class="task-modal-input"
           id="taskInput"
-          placeholder="What are you working on?"
+          placeholder="What will you focus on?"
           maxlength="70"
-          aria-label="Current task"
+          aria-label="Task description"
         >
+        <div class="task-modal-hint">Press Enter to set · Esc to cancel</div>
       </div>
-      <div class="task-display" id="taskDisplay" hidden>
-        <span class="task-text" id="taskText"></span>
-        <div class="task-actions">
-          <button class="task-btn task-btn--complete" id="taskCompleteBtn">Complete</button>
-          <button class="task-btn task-btn--clear" id="taskClearBtn">Clear</button>
-        </div>
-      </div>
-      <div class="task-celebration" id="taskCelebration" hidden></div>
     </div>
 
     <!-- Control Buttons -->

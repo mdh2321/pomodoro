@@ -106,13 +106,13 @@ const elements = {
   statsSummary: document.getElementById('statsSummary'),
 
   // Task intent
+  taskTrigger: document.getElementById('taskTrigger'),
+  taskModalOverlay: document.getElementById('taskModalOverlay'),
   taskInput: document.getElementById('taskInput'),
-  taskInputContainer: document.getElementById('taskInputContainer'),
   taskDisplay: document.getElementById('taskDisplay'),
   taskText: document.getElementById('taskText'),
   taskCompleteBtn: document.getElementById('taskCompleteBtn'),
-  taskClearBtn: document.getElementById('taskClearBtn'),
-  taskCelebration: document.getElementById('taskCelebration')
+  taskClearBtn: document.getElementById('taskClearBtn')
 };
 
 // ============================================
@@ -1517,61 +1517,88 @@ function generateChart() {
 // Task Intent
 // ============================================
 
+function openTaskModal() {
+  elements.taskModalOverlay.hidden = false;
+  elements.taskModalOverlay.setAttribute('aria-hidden', 'false');
+  elements.taskInput.value = '';
+  elements.taskInput.focus();
+}
+
+function closeTaskModal() {
+  elements.taskModalOverlay.hidden = true;
+  elements.taskModalOverlay.setAttribute('aria-hidden', 'true');
+}
+
 function setTask(text) {
   const trimmed = text.trim().slice(0, 70);
   if (!trimmed) return;
 
   state.currentTask = trimmed;
   elements.taskText.textContent = trimmed;
-  elements.taskInputContainer.hidden = true;
+  elements.taskInput.value = '';
+  elements.taskTrigger.hidden = true;
   elements.taskDisplay.hidden = false;
+  closeTaskModal();
   saveToStorage();
 }
 
 function clearTask() {
   state.currentTask = '';
   elements.taskInput.value = '';
-  elements.taskInputContainer.hidden = false;
+  elements.taskTrigger.hidden = false;
   elements.taskDisplay.hidden = true;
   saveToStorage();
 }
 
 function completeTask() {
-  playCelebration();
-  clearTask();
-}
+  playCompleteSound();
 
-function playCelebration() {
-  const container = elements.taskCelebration;
-  container.hidden = false;
-  container.innerHTML = '';
-
-  const colors = ['#ff6b35', '#c77dff', '#4ade80', '#fbbf24', '#60a5fa'];
-
-  for (let i = 0; i < 20; i++) {
-    const confetti = document.createElement('div');
-    confetti.className = 'confetti';
-    confetti.style.background = colors[i % colors.length];
-    confetti.style.left = `${(Math.random() - 0.5) * 200}px`;
-    confetti.style.top = `${(Math.random() - 0.5) * 100}px`;
-    confetti.style.animationDelay = `${Math.random() * 0.3}s`;
-    confetti.style.animationDuration = `${0.8 + Math.random() * 0.4}s`;
-    container.appendChild(confetti);
-  }
+  // Animate the card and checkbox
+  elements.taskDisplay.classList.add('completing');
+  elements.taskCompleteBtn.classList.add('checked');
 
   setTimeout(() => {
-    container.hidden = true;
-    container.innerHTML = '';
-  }, 1500);
+    elements.taskDisplay.classList.remove('completing');
+    elements.taskCompleteBtn.classList.remove('checked');
+    clearTask();
+  }, 500);
+}
+
+function playCompleteSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Pleasant two-tone chime
+    const playTone = (freq, delay, duration) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const startTime = ctx.currentTime + delay;
+      gain.gain.setValueAtTime(0.25, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    playTone(880, 0, 0.12);       // A5
+    playTone(1318.5, 0.08, 0.18); // E6
+  } catch (e) {
+    console.warn('Could not play complete sound:', e);
+  }
 }
 
 function updateTaskUI() {
   if (state.currentTask) {
     elements.taskText.textContent = state.currentTask;
-    elements.taskInputContainer.hidden = true;
+    elements.taskTrigger.hidden = true;
     elements.taskDisplay.hidden = false;
   } else {
-    elements.taskInputContainer.hidden = false;
+    elements.taskTrigger.hidden = false;
     elements.taskDisplay.hidden = true;
   }
 }
@@ -1693,10 +1720,19 @@ function initEventListeners() {
   });
 
   // Task intent
+  elements.taskTrigger.addEventListener('click', openTaskModal);
+
+  elements.taskModalOverlay.addEventListener('click', (e) => {
+    if (e.target === elements.taskModalOverlay) {
+      closeTaskModal();
+    }
+  });
+
   elements.taskInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && elements.taskInput.value.trim()) {
       setTask(elements.taskInput.value);
-      elements.taskInput.blur();
+    } else if (e.key === 'Escape') {
+      closeTaskModal();
     }
   });
 

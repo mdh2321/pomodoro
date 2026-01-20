@@ -416,121 +416,235 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 0;
+  min-height: 36px;
   margin: var(--spacing-sm) 0;
 }
 
-.task-input-container {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.task-input {
-  width: 100%;
-  max-width: 300px;
-  padding: var(--spacing-sm) var(--spacing-md);
-  font-family: inherit;
-  font-size: var(--font-size-sm);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-primary);
-  text-align: center;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.task-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.task-input::placeholder {
-  color: var(--color-text-muted);
-  font-style: italic;
-}
-
-.task-display {
-  display: flex;
-  flex-direction: column;
+/* Trigger button */
+.task-trigger {
+  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.task-text {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  font-style: italic;
-  text-align: center;
-  max-width: 300px;
-  word-break: break-word;
-}
-
-.task-actions {
-  display: flex;
-  gap: var(--spacing-sm);
-}
-
-.task-btn {
-  padding: var(--spacing-xs) var(--spacing-sm);
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
   font-family: inherit;
   font-size: var(--font-size-xs);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.task-btn:hover {
-  border-color: var(--color-text-muted);
-}
-
-.task-btn--complete {
-  background: var(--color-primary);
+.task-trigger:hover {
   border-color: var(--color-primary);
-  color: white;
+  color: var(--color-primary);
 }
 
-.task-btn--complete:hover {
-  background: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
+.task-trigger-icon {
+  font-size: 14px;
+  font-weight: 300;
 }
 
-/* Celebration animation */
-.task-celebration {
+/* Task Modal */
+.task-modal-overlay {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 100;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn 0.15s ease;
 }
 
-.confetti {
-  position: absolute;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.task-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  width: 90%;
+  max-width: 340px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  animation: modalSlide 0.2s ease;
+}
+
+@keyframes modalSlide {
+  from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.task-modal-input {
+  width: 100%;
+  padding: var(--spacing-md);
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  box-sizing: border-box;
+}
+
+.task-modal-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.task-modal-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.task-modal-hint {
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Task Card */
+.task-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  max-width: 320px;
+  width: 100%;
+  animation: cardIn 0.2s ease;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.task-card.completing {
+  animation: cardOut 0.5s ease forwards;
+}
+
+@keyframes cardOut {
+  0% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(1.02); }
+  100% { transform: scale(0.95); opacity: 0; }
+}
+
+.task-card-text {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  text-align: left;
+  line-height: 1.4;
+}
+
+/* Checkbox button */
+.task-check {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.task-check:hover {
+  background: var(--color-primary);
+}
+
+.task-check-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.task-check-icon::before {
+  content: '';
+  display: block;
   width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  animation: confetti-fall 1s ease-out forwards;
+  height: 5px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(-45deg) translateY(-1px);
+  opacity: 0;
+  transition: opacity 0.1s;
 }
 
-@keyframes confetti-fall {
-  0% {
-    transform: translateY(0) rotate(0deg) scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(120px) rotate(720deg) scale(0.5);
-    opacity: 0;
-  }
+.task-check:hover .task-check-icon::before {
+  opacity: 1;
+}
+
+.task-check.checked {
+  background: var(--color-primary);
+  animation: checkPop 0.3s ease;
+}
+
+.task-check.checked .task-check-icon::before {
+  opacity: 1;
+}
+
+@keyframes checkPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* Clear/X button */
+.task-clear {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.3;
+  transition: opacity 0.15s;
+  padding: 0;
+  position: relative;
+}
+
+.task-clear:hover {
+  opacity: 0.7;
+}
+
+.task-clear-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.task-clear-icon::before,
+.task-clear-icon::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 2px;
+  background: var(--color-text-muted);
+  border-radius: 1px;
+}
+
+.task-clear-icon::before {
+  transform: rotate(45deg);
+}
+
+.task-clear-icon::after {
+  transform: rotate(-45deg);
 }
 
 /* Control Buttons */
@@ -1358,25 +1472,44 @@ body {
 }
 
 /* Task intent - synthwave */
-[data-theme="synthwave"] .task-input {
-  background: rgba(45, 27, 78, 0.6);
+[data-theme="synthwave"] .task-trigger {
   border-color: rgba(155, 77, 202, 0.5);
 }
 
-[data-theme="synthwave"] .task-input:focus {
+[data-theme="synthwave"] .task-trigger:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.2);
+}
+
+[data-theme="synthwave"] .task-modal {
+  background: var(--color-surface);
+  border: 1px solid rgba(155, 77, 202, 0.5);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 107, 53, 0.1);
+}
+
+[data-theme="synthwave"] .task-modal-input {
+  background: rgba(26, 10, 46, 0.8);
+  border-color: rgba(155, 77, 202, 0.5);
+}
+
+[data-theme="synthwave"] .task-modal-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 10px rgba(255, 107, 53, 0.3);
 }
 
-[data-theme="synthwave"] .task-btn {
+[data-theme="synthwave"] .task-card {
   background: rgba(45, 27, 78, 0.8);
   border-color: rgba(155, 77, 202, 0.5);
 }
 
-[data-theme="synthwave"] .task-btn--complete {
+[data-theme="synthwave"] .task-check {
+  border-color: var(--color-primary);
+}
+
+[data-theme="synthwave"] .task-check:hover,
+[data-theme="synthwave"] .task-check.checked {
   background: linear-gradient(135deg, #ff6b35, #e55a2b);
-  border-color: #ff6b35;
-  box-shadow: 0 0 10px rgba(255, 107, 53, 0.3);
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.4);
 }
 
 /* Stats button */
