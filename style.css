@@ -458,6 +458,10 @@ body {
   animation: fadeIn 0.15s ease;
 }
 
+.task-modal-overlay[hidden] {
+  display: none;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
