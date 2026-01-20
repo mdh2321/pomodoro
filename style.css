@@ -436,6 +436,10 @@ body {
   transition: all 0.2s;
 }
 
+.task-trigger[hidden] {
+  display: none;
+}
+
 .task-trigger:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
@@ -522,6 +526,10 @@ body {
   max-width: 320px;
   width: 100%;
   animation: cardIn 0.2s ease;
+}
+
+.task-card[hidden] {
+  display: none;
 }
 
 @keyframes cardIn {
