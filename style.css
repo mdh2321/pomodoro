@@ -424,14 +424,14 @@ body {
 .task-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  gap: 8px;
+  padding: var(--spacing-sm) var(--spacing-lg);
   background: transparent;
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-base);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -519,11 +519,11 @@ body {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-lg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  max-width: 320px;
+  max-width: 360px;
   width: 100%;
   animation: cardIn 0.2s ease;
 }
@@ -549,7 +549,7 @@ body {
 
 .task-card-text {
   flex: 1;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   text-align: left;
   line-height: 1.4;
