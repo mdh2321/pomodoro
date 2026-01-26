@@ -38,22 +38,13 @@
         />
       </svg>
       <div class="timer-display" id="timerDisplayContainer">
-        <!-- Timer Editor (shown in edit mode) -->
-        <div class="timer-editor" id="timerEditor" hidden>
-          <div class="edit-mode-toggle">
-            <button class="edit-toggle-btn active" data-edit-mode="work">Work</button>
-            <button class="edit-toggle-btn" data-edit-mode="break">Break</button>
-          </div>
-          <div class="time-wheel" id="timeWheel" role="spinbutton" tabindex="0" aria-label="Timer duration">
-            <div class="time-wheel-value time-wheel-value--prev" id="timePrev">20:00</div>
-            <div class="time-wheel-value time-wheel-value--current" id="timeCurrent">25:00</div>
-            <div class="time-wheel-value time-wheel-value--next" id="timeNext">30:00</div>
-          </div>
-          <span class="edit-hint">Scroll to adjust</span>
-        </div>
-        <!-- Normal display (hidden in edit mode) -->
         <span class="timer-time" id="timerDisplay">25:00</span>
         <span class="timer-status" id="timerStatus">Ready to focus</span>
+      </div>
+      <!-- Stepper buttons for work time (visible when idle) -->
+      <div class="timer-stepper" id="timerStepper">
+        <button class="stepper-btn" id="decreaseBtn" aria-label="Decrease time">-</button>
+        <button class="stepper-btn" id="increaseBtn" aria-label="Increase time">+</button>
       </div>
     </div>
 
@@ -198,6 +189,17 @@
         <div class="stats-chart-container">
           <h3 class="chart-title">Last 14 Days</h3>
           <div class="stats-chart" id="statsChart"></div>
+        </div>
+        <!-- Settings -->
+        <div class="settings-section">
+          <div class="settings-row">
+            <span class="settings-label">Break duration</span>
+            <div class="settings-stepper">
+              <button class="stepper-btn stepper-btn--sm" id="breakDecreaseBtn" aria-label="Decrease break time">-</button>
+              <span class="settings-value" id="breakDurationDisplay">5 min</span>
+              <button class="stepper-btn stepper-btn--sm" id="breakIncreaseBtn" aria-label="Increase break time">+</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

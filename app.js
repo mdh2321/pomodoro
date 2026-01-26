@@ -29,10 +29,6 @@ const state = {
   workMinutes: 25,
   breakMinutes: 5,
 
-  // Timer editor state
-  isEditing: false,
-  editingMode: 'work', // which duration being edited
-
   // Session tracking
   sessionCount: 1,
   totalFocusedMinutes: 0,
@@ -76,13 +72,15 @@ const elements = {
   progressRing: document.getElementById('progressRing'),
   timerContainer: document.querySelector('.timer-container'),
 
-  // Timer editor
-  timerEditor: document.getElementById('timerEditor'),
-  timeWheel: document.getElementById('timeWheel'),
-  timePrev: document.getElementById('timePrev'),
-  timeCurrent: document.getElementById('timeCurrent'),
-  timeNext: document.getElementById('timeNext'),
-  editToggleBtns: document.querySelectorAll('.edit-toggle-btn'),
+  // Timer stepper
+  timerStepper: document.getElementById('timerStepper'),
+  decreaseBtn: document.getElementById('decreaseBtn'),
+  increaseBtn: document.getElementById('increaseBtn'),
+
+  // Break settings (in stats modal)
+  breakDecreaseBtn: document.getElementById('breakDecreaseBtn'),
+  breakIncreaseBtn: document.getElementById('breakIncreaseBtn'),
+  breakDurationDisplay: document.getElementById('breakDurationDisplay'),
 
   // Controls
   startBtn: document.getElementById('startBtn'),
@@ -394,194 +392,75 @@ function switchMode() {
 }
 
 // ============================================
-// Timer Editor (Scroll Wheel)
+// Timer Stepper Controls
 // ============================================
 
-function enterEditMode() {
-  if (state.status !== 'idle') return;
-
-  state.isEditing = true;
-  state.editingMode = state.mode;
-
-  // Update UI
-  elements.timerEditor.hidden = false;
-  elements.timerDisplay.classList.remove('editable');
-  elements.timerContainer.classList.add('editing');
-
-  // Set initial values
-  updateEditToggle();
-  updateTimeWheel();
-
-  // Add document click listener to exit
-  setTimeout(() => {
-    document.addEventListener('click', handleOutsideClick);
-  }, 0);
+function decreaseWorkTime() {
+  const values = TIME_VALUES.work;
+  const idx = values.indexOf(state.workMinutes);
+  if (idx > 0) {
+    state.workMinutes = values[idx - 1];
+    applyWorkTime();
+  }
+  updateStepperButtons();
 }
 
-function exitEditMode() {
-  if (!state.isEditing) return;
+function increaseWorkTime() {
+  const values = TIME_VALUES.work;
+  const idx = values.indexOf(state.workMinutes);
+  if (idx < values.length - 1) {
+    state.workMinutes = values[idx + 1];
+    applyWorkTime();
+  }
+  updateStepperButtons();
+}
 
-  state.isEditing = false;
-
-  // Apply edited values to timer
-  state.totalSeconds = (state.mode === 'work' ? state.workMinutes : state.breakMinutes) * 60;
-  state.remainingSeconds = state.totalSeconds;
-
-  // Update UI
-  elements.timerEditor.hidden = true;
-  elements.timerContainer.classList.remove('editing');
-
-  // Remove document listener
-  document.removeEventListener('click', handleOutsideClick);
-
+function applyWorkTime() {
+  if (state.mode === 'work' && state.status === 'idle') {
+    state.totalSeconds = state.workMinutes * 60;
+    state.remainingSeconds = state.totalSeconds;
+  }
   updateUI();
   saveToStorage();
 }
 
-function handleOutsideClick(e) {
-  const timerContainer = elements.timerContainer;
-  if (!timerContainer.contains(e.target)) {
-    exitEditMode();
+function decreaseBreakTime() {
+  const values = TIME_VALUES.break;
+  const idx = values.indexOf(state.breakMinutes);
+  if (idx > 0) {
+    state.breakMinutes = values[idx - 1];
+    updateBreakDisplay();
+    saveToStorage();
   }
 }
 
-function formatMinutes(minutes) {
-  return `${minutes}:00`;
-}
-
-function updateTimeWheel() {
-  const values = TIME_VALUES[state.editingMode];
-  const currentMinutes = state.editingMode === 'work' ? state.workMinutes : state.breakMinutes;
-  let currentIndex = values.indexOf(currentMinutes);
-
-  // If current value not in list, find closest
-  if (currentIndex === -1) {
-    currentIndex = values.findIndex(v => v >= currentMinutes);
-    if (currentIndex === -1) currentIndex = values.length - 1;
-  }
-
-  // Get prev, current, next values
-  const prevValue = currentIndex > 0 ? values[currentIndex - 1] : null;
-  const currentValue = values[currentIndex];
-  const nextValue = currentIndex < values.length - 1 ? values[currentIndex + 1] : null;
-
-  // Update display
-  elements.timePrev.textContent = prevValue ? formatMinutes(prevValue) : '';
-  elements.timePrev.style.visibility = prevValue ? 'visible' : 'hidden';
-
-  elements.timeCurrent.textContent = formatMinutes(currentValue);
-
-  elements.timeNext.textContent = nextValue ? formatMinutes(nextValue) : '';
-  elements.timeNext.style.visibility = nextValue ? 'visible' : 'hidden';
-
-  // Update ARIA
-  elements.timeWheel.setAttribute('aria-valuenow', currentValue);
-}
-
-function scrollTimeValue(direction) {
-  // direction: 1 for up (decrease time), -1 for down (increase time)
-  const values = TIME_VALUES[state.editingMode];
-  const currentMinutes = state.editingMode === 'work' ? state.workMinutes : state.breakMinutes;
-  let currentIndex = values.indexOf(currentMinutes);
-
-  if (currentIndex === -1) {
-    currentIndex = values.findIndex(v => v >= currentMinutes);
-    if (currentIndex === -1) currentIndex = values.length - 1;
-  }
-
-  let newIndex = currentIndex - direction;
-  newIndex = Math.max(0, Math.min(newIndex, values.length - 1));
-
-  const newValue = values[newIndex];
-
-  if (state.editingMode === 'work') {
-    state.workMinutes = newValue;
-  } else {
-    state.breakMinutes = newValue;
-  }
-
-  // Add animation class
-  elements.timeWheel.classList.add(direction > 0 ? 'scrolling-up' : 'scrolling-down');
-  setTimeout(() => {
-    elements.timeWheel.classList.remove('scrolling-up', 'scrolling-down');
-  }, 100);
-
-  updateTimeWheel();
-}
-
-function updateEditToggle() {
-  elements.editToggleBtns.forEach(btn => {
-    const isActive = btn.dataset.editMode === state.editingMode;
-    btn.classList.toggle('active', isActive);
-  });
-}
-
-function switchEditingMode(mode) {
-  state.editingMode = mode;
-  updateEditToggle();
-  updateTimeWheel();
-}
-
-// Wheel scroll handler
-function handleWheelScroll(e) {
-  if (!state.isEditing) return;
-
-  e.preventDefault();
-  const direction = e.deltaY > 0 ? -1 : 1;
-  scrollTimeValue(direction);
-}
-
-// Touch drag handlers
-let touchStartY = 0;
-let lastTouchY = 0;
-const DRAG_THRESHOLD = 30;
-
-function handleTouchStart(e) {
-  if (!state.isEditing) return;
-  touchStartY = e.touches[0].clientY;
-  lastTouchY = touchStartY;
-}
-
-function handleTouchMove(e) {
-  if (!state.isEditing) return;
-  e.preventDefault();
-
-  const currentY = e.touches[0].clientY;
-  const deltaY = lastTouchY - currentY;
-
-  if (Math.abs(deltaY) >= DRAG_THRESHOLD) {
-    const direction = deltaY > 0 ? -1 : 1;
-    scrollTimeValue(direction);
-    lastTouchY = currentY;
-
-    // Haptic feedback if available
-    if (navigator.vibrate) {
-      navigator.vibrate(10);
-    }
+function increaseBreakTime() {
+  const values = TIME_VALUES.break;
+  const idx = values.indexOf(state.breakMinutes);
+  if (idx < values.length - 1) {
+    state.breakMinutes = values[idx + 1];
+    updateBreakDisplay();
+    saveToStorage();
   }
 }
 
-function handleTouchEnd() {
-  touchStartY = 0;
-  lastTouchY = 0;
+function updateBreakDisplay() {
+  elements.breakDurationDisplay.textContent = `${state.breakMinutes} min`;
 }
 
-function handleTimerClick(e) {
-  if (state.status === 'idle' && !state.isEditing) {
-    e.stopPropagation();
-    enterEditMode();
-  }
+function updateStepperVisibility() {
+  // Show stepper only in work mode when idle
+  const show = state.mode === 'work' && state.status === 'idle';
+  elements.timerStepper.hidden = !show;
 }
 
-function handleEditToggleClick(e) {
-  const mode = e.target.dataset.editMode;
-  if (mode) {
-    switchEditingMode(mode);
-  }
-}
+function updateStepperButtons() {
+  const values = TIME_VALUES.work;
+  const idx = values.indexOf(state.workMinutes);
 
-function updateEditableState() {
-  elements.timerDisplay.classList.toggle('editable', state.status === 'idle' && !state.isEditing);
+  // Disable buttons at min/max
+  elements.decreaseBtn.disabled = idx <= 0;
+  elements.increaseBtn.disabled = idx >= values.length - 1;
 }
 
 // ============================================
@@ -596,7 +475,8 @@ function updateUI() {
   updateSessionInfo();
   updateBrowserTab();
   updateModeStyles();
-  updateEditableState();
+  updateStepperVisibility();
+  updateStepperButtons();
 }
 
 function updateTimerDisplay() {
@@ -1907,19 +1787,13 @@ function initEventListeners() {
   elements.abandonBtn.addEventListener('click', abandonTimer);
   elements.skipBtn.addEventListener('click', skipTimer);
 
-  // Timer editor
-  elements.timerDisplay.addEventListener('click', handleTimerClick);
+  // Timer stepper buttons
+  elements.decreaseBtn.addEventListener('click', decreaseWorkTime);
+  elements.increaseBtn.addEventListener('click', increaseWorkTime);
 
-  // Time wheel interactions
-  elements.timeWheel.addEventListener('wheel', handleWheelScroll, { passive: false });
-  elements.timeWheel.addEventListener('touchstart', handleTouchStart, { passive: true });
-  elements.timeWheel.addEventListener('touchmove', handleTouchMove, { passive: false });
-  elements.timeWheel.addEventListener('touchend', handleTouchEnd);
-
-  // Edit toggle buttons
-  elements.editToggleBtns.forEach(btn => {
-    btn.addEventListener('click', handleEditToggleClick);
-  });
+  // Break duration stepper (in stats modal)
+  elements.breakDecreaseBtn.addEventListener('click', decreaseBreakTime);
+  elements.breakIncreaseBtn.addEventListener('click', increaseBreakTime);
 
   // Theme toggle
   elements.themeToggle.addEventListener('click', cycleTheme);
@@ -1980,31 +1854,6 @@ function initEventListeners() {
   document.addEventListener('keydown', (e) => {
     // Don't trigger if typing in input
     if (e.target.tagName === 'INPUT') return;
-
-    // Timer editor keyboard controls
-    if (state.isEditing) {
-      switch (e.code) {
-        case 'ArrowUp':
-          e.preventDefault();
-          scrollTimeValue(1); // Decrease time
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          scrollTimeValue(-1); // Increase time
-          break;
-        case 'Tab':
-          e.preventDefault();
-          // Toggle between work and break
-          switchEditingMode(state.editingMode === 'work' ? 'break' : 'work');
-          break;
-        case 'Escape':
-        case 'Enter':
-          e.preventDefault();
-          exitEditMode();
-          break;
-      }
-      return;
-    }
 
     switch (e.code) {
       case 'Space':
@@ -2070,6 +1919,9 @@ function init() {
   state.remainingSeconds = state.totalSeconds;
 
   initEventListeners();
+
+  // Initialize break duration display
+  updateBreakDisplay();
 
   // Restore sound button UI state
   elements.soundBtns.forEach(btn => {
