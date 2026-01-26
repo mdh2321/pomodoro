@@ -48,7 +48,10 @@ const state = {
   volume: 50,
 
   // History tracking (all-time)
-  history: {} // { "2026-01-18": { sessions: 4, minutes: 100 }, ... }
+  history: {}, // { "2026-01-18": { sessions: 4, minutes: 100 }, ... }
+
+  // Stats view preference
+  statsView: 'sessions' // 'sessions' | 'minutes'
 };
 
 // Audio context and nodes for ambient sounds
@@ -72,7 +75,9 @@ const elements = {
   // Controls
   startBtn: document.getElementById('startBtn'),
   pauseBtn: document.getElementById('pauseBtn'),
-  resetBtn: document.getElementById('resetBtn'),
+  continueBtn: document.getElementById('continueBtn'),
+  doneBtn: document.getElementById('doneBtn'),
+  abandonBtn: document.getElementById('abandonBtn'),
   skipBtn: document.getElementById('skipBtn'),
 
   // Presets
@@ -104,6 +109,7 @@ const elements = {
   statsCloseBtn: document.getElementById('statsCloseBtn'),
   statsChart: document.getElementById('statsChart'),
   statsSummary: document.getElementById('statsSummary'),
+  statsToggleBtns: document.querySelectorAll('.stats-toggle-btn'),
 
   // Task intent
   taskTrigger: document.getElementById('taskTrigger'),
@@ -172,6 +178,11 @@ function loadFromStorage() {
       if (data.currentTask) {
         state.currentTask = data.currentTask;
       }
+
+      // Restore stats view preference
+      if (data.statsView) {
+        state.statsView = data.statsView;
+      }
     }
   } catch (e) {
     console.warn('Failed to load from storage:', e);
@@ -190,6 +201,7 @@ function saveToStorage() {
       volume: state.volume,
       history: state.history,
       currentTask: state.currentTask,
+      statsView: state.statsView,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -253,15 +265,85 @@ function resetTimer() {
 }
 
 function skipTimer() {
-  // Don't count skipped sessions - just move to the next mode
+  // Skip is only for break mode
+  if (state.mode !== 'break') return;
+  if (state.status !== 'paused' && state.status !== 'running') return;
+
   clearInterval(state.intervalId);
   state.intervalId = null;
 
-  // Switch mode without counting the session
-  state.mode = state.mode === 'work' ? 'break' : 'work';
+  // Stop ambient sounds
+  stopAmbientSound();
 
+  // Switch to work mode without counting
+  state.mode = 'work';
   const preset = state.presets[state.currentPreset];
-  state.totalSeconds = (state.mode === 'work' ? preset.work : preset.break) * 60;
+  state.totalSeconds = preset.work * 60;
+  state.remainingSeconds = state.totalSeconds;
+  state.status = 'idle';
+
+  updateUI();
+}
+
+function continueTimer() {
+  // Resume from paused state
+  if (state.status !== 'paused') return;
+  startTimer();
+}
+
+function doneTimer() {
+  // End work early with partial credit
+  if (state.status !== 'paused' || state.mode !== 'work') return;
+
+  clearInterval(state.intervalId);
+  state.intervalId = null;
+
+  // Calculate partial minutes worked
+  const elapsedSeconds = state.totalSeconds - state.remainingSeconds;
+  const partialMinutes = Math.floor(elapsedSeconds / 60);
+
+  // Only record if at least 1 minute was worked
+  if (partialMinutes > 0) {
+    state.totalFocusedMinutes += partialMinutes;
+
+    // Record in history - minutes only, NOT as a completed session
+    const today = getTodayDate();
+    if (!state.history[today]) {
+      state.history[today] = { sessions: 0, minutes: 0 };
+    }
+    // Note: sessions NOT incremented for "Done" - only minutes
+    state.history[today].minutes += partialMinutes;
+
+    saveToStorage();
+  }
+
+  // Stop ambient sounds
+  stopAmbientSound();
+
+  // Transition to break mode
+  state.mode = 'break';
+  const preset = state.presets[state.currentPreset];
+  state.totalSeconds = preset.break * 60;
+  state.remainingSeconds = state.totalSeconds;
+  state.status = 'idle';
+
+  updateUI();
+}
+
+function abandonTimer() {
+  // Full reset, no stats recorded
+  if (state.status !== 'paused') return;
+
+  clearInterval(state.intervalId);
+  state.intervalId = null;
+
+  // Stop ambient sounds
+  stopAmbientSound();
+
+  // Full reset to work mode idle - NO stats recorded
+  state.mode = 'work';
+  const preset = state.presets[state.currentPreset];
+  state.totalSeconds = preset.work * 60;
   state.remainingSeconds = state.totalSeconds;
   state.status = 'idle';
 
@@ -431,26 +513,44 @@ function updateStatusDisplay() {
 function updateControlButtons() {
   const { status, mode } = state;
 
-  // Start button
-  if (status === 'completed') {
-    elements.startBtn.textContent = mode === 'work' ? 'Start Break' : 'Start Work';
-    elements.startBtn.disabled = false;
+  // Hide all buttons first
+  elements.startBtn.hidden = true;
+  elements.pauseBtn.hidden = true;
+  elements.continueBtn.hidden = true;
+  elements.doneBtn.hidden = true;
+  elements.abandonBtn.hidden = true;
+  elements.skipBtn.hidden = true;
+
+  if (status === 'idle') {
+    // Only Start visible
+    elements.startBtn.hidden = false;
+    elements.startBtn.textContent = 'Start';
+    elements.startBtn.classList.toggle('break-mode', mode === 'break');
+
   } else if (status === 'running') {
-    elements.startBtn.textContent = 'Start';
-    elements.startBtn.disabled = true;
-  } else {
-    elements.startBtn.textContent = 'Start';
-    elements.startBtn.disabled = false;
+    // Only Pause visible
+    elements.pauseBtn.hidden = false;
+
+  } else if (status === 'paused') {
+    // Continue is always visible when paused
+    elements.continueBtn.hidden = false;
+    elements.continueBtn.classList.toggle('break-mode', mode === 'break');
+
+    if (mode === 'work') {
+      // Work mode: Continue, Done, Abandon
+      elements.doneBtn.hidden = false;
+      elements.abandonBtn.hidden = false;
+    } else {
+      // Break mode: Continue, Skip
+      elements.skipBtn.hidden = false;
+    }
+
+  } else if (status === 'completed') {
+    // Show transition button
+    elements.startBtn.hidden = false;
+    elements.startBtn.textContent = mode === 'work' ? 'Start Break' : 'Start Work';
+    elements.startBtn.classList.toggle('break-mode', mode === 'work');
   }
-
-  // Pause button
-  elements.pauseBtn.disabled = status !== 'running';
-
-  // Skip button
-  elements.skipBtn.disabled = status === 'idle' || status === 'completed';
-
-  // Update primary button style based on mode
-  elements.startBtn.classList.toggle('break-mode', mode === 'break' || status === 'completed' && mode === 'work');
 }
 
 function updateSessionInfo() {
@@ -1435,27 +1535,43 @@ function updateStatsDisplay() {
   weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  let weekSessions = 0;
-  let monthSessions = 0;
-  let totalSessions = 0;
+  let weekStats = { sessions: 0, minutes: 0 };
+  let monthStats = { sessions: 0, minutes: 0 };
+  let totalStats = { sessions: 0, minutes: 0 };
 
   for (const [dateStr, data] of Object.entries(state.history)) {
     const date = new Date(dateStr);
-    totalSessions += data.sessions;
+    totalStats.sessions += data.sessions;
+    totalStats.minutes += data.minutes || 0;
 
     if (date >= weekStart) {
-      weekSessions += data.sessions;
+      weekStats.sessions += data.sessions;
+      weekStats.minutes += data.minutes || 0;
     }
     if (date >= monthStart) {
-      monthSessions += data.sessions;
+      monthStats.sessions += data.sessions;
+      monthStats.minutes += data.minutes || 0;
     }
   }
 
-  // Update summary cards
-  document.getElementById('statToday').textContent = todayData.sessions;
-  document.getElementById('statWeek').textContent = weekSessions;
-  document.getElementById('statMonth').textContent = monthSessions;
-  document.getElementById('statTotal').textContent = totalSessions;
+  // Display based on current view mode
+  const isMinutes = state.statsView === 'minutes';
+
+  document.getElementById('statToday').textContent =
+    isMinutes ? todayData.minutes || 0 : todayData.sessions;
+  document.getElementById('statWeek').textContent =
+    isMinutes ? weekStats.minutes : weekStats.sessions;
+  document.getElementById('statMonth').textContent =
+    isMinutes ? monthStats.minutes : monthStats.sessions;
+  document.getElementById('statTotal').textContent =
+    isMinutes ? totalStats.minutes : totalStats.sessions;
+
+  // Update toggle button states
+  elements.statsToggleBtns.forEach(btn => {
+    const isActive = btn.dataset.view === state.statsView;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
 
   // Generate chart
   generateChart();
@@ -1464,6 +1580,8 @@ function updateStatsDisplay() {
 function generateChart() {
   const chartContainer = elements.statsChart;
   chartContainer.innerHTML = '';
+
+  const isMinutes = state.statsView === 'minutes';
 
   // Get last 14 days
   const days = [];
@@ -1478,13 +1596,13 @@ function generateChart() {
     days.push({
       date: date,
       dateStr: dateStr,
-      sessions: data.sessions,
+      value: isMinutes ? (data.minutes || 0) : data.sessions,
       label: date.getDate().toString()
     });
   }
 
-  // Find max sessions for scaling
-  const maxSessions = Math.max(...days.map(d => d.sessions), 1);
+  // Find max value for scaling
+  const maxValue = Math.max(...days.map(d => d.value), 1);
 
   // Create bars
   days.forEach(day => {
@@ -1492,18 +1610,18 @@ function generateChart() {
     bar.className = 'chart-bar';
 
     const fill = document.createElement('div');
-    fill.className = 'chart-bar-fill' + (day.sessions === 0 ? ' empty' : '');
-    const heightPercent = (day.sessions / maxSessions) * 100;
+    fill.className = 'chart-bar-fill' + (day.value === 0 ? ' empty' : '');
+    const heightPercent = (day.value / maxValue) * 100;
     fill.style.height = Math.max(heightPercent, 4) + 'px';
 
     const label = document.createElement('span');
     label.className = 'chart-bar-label';
     label.textContent = day.label;
 
-    if (day.sessions > 0) {
+    if (day.value > 0) {
       const value = document.createElement('span');
       value.className = 'chart-bar-value';
-      value.textContent = day.sessions;
+      value.textContent = day.value;
       bar.appendChild(value);
     }
 
@@ -1511,6 +1629,12 @@ function generateChart() {
     bar.appendChild(label);
     chartContainer.appendChild(bar);
   });
+}
+
+function setStatsView(view) {
+  state.statsView = view;
+  updateStatsDisplay();
+  saveToStorage();
 }
 
 // ============================================
@@ -1648,7 +1772,9 @@ function initEventListeners() {
   });
 
   elements.pauseBtn.addEventListener('click', pauseTimer);
-  elements.resetBtn.addEventListener('click', resetTimer);
+  elements.continueBtn.addEventListener('click', continueTimer);
+  elements.doneBtn.addEventListener('click', doneTimer);
+  elements.abandonBtn.addEventListener('click', abandonTimer);
   elements.skipBtn.addEventListener('click', skipTimer);
 
   // Preset buttons
@@ -1719,6 +1845,13 @@ function initEventListeners() {
     }
   });
 
+  // Stats toggle
+  elements.statsToggleBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      setStatsView(btn.dataset.view);
+    });
+  });
+
   // Task intent
   elements.taskTrigger.addEventListener('click', openTaskModal);
 
@@ -1749,6 +1882,8 @@ function initEventListeners() {
         e.preventDefault();
         if (state.status === 'running') {
           pauseTimer();
+        } else if (state.status === 'paused') {
+          continueTimer();
         } else if (state.status === 'completed') {
           switchMode();
           startTimer();
@@ -1756,18 +1891,25 @@ function initEventListeners() {
           startTimer();
         }
         break;
-      case 'KeyR':
+      case 'KeyD':
         if (!e.ctrlKey && !e.metaKey) {
           e.preventDefault();
-          resetTimer();
+          if (state.status === 'paused' && state.mode === 'work') {
+            doneTimer();
+          }
         }
         break;
       case 'KeyS':
         if (!e.ctrlKey && !e.metaKey) {
           e.preventDefault();
-          if (state.status === 'running' || state.status === 'paused') {
+          if (state.status === 'paused' && state.mode === 'break') {
             skipTimer();
           }
+        }
+        break;
+      case 'Escape':
+        if (state.status === 'paused') {
+          abandonTimer();
         }
         break;
       case 'KeyT':
@@ -1810,7 +1952,7 @@ function init() {
   // Initial UI update
   updateUI();
 
-  console.log('🍅 Pomo initialized. Keyboard shortcuts: Space (start/pause), R (reset), S (skip), T (theme)');
+  console.log('🍅 Pomo initialized. Keyboard shortcuts: Space (start/pause/continue), D (done - work), S (skip - break), Esc (abandon), T (theme)');
 }
 
 // Start the app

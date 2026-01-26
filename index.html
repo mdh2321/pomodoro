@@ -83,13 +83,19 @@
       <button class="btn btn--primary" id="startBtn" aria-label="Start timer">
         Start
       </button>
-      <button class="btn btn--secondary" id="pauseBtn" aria-label="Pause timer" disabled>
+      <button class="btn btn--secondary" id="pauseBtn" aria-label="Pause timer" hidden>
         Pause
       </button>
-      <button class="btn btn--secondary" id="resetBtn" aria-label="Reset timer">
-        Reset
+      <button class="btn btn--primary" id="continueBtn" aria-label="Continue timer" hidden>
+        Continue
       </button>
-      <button class="btn btn--secondary" id="skipBtn" aria-label="Skip to next session" disabled>
+      <button class="btn btn--secondary" id="doneBtn" aria-label="End session early" hidden>
+        Done
+      </button>
+      <button class="btn btn--secondary btn--danger" id="abandonBtn" aria-label="Abandon session" hidden>
+        Abandon
+      </button>
+      <button class="btn btn--secondary" id="skipBtn" aria-label="Skip to next session" hidden>
         Skip
       </button>
     </div>
@@ -203,6 +209,10 @@
     <div class="modal modal--stats" role="dialog" aria-labelledby="statsTitle" aria-modal="true">
       <div class="modal-header">
         <h2 class="modal-title" id="statsTitle">Statistics</h2>
+        <div class="stats-toggle">
+          <button class="stats-toggle-btn active" data-view="sessions" aria-pressed="true">Sessions</button>
+          <button class="stats-toggle-btn" data-view="minutes" aria-pressed="false">Minutes</button>
+        </div>
         <button class="modal-close" id="statsCloseBtn" aria-label="Close">×</button>
       </div>
       <div class="modal-content">

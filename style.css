@@ -726,6 +726,46 @@ body {
   color: var(--color-text-primary);
 }
 
+/* Hidden buttons should not display */
+.controls .btn[hidden] {
+  display: none;
+}
+
+/* Danger button variant (for Abandon) */
+.btn--danger {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+[data-theme="dark"] .btn--danger {
+  color: #f87171;
+  border-color: #f87171;
+}
+
+[data-theme="dark"] .btn--danger:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border-color: #fca5a5;
+}
+
+[data-theme="synthwave"] .btn--danger {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+}
+
+[data-theme="synthwave"] .btn--danger:hover:not(:disabled) {
+  background-color: rgba(255, 107, 107, 0.15);
+  color: #ff8888;
+  border-color: #ff8888;
+  box-shadow: 0 0 15px rgba(255, 107, 107, 0.3);
+}
+
 /* Preset Buttons */
 .presets {
   display: flex;
@@ -1233,6 +1273,47 @@ body {
 .modal-header .modal-title {
   margin-bottom: 0;
   text-align: left;
+}
+
+/* Stats Toggle */
+.stats-toggle {
+  display: flex;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.stats-toggle-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.stats-toggle-btn:hover {
+  color: var(--color-text-secondary);
+}
+
+.stats-toggle-btn.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="synthwave"] .stats-toggle {
+  background: rgba(26, 10, 46, 0.6);
+}
+
+[data-theme="synthwave"] .stats-toggle-btn.active {
+  background: rgba(107, 63, 160, 0.5);
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.2);
 }
 
 .modal-close {
