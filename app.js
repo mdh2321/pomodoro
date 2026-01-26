@@ -72,8 +72,7 @@ const elements = {
   progressRing: document.getElementById('progressRing'),
   timerContainer: document.querySelector('.timer-container'),
 
-  // Timer stepper
-  timerStepper: document.getElementById('timerStepper'),
+  // Timer inline arrows
   decreaseBtn: document.getElementById('decreaseBtn'),
   increaseBtn: document.getElementById('increaseBtn'),
 
@@ -449,9 +448,10 @@ function updateBreakDisplay() {
 }
 
 function updateStepperVisibility() {
-  // Show stepper only in work mode when idle
+  // Show arrows only in work mode when idle
   const show = state.mode === 'work' && state.status === 'idle';
-  elements.timerStepper.hidden = !show;
+  elements.decreaseBtn.hidden = !show;
+  elements.increaseBtn.hidden = !show;
 }
 
 function updateStepperButtons() {

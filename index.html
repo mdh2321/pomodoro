@@ -38,13 +38,12 @@
         />
       </svg>
       <div class="timer-display" id="timerDisplayContainer">
-        <span class="timer-time" id="timerDisplay">25:00</span>
+        <div class="timer-time-row">
+          <button class="time-arrow" id="decreaseBtn" aria-label="Decrease time">‹</button>
+          <span class="timer-time" id="timerDisplay">25:00</span>
+          <button class="time-arrow" id="increaseBtn" aria-label="Increase time">›</button>
+        </div>
         <span class="timer-status" id="timerStatus">Ready to focus</span>
-      </div>
-      <!-- Stepper buttons for work time (visible when idle) -->
-      <div class="timer-stepper" id="timerStepper">
-        <button class="stepper-btn" id="decreaseBtn" aria-label="Decrease time">-</button>
-        <button class="stepper-btn" id="increaseBtn" aria-label="Increase time">+</button>
       </div>
     </div>
 

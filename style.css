@@ -411,29 +411,59 @@ body {
   color: var(--color-break);
 }
 
-/* Timer Stepper Buttons */
-.timer-stepper {
-  position: absolute;
-  bottom: -50px;
-  left: 50%;
-  transform: translateX(-50%);
+/* Timer Time Row with Inline Arrows */
+.timer-time-row {
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-xs);
 }
 
-.timer-stepper[hidden] {
+.time-arrow {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xl);
+  padding: var(--spacing-xs);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.time-arrow:hover {
+  opacity: 1;
+  color: var(--color-primary);
+}
+
+.time-arrow[hidden] {
   display: none;
 }
 
+.time-arrow:disabled {
+  opacity: 0.15;
+  cursor: default;
+}
+
+.time-arrow:disabled:hover {
+  color: var(--color-text-muted);
+}
+
+.time-arrow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Stepper buttons (for settings modal) */
 .stepper-btn {
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-full);
   border: 2px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-bold);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -465,13 +495,6 @@ body {
 .stepper-btn:disabled:hover {
   border-color: var(--color-border);
   color: var(--color-text-secondary);
-}
-
-/* Small stepper buttons (for settings) */
-.stepper-btn--sm {
-  width: 32px;
-  height: 32px;
-  font-size: var(--font-size-base);
 }
 
 /* Settings Section in Stats Modal */
@@ -1564,9 +1587,15 @@ body {
   background: rgba(61, 42, 95, 0.9);
 }
 
-/* Stepper buttons - synthwave */
+/* Inline time arrows - synthwave */
+[data-theme="synthwave"] .time-arrow:hover {
+  color: #ff6b35;
+  text-shadow: var(--glow-primary);
+}
+
+/* Settings stepper buttons - synthwave */
 [data-theme="synthwave"] .stepper-btn {
-  background: rgba(45, 27, 78, 0.8);
+  background: rgba(26, 10, 46, 0.6);
   border-color: rgba(155, 77, 202, 0.5);
 }
 
@@ -1574,10 +1603,6 @@ body {
   border-color: #ff6b35;
   color: #ff6b35;
   box-shadow: var(--glow-primary);
-}
-
-[data-theme="synthwave"] .settings-stepper .stepper-btn {
-  background: rgba(26, 10, 46, 0.6);
 }
 
 /* Sound controls */
