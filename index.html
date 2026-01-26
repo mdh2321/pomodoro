@@ -37,7 +37,21 @@
           id="progressRing"
         />
       </svg>
-      <div class="timer-display">
+      <div class="timer-display" id="timerDisplayContainer">
+        <!-- Timer Editor (shown in edit mode) -->
+        <div class="timer-editor" id="timerEditor" hidden>
+          <div class="edit-mode-toggle">
+            <button class="edit-toggle-btn active" data-edit-mode="work">Work</button>
+            <button class="edit-toggle-btn" data-edit-mode="break">Break</button>
+          </div>
+          <div class="time-wheel" id="timeWheel" role="spinbutton" tabindex="0" aria-label="Timer duration">
+            <div class="time-wheel-value time-wheel-value--prev" id="timePrev">20:00</div>
+            <div class="time-wheel-value time-wheel-value--current" id="timeCurrent">25:00</div>
+            <div class="time-wheel-value time-wheel-value--next" id="timeNext">30:00</div>
+          </div>
+          <span class="edit-hint">Scroll to adjust</span>
+        </div>
+        <!-- Normal display (hidden in edit mode) -->
         <span class="timer-time" id="timerDisplay">25:00</span>
         <span class="timer-status" id="timerStatus">Ready to focus</span>
       </div>
@@ -100,26 +114,6 @@
       </button>
     </div>
 
-    <!-- Preset Buttons -->
-    <div class="presets">
-      <button class="preset-btn active" data-work="25" data-break="5" aria-pressed="true">
-        Classic
-        <span class="preset-detail">25/5</span>
-      </button>
-      <button class="preset-btn" data-work="50" data-break="10" aria-pressed="false">
-        Long
-        <span class="preset-detail">50/10</span>
-      </button>
-      <button class="preset-btn" data-work="15" data-break="3" aria-pressed="false">
-        Sprint
-        <span class="preset-detail">15/3</span>
-      </button>
-      <button class="preset-btn preset-btn--custom" id="customPresetBtn" aria-pressed="false">
-        Custom
-        <span class="preset-detail" id="customPresetDetail">--/--</span>
-      </button>
-    </div>
-
     <!-- Ambient Sounds -->
     <div class="sound-controls">
       <div class="sound-buttons">
@@ -166,41 +160,6 @@
       <span class="session-separator">•</span>
       <span class="total-time" id="totalTime">0 min focused today</span>
       <button class="stats-btn" id="statsBtn" aria-label="View statistics">📊</button>
-    </div>
-  </div>
-
-  <!-- Custom Preset Modal -->
-  <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
-    <div class="modal" role="dialog" aria-labelledby="modalTitle" aria-modal="true">
-      <h2 class="modal-title" id="modalTitle">Custom Preset</h2>
-      <div class="modal-content">
-        <div class="input-group">
-          <label for="customWorkInput">Work duration (minutes)</label>
-          <input
-            type="number"
-            id="customWorkInput"
-            min="1"
-            max="120"
-            value="25"
-            class="number-input"
-          >
-        </div>
-        <div class="input-group">
-          <label for="customBreakInput">Break duration (minutes)</label>
-          <input
-            type="number"
-            id="customBreakInput"
-            min="1"
-            max="60"
-            value="5"
-            class="number-input"
-          >
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn--secondary" id="modalCancelBtn">Cancel</button>
-        <button class="btn btn--primary" id="modalSaveBtn">Save</button>
-      </div>
     </div>
   </div>
 

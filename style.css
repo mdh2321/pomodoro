@@ -411,6 +411,141 @@ body {
   color: var(--color-break);
 }
 
+/* Timer Editor */
+.timer-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  z-index: 2;
+}
+
+.timer-editor[hidden] {
+  display: none;
+}
+
+/* Work/Break Toggle */
+.edit-mode-toggle {
+  display: flex;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  gap: 2px;
+}
+
+.edit-toggle-btn {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.edit-toggle-btn:hover {
+  color: var(--color-text-secondary);
+}
+
+.edit-toggle-btn.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.edit-toggle-btn[data-edit-mode="break"].active {
+  background: var(--color-break);
+}
+
+/* Time Wheel */
+.time-wheel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: ns-resize;
+  user-select: none;
+  touch-action: none;
+  padding: var(--spacing-sm) 0;
+}
+
+.time-wheel:focus {
+  outline: none;
+}
+
+.time-wheel-value {
+  font-variant-numeric: tabular-nums;
+  transition: all var(--transition-fast);
+}
+
+.time-wheel-value--prev,
+.time-wheel-value--next {
+  font-size: var(--font-size-xl);
+  color: var(--color-text-muted);
+  opacity: 0.4;
+}
+
+.time-wheel-value--current {
+  font-size: var(--font-size-timer);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  padding: var(--spacing-xs) var(--spacing-lg);
+  background: var(--color-surface);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+/* Scroll animations */
+.time-wheel.scrolling-up .time-wheel-value {
+  animation: scrollUp 100ms ease-out;
+}
+
+.time-wheel.scrolling-down .time-wheel-value {
+  animation: scrollDown 100ms ease-out;
+}
+
+@keyframes scrollUp {
+  from { transform: translateY(10px); opacity: 0.5; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scrollDown {
+  from { transform: translateY(-10px); opacity: 0.5; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Edit hint */
+.edit-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Timer display editable state */
+.timer-time.editable {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.timer-time.editable:hover {
+  color: var(--color-primary);
+}
+
+/* Progress ring dimmed during edit */
+.timer-container.editing .progress-ring {
+  opacity: 0.3;
+}
+
+/* Hide normal display during edit */
+.timer-container.editing .timer-time,
+.timer-container.editing .timer-status {
+  display: none;
+}
+
 /* Task Intent */
 .task-intent {
   display: flex;
@@ -764,59 +899,6 @@ body {
   color: #ff8888;
   border-color: #ff8888;
   box-shadow: 0 0 15px rgba(255, 107, 107, 0.3);
-}
-
-/* Preset Buttons */
-.presets {
-  display: flex;
-  gap: var(--spacing-sm);
-  justify-content: center;
-  width: 100%;
-}
-
-.preset-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-sm) var(--spacing-md);
-  font-family: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-  background-color: var(--color-surface);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  flex: 1;
-  min-width: 0;
-}
-
-.preset-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.preset-btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.preset-btn.active {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: white;
-}
-
-.preset-btn.active .preset-detail {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.preset-detail {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-normal);
-  color: var(--color-text-muted);
 }
 
 /* Session Info */
@@ -1437,11 +1519,6 @@ body {
     min-width: 70px;
     font-size: var(--font-size-sm);
   }
-
-  .preset-btn {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    min-width: 70px;
-  }
 }
 
 /* Animations */
@@ -1527,21 +1604,27 @@ body {
   background: rgba(61, 42, 95, 0.9);
 }
 
-/* Preset buttons */
-[data-theme="synthwave"] .preset-btn {
-  background: rgba(45, 27, 78, 0.8);
+/* Timer editor - synthwave */
+[data-theme="synthwave"] .edit-mode-toggle {
+  background: rgba(26, 10, 46, 0.8);
   border-color: rgba(155, 77, 202, 0.5);
 }
 
-[data-theme="synthwave"] .preset-btn:hover {
-  border-color: #ff6b35;
+[data-theme="synthwave"] .edit-toggle-btn.active {
+  background: linear-gradient(135deg, #ff6b35, #e55a2b);
   box-shadow: var(--glow-primary);
 }
 
-[data-theme="synthwave"] .preset-btn.active {
-  background: linear-gradient(135deg, #6b3fa0, #4a2c7a);
-  border-color: #ff6b35;
+[data-theme="synthwave"] .edit-toggle-btn[data-edit-mode="break"].active {
+  background: linear-gradient(135deg, #c77dff, #9b4dca);
+  box-shadow: var(--glow-accent);
+}
+
+[data-theme="synthwave"] .time-wheel-value--current {
+  background: rgba(45, 27, 78, 0.9);
+  border-color: var(--color-primary);
   box-shadow: var(--glow-primary);
+  text-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
 }
 
 /* Sound controls */

@@ -10,11 +10,10 @@
 const STORAGE_KEY = 'pomo_data';
 const CIRCUMFERENCE = 2 * Math.PI * 90; // SVG circle circumference (r=90)
 
-const DEFAULT_PRESETS = {
-  classic: { work: 25, break: 5 },
-  long: { work: 50, break: 10 },
-  short: { work: 15, break: 3 },
-  custom: { work: 25, break: 5 }
+// Time values available for scroll wheel (in minutes)
+const TIME_VALUES = {
+  work: [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90],
+  break: [5, 10, 15, 20, 25, 30]
 };
 
 const state = {
@@ -26,13 +25,17 @@ const state = {
   totalSeconds: 25 * 60,
   remainingSeconds: 25 * 60,
 
+  // Work/break durations (in minutes)
+  workMinutes: 25,
+  breakMinutes: 5,
+
+  // Timer editor state
+  isEditing: false,
+  editingMode: 'work', // which duration being edited
+
   // Session tracking
   sessionCount: 1,
   totalFocusedMinutes: 0,
-
-  // Current preset
-  currentPreset: 'classic',
-  presets: { ...DEFAULT_PRESETS },
 
   // Timer interval reference
   intervalId: null,
@@ -71,6 +74,15 @@ const elements = {
   timerDisplay: document.getElementById('timerDisplay'),
   timerStatus: document.getElementById('timerStatus'),
   progressRing: document.getElementById('progressRing'),
+  timerContainer: document.querySelector('.timer-container'),
+
+  // Timer editor
+  timerEditor: document.getElementById('timerEditor'),
+  timeWheel: document.getElementById('timeWheel'),
+  timePrev: document.getElementById('timePrev'),
+  timeCurrent: document.getElementById('timeCurrent'),
+  timeNext: document.getElementById('timeNext'),
+  editToggleBtns: document.querySelectorAll('.edit-toggle-btn'),
 
   // Controls
   startBtn: document.getElementById('startBtn'),
@@ -80,21 +92,9 @@ const elements = {
   abandonBtn: document.getElementById('abandonBtn'),
   skipBtn: document.getElementById('skipBtn'),
 
-  // Presets
-  presetBtns: document.querySelectorAll('.preset-btn:not(.preset-btn--custom)'),
-  customPresetBtn: document.getElementById('customPresetBtn'),
-  customPresetDetail: document.getElementById('customPresetDetail'),
-
   // Session info
   sessionCount: document.getElementById('sessionCount'),
   totalTime: document.getElementById('totalTime'),
-
-  // Modal
-  modalOverlay: document.getElementById('modalOverlay'),
-  customWorkInput: document.getElementById('customWorkInput'),
-  customBreakInput: document.getElementById('customBreakInput'),
-  modalCancelBtn: document.getElementById('modalCancelBtn'),
-  modalSaveBtn: document.getElementById('modalSaveBtn'),
 
   // Theme toggle
   themeToggle: document.getElementById('themeToggle'),
@@ -131,15 +131,18 @@ function loadFromStorage() {
     if (saved) {
       const data = JSON.parse(saved);
 
-      // Restore custom preset
-      if (data.customPreset) {
-        state.presets.custom = data.customPreset;
-        updateCustomPresetDisplay();
+      // Restore work/break durations (with migration from old preset system)
+      if (typeof data.workMinutes === 'number') {
+        state.workMinutes = data.workMinutes;
+      } else if (data.customPreset) {
+        // Migrate from old preset system
+        state.workMinutes = data.customPreset.work || 25;
       }
-
-      // Restore current preset selection
-      if (data.currentPreset && state.presets[data.currentPreset]) {
-        state.currentPreset = data.currentPreset;
+      if (typeof data.breakMinutes === 'number') {
+        state.breakMinutes = data.breakMinutes;
+      } else if (data.customPreset) {
+        // Migrate from old preset system
+        state.breakMinutes = data.customPreset.break || 5;
       }
 
       // Restore session stats for today
@@ -192,8 +195,8 @@ function loadFromStorage() {
 function saveToStorage() {
   try {
     const data = {
-      customPreset: state.presets.custom,
-      currentPreset: state.currentPreset,
+      workMinutes: state.workMinutes,
+      breakMinutes: state.breakMinutes,
       sessionCount: state.sessionCount,
       totalFocusedMinutes: state.totalFocusedMinutes,
       theme: state.theme,
@@ -256,8 +259,7 @@ function resetTimer() {
   clearInterval(state.intervalId);
   state.intervalId = null;
 
-  const preset = state.presets[state.currentPreset];
-  state.totalSeconds = (state.mode === 'work' ? preset.work : preset.break) * 60;
+  state.totalSeconds = (state.mode === 'work' ? state.workMinutes : state.breakMinutes) * 60;
   state.remainingSeconds = state.totalSeconds;
   state.status = 'idle';
 
@@ -277,8 +279,7 @@ function skipTimer() {
 
   // Switch to work mode without counting
   state.mode = 'work';
-  const preset = state.presets[state.currentPreset];
-  state.totalSeconds = preset.work * 60;
+  state.totalSeconds = state.workMinutes * 60;
   state.remainingSeconds = state.totalSeconds;
   state.status = 'idle';
 
@@ -322,8 +323,7 @@ function doneTimer() {
 
   // Transition to break mode
   state.mode = 'break';
-  const preset = state.presets[state.currentPreset];
-  state.totalSeconds = preset.break * 60;
+  state.totalSeconds = state.breakMinutes * 60;
   state.remainingSeconds = state.totalSeconds;
   state.status = 'idle';
 
@@ -342,8 +342,7 @@ function abandonTimer() {
 
   // Full reset to work mode idle - NO stats recorded
   state.mode = 'work';
-  const preset = state.presets[state.currentPreset];
-  state.totalSeconds = preset.work * 60;
+  state.totalSeconds = state.workMinutes * 60;
   state.remainingSeconds = state.totalSeconds;
   state.status = 'idle';
 
@@ -386,8 +385,7 @@ function completeTimer() {
 function switchMode() {
   state.mode = state.mode === 'work' ? 'break' : 'work';
 
-  const preset = state.presets[state.currentPreset];
-  state.totalSeconds = (state.mode === 'work' ? preset.work : preset.break) * 60;
+  state.totalSeconds = (state.mode === 'work' ? state.workMinutes : state.breakMinutes) * 60;
   state.remainingSeconds = state.totalSeconds;
   state.status = 'idle';
 
@@ -396,63 +394,194 @@ function switchMode() {
 }
 
 // ============================================
-// Preset Management
+// Timer Editor (Scroll Wheel)
 // ============================================
 
-function selectPreset(presetName) {
-  state.currentPreset = presetName;
+function enterEditMode() {
+  if (state.status !== 'idle') return;
 
-  // Update active state on buttons
-  document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.classList.remove('active');
-    btn.setAttribute('aria-pressed', 'false');
-  });
+  state.isEditing = true;
+  state.editingMode = state.mode;
 
-  if (presetName === 'custom') {
-    elements.customPresetBtn.classList.add('active');
-    elements.customPresetBtn.setAttribute('aria-pressed', 'true');
-  } else {
-    const activeBtn = document.querySelector(`.preset-btn[data-work="${state.presets[presetName].work}"]`);
-    if (activeBtn) {
-      activeBtn.classList.add('active');
-      activeBtn.setAttribute('aria-pressed', 'true');
-    }
-  }
+  // Update UI
+  elements.timerEditor.hidden = false;
+  elements.timerDisplay.classList.remove('editable');
+  elements.timerContainer.classList.add('editing');
 
-  // Reset timer with new preset
-  resetTimer();
+  // Set initial values
+  updateEditToggle();
+  updateTimeWheel();
+
+  // Add document click listener to exit
+  setTimeout(() => {
+    document.addEventListener('click', handleOutsideClick);
+  }, 0);
+}
+
+function exitEditMode() {
+  if (!state.isEditing) return;
+
+  state.isEditing = false;
+
+  // Apply edited values to timer
+  state.totalSeconds = (state.mode === 'work' ? state.workMinutes : state.breakMinutes) * 60;
+  state.remainingSeconds = state.totalSeconds;
+
+  // Update UI
+  elements.timerEditor.hidden = true;
+  elements.timerContainer.classList.remove('editing');
+
+  // Remove document listener
+  document.removeEventListener('click', handleOutsideClick);
+
+  updateUI();
   saveToStorage();
 }
 
-function openCustomPresetModal() {
-  elements.customWorkInput.value = state.presets.custom.work;
-  elements.customBreakInput.value = state.presets.custom.break;
-  elements.modalOverlay.classList.add('active');
-  elements.modalOverlay.setAttribute('aria-hidden', 'false');
-  elements.customWorkInput.focus();
-}
-
-function closeCustomPresetModal() {
-  elements.modalOverlay.classList.remove('active');
-  elements.modalOverlay.setAttribute('aria-hidden', 'true');
-}
-
-function saveCustomPreset() {
-  const work = parseInt(elements.customWorkInput.value, 10);
-  const breakTime = parseInt(elements.customBreakInput.value, 10);
-
-  if (work >= 1 && work <= 120 && breakTime >= 1 && breakTime <= 60) {
-    state.presets.custom = { work, break: breakTime };
-    updateCustomPresetDisplay();
-    selectPreset('custom');
-    closeCustomPresetModal();
-    saveToStorage();
+function handleOutsideClick(e) {
+  const timerContainer = elements.timerContainer;
+  if (!timerContainer.contains(e.target)) {
+    exitEditMode();
   }
 }
 
-function updateCustomPresetDisplay() {
-  elements.customPresetDetail.textContent =
-    `${state.presets.custom.work}/${state.presets.custom.break}`;
+function formatMinutes(minutes) {
+  return `${minutes}:00`;
+}
+
+function updateTimeWheel() {
+  const values = TIME_VALUES[state.editingMode];
+  const currentMinutes = state.editingMode === 'work' ? state.workMinutes : state.breakMinutes;
+  let currentIndex = values.indexOf(currentMinutes);
+
+  // If current value not in list, find closest
+  if (currentIndex === -1) {
+    currentIndex = values.findIndex(v => v >= currentMinutes);
+    if (currentIndex === -1) currentIndex = values.length - 1;
+  }
+
+  // Get prev, current, next values
+  const prevValue = currentIndex > 0 ? values[currentIndex - 1] : null;
+  const currentValue = values[currentIndex];
+  const nextValue = currentIndex < values.length - 1 ? values[currentIndex + 1] : null;
+
+  // Update display
+  elements.timePrev.textContent = prevValue ? formatMinutes(prevValue) : '';
+  elements.timePrev.style.visibility = prevValue ? 'visible' : 'hidden';
+
+  elements.timeCurrent.textContent = formatMinutes(currentValue);
+
+  elements.timeNext.textContent = nextValue ? formatMinutes(nextValue) : '';
+  elements.timeNext.style.visibility = nextValue ? 'visible' : 'hidden';
+
+  // Update ARIA
+  elements.timeWheel.setAttribute('aria-valuenow', currentValue);
+}
+
+function scrollTimeValue(direction) {
+  // direction: 1 for up (decrease time), -1 for down (increase time)
+  const values = TIME_VALUES[state.editingMode];
+  const currentMinutes = state.editingMode === 'work' ? state.workMinutes : state.breakMinutes;
+  let currentIndex = values.indexOf(currentMinutes);
+
+  if (currentIndex === -1) {
+    currentIndex = values.findIndex(v => v >= currentMinutes);
+    if (currentIndex === -1) currentIndex = values.length - 1;
+  }
+
+  let newIndex = currentIndex - direction;
+  newIndex = Math.max(0, Math.min(newIndex, values.length - 1));
+
+  const newValue = values[newIndex];
+
+  if (state.editingMode === 'work') {
+    state.workMinutes = newValue;
+  } else {
+    state.breakMinutes = newValue;
+  }
+
+  // Add animation class
+  elements.timeWheel.classList.add(direction > 0 ? 'scrolling-up' : 'scrolling-down');
+  setTimeout(() => {
+    elements.timeWheel.classList.remove('scrolling-up', 'scrolling-down');
+  }, 100);
+
+  updateTimeWheel();
+}
+
+function updateEditToggle() {
+  elements.editToggleBtns.forEach(btn => {
+    const isActive = btn.dataset.editMode === state.editingMode;
+    btn.classList.toggle('active', isActive);
+  });
+}
+
+function switchEditingMode(mode) {
+  state.editingMode = mode;
+  updateEditToggle();
+  updateTimeWheel();
+}
+
+// Wheel scroll handler
+function handleWheelScroll(e) {
+  if (!state.isEditing) return;
+
+  e.preventDefault();
+  const direction = e.deltaY > 0 ? -1 : 1;
+  scrollTimeValue(direction);
+}
+
+// Touch drag handlers
+let touchStartY = 0;
+let lastTouchY = 0;
+const DRAG_THRESHOLD = 30;
+
+function handleTouchStart(e) {
+  if (!state.isEditing) return;
+  touchStartY = e.touches[0].clientY;
+  lastTouchY = touchStartY;
+}
+
+function handleTouchMove(e) {
+  if (!state.isEditing) return;
+  e.preventDefault();
+
+  const currentY = e.touches[0].clientY;
+  const deltaY = lastTouchY - currentY;
+
+  if (Math.abs(deltaY) >= DRAG_THRESHOLD) {
+    const direction = deltaY > 0 ? -1 : 1;
+    scrollTimeValue(direction);
+    lastTouchY = currentY;
+
+    // Haptic feedback if available
+    if (navigator.vibrate) {
+      navigator.vibrate(10);
+    }
+  }
+}
+
+function handleTouchEnd() {
+  touchStartY = 0;
+  lastTouchY = 0;
+}
+
+function handleTimerClick(e) {
+  if (state.status === 'idle' && !state.isEditing) {
+    e.stopPropagation();
+    enterEditMode();
+  }
+}
+
+function handleEditToggleClick(e) {
+  const mode = e.target.dataset.editMode;
+  if (mode) {
+    switchEditingMode(mode);
+  }
+}
+
+function updateEditableState() {
+  elements.timerDisplay.classList.toggle('editable', state.status === 'idle' && !state.isEditing);
 }
 
 // ============================================
@@ -467,6 +596,7 @@ function updateUI() {
   updateSessionInfo();
   updateBrowserTab();
   updateModeStyles();
+  updateEditableState();
 }
 
 function updateTimerDisplay() {
@@ -1777,44 +1907,18 @@ function initEventListeners() {
   elements.abandonBtn.addEventListener('click', abandonTimer);
   elements.skipBtn.addEventListener('click', skipTimer);
 
-  // Preset buttons
-  elements.presetBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const work = parseInt(btn.dataset.work, 10);
-      const breakTime = parseInt(btn.dataset.break, 10);
+  // Timer editor
+  elements.timerDisplay.addEventListener('click', handleTimerClick);
 
-      // Find preset name by matching values
-      let presetName = 'classic';
-      for (const [name, preset] of Object.entries(state.presets)) {
-        if (preset.work === work && preset.break === breakTime) {
-          presetName = name;
-          break;
-        }
-      }
+  // Time wheel interactions
+  elements.timeWheel.addEventListener('wheel', handleWheelScroll, { passive: false });
+  elements.timeWheel.addEventListener('touchstart', handleTouchStart, { passive: true });
+  elements.timeWheel.addEventListener('touchmove', handleTouchMove, { passive: false });
+  elements.timeWheel.addEventListener('touchend', handleTouchEnd);
 
-      selectPreset(presetName);
-    });
-  });
-
-  // Custom preset
-  elements.customPresetBtn.addEventListener('click', openCustomPresetModal);
-  elements.modalCancelBtn.addEventListener('click', closeCustomPresetModal);
-  elements.modalSaveBtn.addEventListener('click', saveCustomPreset);
-
-  // Close modal on overlay click
-  elements.modalOverlay.addEventListener('click', (e) => {
-    if (e.target === elements.modalOverlay) {
-      closeCustomPresetModal();
-    }
-  });
-
-  // Modal keyboard handling
-  elements.modalOverlay.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeCustomPresetModal();
-    } else if (e.key === 'Enter') {
-      saveCustomPreset();
-    }
+  // Edit toggle buttons
+  elements.editToggleBtns.forEach(btn => {
+    btn.addEventListener('click', handleEditToggleClick);
   });
 
   // Theme toggle
@@ -1877,6 +1981,31 @@ function initEventListeners() {
     // Don't trigger if typing in input
     if (e.target.tagName === 'INPUT') return;
 
+    // Timer editor keyboard controls
+    if (state.isEditing) {
+      switch (e.code) {
+        case 'ArrowUp':
+          e.preventDefault();
+          scrollTimeValue(1); // Decrease time
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          scrollTimeValue(-1); // Increase time
+          break;
+        case 'Tab':
+          e.preventDefault();
+          // Toggle between work and break
+          switchEditingMode(state.editingMode === 'work' ? 'break' : 'work');
+          break;
+        case 'Escape':
+        case 'Enter':
+          e.preventDefault();
+          exitEditMode();
+          break;
+      }
+      return;
+    }
+
     switch (e.code) {
       case 'Space':
         e.preventDefault();
@@ -1935,8 +2064,11 @@ function initEventListeners() {
 
 function init() {
   loadFromStorage();
-  updateCustomPresetDisplay();
-  selectPreset(state.currentPreset);
+
+  // Apply loaded work/break durations to timer
+  state.totalSeconds = state.workMinutes * 60;
+  state.remainingSeconds = state.totalSeconds;
+
   initEventListeners();
 
   // Restore sound button UI state
