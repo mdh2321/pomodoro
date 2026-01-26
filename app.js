@@ -43,7 +43,7 @@ const state = {
   currentTask: '',
 
   // Ambient sounds
-  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'river' | 'synthDrive' | 'synthNeon' | 'synthGrid'
+  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'forest' | 'synthDrive' | 'synthNeon' | 'synthGrid'
   volume: 50,
 
   // History tracking (all-time)
@@ -97,7 +97,10 @@ const elements = {
   themeToggle: document.getElementById('themeToggle'),
 
   // Sound controls
-  soundBtns: document.querySelectorAll('.sound-btn'),
+  soundControl: document.getElementById('soundControl'),
+  soundToggle: document.getElementById('soundToggle'),
+  soundDropdown: document.getElementById('soundDropdown'),
+  soundOptions: document.querySelectorAll('.sound-option'),
   volumeSlider: document.getElementById('volumeSlider'),
 
   // Stats
@@ -160,10 +163,7 @@ function loadFromStorage() {
         document.documentElement.setAttribute('data-theme', 'dark');
       }
 
-      // Restore sound preferences
-      if (data.currentSound) {
-        state.currentSound = data.currentSound;
-      }
+      // Restore volume preference only (sound resets each session)
       if (typeof data.volume === 'number') {
         state.volume = data.volume;
         elements.volumeSlider.value = data.volume;
@@ -197,7 +197,7 @@ function saveToStorage() {
       sessionCount: state.sessionCount,
       totalFocusedMinutes: state.totalFocusedMinutes,
       theme: state.theme,
-      currentSound: state.currentSound,
+      // Note: currentSound is NOT persisted - resets each session
       volume: state.volume,
       history: state.history,
       currentTask: state.currentTask,
@@ -222,12 +222,17 @@ function startTimer() {
   if (state.status === 'running') return;
 
   state.status = 'running';
-  updateUI();
 
-  // Start ambient sound if in work mode
-  if (state.mode === 'work' && state.currentSound !== 'off') {
-    playAmbientSound(state.currentSound);
+  // Reset sound to off at session start (don't persist between sessions)
+  if (state.currentSound !== 'off') {
+    state.currentSound = 'off';
+    updateSoundUI();
   }
+
+  // Show sound control during active sessions
+  updateSoundControlVisibility();
+
+  updateUI();
 
   state.intervalId = setInterval(() => {
     state.remainingSeconds--;
@@ -249,6 +254,7 @@ function pauseTimer() {
   state.intervalId = null;
   state.status = 'paused';
   stopAmbientSound();
+  updateSoundControlVisibility();
   updateUI();
 }
 
@@ -260,6 +266,8 @@ function resetTimer() {
   state.remainingSeconds = state.totalSeconds;
   state.status = 'idle';
 
+  stopAmbientSound();
+  updateSoundControlVisibility();
   updateUI();
 }
 
@@ -271,8 +279,9 @@ function skipTimer() {
   clearInterval(state.intervalId);
   state.intervalId = null;
 
-  // Stop ambient sounds
+  // Stop ambient sounds and hide control
   stopAmbientSound();
+  updateSoundControlVisibility();
 
   // Switch to work mode without counting
   state.mode = 'work';
@@ -286,7 +295,27 @@ function skipTimer() {
 function continueTimer() {
   // Resume from paused state
   if (state.status !== 'paused') return;
-  startTimer();
+
+  state.status = 'running';
+  updateSoundControlVisibility();
+  updateUI();
+
+  // Resume ambient sound if one was selected
+  if (state.currentSound !== 'off') {
+    playAmbientSound(state.currentSound);
+  }
+
+  state.intervalId = setInterval(() => {
+    state.remainingSeconds--;
+
+    if (state.remainingSeconds <= 0) {
+      completeTimer();
+    } else {
+      updateTimerDisplay();
+      updateProgressRing();
+      updateBrowserTab();
+    }
+  }, 1000);
 }
 
 function doneTimer() {
@@ -315,8 +344,9 @@ function doneTimer() {
     saveToStorage();
   }
 
-  // Stop ambient sounds
+  // Stop ambient sounds and hide control
   stopAmbientSound();
+  updateSoundControlVisibility();
 
   // Transition to break mode
   state.mode = 'break';
@@ -334,8 +364,9 @@ function abandonTimer() {
   clearInterval(state.intervalId);
   state.intervalId = null;
 
-  // Stop ambient sounds
+  // Stop ambient sounds and hide control
   stopAmbientSound();
+  updateSoundControlVisibility();
 
   // Full reset to work mode idle - NO stats recorded
   state.mode = 'work';
@@ -352,8 +383,9 @@ function completeTimer() {
   state.remainingSeconds = 0;
   state.status = 'completed';
 
-  // Stop ambient sounds
+  // Stop ambient sounds and hide control
   stopAmbientSound();
+  updateSoundControlVisibility();
 
   // Track completed work session
   if (state.mode === 'work') {
@@ -675,6 +707,53 @@ function createNotification() {
 }
 
 // ============================================
+// Sound Control UI
+// ============================================
+
+function updateSoundControlVisibility() {
+  // Show sound control only during active sessions (running or paused)
+  const isActiveSession = state.status === 'running' || state.status === 'paused';
+  elements.soundControl.hidden = !isActiveSession;
+
+  // Close dropdown when hiding
+  if (!isActiveSession) {
+    closeSoundDropdown();
+  }
+}
+
+function toggleSoundDropdown() {
+  const isOpen = !elements.soundDropdown.hidden;
+  if (isOpen) {
+    closeSoundDropdown();
+  } else {
+    openSoundDropdown();
+  }
+}
+
+function openSoundDropdown() {
+  elements.soundDropdown.hidden = false;
+  elements.soundToggle.setAttribute('aria-expanded', 'true');
+}
+
+function closeSoundDropdown() {
+  elements.soundDropdown.hidden = true;
+  elements.soundToggle.setAttribute('aria-expanded', 'false');
+}
+
+function updateSoundUI() {
+  // Update sound option buttons
+  elements.soundOptions.forEach(btn => {
+    const isActive = btn.dataset.sound === state.currentSound;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  // Update toggle button to show if sound is playing
+  const isPlaying = state.currentSound !== 'off';
+  elements.soundToggle.classList.toggle('active', isPlaying);
+}
+
+// ============================================
 // Ambient Sounds (High Quality)
 // ============================================
 
@@ -720,7 +799,8 @@ function stopAmbientSound() {
 }
 
 // Create noise buffer with specified characteristics
-function createNoiseBuffer(ctx, type, duration = 4) {
+// Using longer duration (10+ seconds) for more natural variation
+function createNoiseBuffer(ctx, type, duration = 10) {
   const bufferSize = ctx.sampleRate * duration;
   const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate); // Stereo
   const dataL = buffer.getChannelData(0);
@@ -732,22 +812,33 @@ function createNoiseBuffer(ctx, type, duration = 4) {
       dataR[i] = Math.random() * 2 - 1;
     }
   } else if (type === 'pink') {
-    // Pink noise using Paul Kellet's refined method
-    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    // Pink noise using Paul Kellet's refined method with independent stereo channels
+    let b0L = 0, b1L = 0, b2L = 0, b3L = 0, b4L = 0, b5L = 0, b6L = 0;
+    let b0R = 0, b1R = 0, b2R = 0, b3R = 0, b4R = 0, b5R = 0, b6R = 0;
     for (let i = 0; i < bufferSize; i++) {
-      const white = Math.random() * 2 - 1;
-      b0 = 0.99886 * b0 + white * 0.0555179;
-      b1 = 0.99332 * b1 + white * 0.0750759;
-      b2 = 0.96900 * b2 + white * 0.1538520;
-      b3 = 0.86650 * b3 + white * 0.3104856;
-      b4 = 0.55000 * b4 + white * 0.5329522;
-      b5 = -0.7616 * b5 - white * 0.0168980;
-      const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
-      b6 = white * 0.115926;
-      dataL[i] = pink;
-      // Slightly different for stereo width
-      const white2 = Math.random() * 2 - 1;
-      dataR[i] = pink * 0.7 + white2 * 0.3;
+      // Left channel
+      const whiteL = Math.random() * 2 - 1;
+      b0L = 0.99886 * b0L + whiteL * 0.0555179;
+      b1L = 0.99332 * b1L + whiteL * 0.0750759;
+      b2L = 0.96900 * b2L + whiteL * 0.1538520;
+      b3L = 0.86650 * b3L + whiteL * 0.3104856;
+      b4L = 0.55000 * b4L + whiteL * 0.5329522;
+      b5L = -0.7616 * b5L - whiteL * 0.0168980;
+      const pinkL = (b0L + b1L + b2L + b3L + b4L + b5L + b6L + whiteL * 0.5362) * 0.11;
+      b6L = whiteL * 0.115926;
+      dataL[i] = pinkL;
+
+      // Right channel (independent)
+      const whiteR = Math.random() * 2 - 1;
+      b0R = 0.99886 * b0R + whiteR * 0.0555179;
+      b1R = 0.99332 * b1R + whiteR * 0.0750759;
+      b2R = 0.96900 * b2R + whiteR * 0.1538520;
+      b3R = 0.86650 * b3R + whiteR * 0.3104856;
+      b4R = 0.55000 * b4R + whiteR * 0.5329522;
+      b5R = -0.7616 * b5R - whiteR * 0.0168980;
+      const pinkR = (b0R + b1R + b2R + b3R + b4R + b5R + b6R + whiteR * 0.5362) * 0.11;
+      b6R = whiteR * 0.115926;
+      dataR[i] = pinkR;
     }
   } else if (type === 'brown') {
     let lastL = 0, lastR = 0;
@@ -764,7 +855,39 @@ function createNoiseBuffer(ctx, type, duration = 4) {
   return buffer;
 }
 
-// Rain on tent - light, muffled, with occasional thunder
+// Create a textured noise buffer with natural variation (for rain, fire crackle, etc.)
+function createTexturedNoiseBuffer(ctx, duration = 15) {
+  const bufferSize = ctx.sampleRate * duration;
+  const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate);
+  const dataL = buffer.getChannelData(0);
+  const dataR = buffer.getChannelData(1);
+
+  // Create brown noise as base
+  let lastL = 0, lastR = 0;
+
+  // Add slow amplitude modulation for natural variation
+  for (let i = 0; i < bufferSize; i++) {
+    const t = i / ctx.sampleRate;
+
+    // Multiple slow modulations at different rates
+    const mod1 = 0.7 + 0.3 * Math.sin(t * 0.1 * Math.PI);
+    const mod2 = 0.8 + 0.2 * Math.sin(t * 0.23 * Math.PI + 1.2);
+    const mod3 = 0.85 + 0.15 * Math.sin(t * 0.07 * Math.PI + 2.5);
+    const modulation = mod1 * mod2 * mod3;
+
+    const whiteL = Math.random() * 2 - 1;
+    const whiteR = Math.random() * 2 - 1;
+    lastL = (lastL + 0.02 * whiteL) / 1.02;
+    lastR = (lastR + 0.02 * whiteR) / 1.02;
+
+    dataL[i] = lastL * 3.5 * modulation;
+    dataR[i] = lastR * 3.5 * modulation;
+  }
+
+  return buffer;
+}
+
+// Rain on tent - immersive, muffled, with natural variation and occasional thunder
 function playRainOnTent() {
   const ctx = initAudioContext();
   stopAmbientSound();
@@ -776,38 +899,59 @@ function playRainOnTent() {
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Light rain patter - muffled (as if inside tent)
-  const patterBuffer = createNoiseBuffer(ctx, 'pink', 4);
-  const patterSource = ctx.createBufferSource();
-  patterSource.buffer = patterBuffer;
-  patterSource.loop = true;
+  // Layer 1: Main rain body - textured pink noise with slow variation
+  const rainBuffer = createTexturedNoiseBuffer(ctx, 20);
+  const rainSource = ctx.createBufferSource();
+  rainSource.buffer = rainBuffer;
+  rainSource.loop = true;
 
-  const patterFilter = ctx.createBiquadFilter();
-  patterFilter.type = 'lowpass';
-  patterFilter.frequency.value = 400; // More muffled
-  patterFilter.Q.value = 0.3;
+  // Muffled low-pass (hearing rain from inside tent)
+  const rainFilter = ctx.createBiquadFilter();
+  rainFilter.type = 'lowpass';
+  rainFilter.frequency.value = 500;
+  rainFilter.Q.value = 0.5;
 
-  const patterGain = ctx.createGain();
-  patterGain.gain.value = 0.35;
+  // Slow intensity variation (rain ebbs and flows)
+  const rainLfo = ctx.createOscillator();
+  rainLfo.type = 'sine';
+  rainLfo.frequency.value = 0.03; // Very slow
+  const rainLfoGain = ctx.createGain();
+  rainLfoGain.gain.value = 100;
+  rainLfo.connect(rainLfoGain);
+  rainLfoGain.connect(rainFilter.frequency);
+  rainLfo.start();
 
-  patterSource.connect(patterFilter);
-  patterFilter.connect(patterGain);
-  patterGain.connect(masterGain);
-  patterSource.start();
+  const rainGain = ctx.createGain();
+  rainGain.gain.value = 0.4;
 
-  ambientNodes.sources.push(patterSource);
-  ambientNodes.nodes.push(patterFilter, patterGain);
+  rainSource.connect(rainFilter);
+  rainFilter.connect(rainGain);
+  rainGain.connect(masterGain);
+  rainSource.start();
 
-  // Layer 2: Soft tent fabric resonance
-  const tentBuffer = createNoiseBuffer(ctx, 'brown', 4);
+  ambientNodes.sources.push(rainSource, rainLfo);
+  ambientNodes.nodes.push(rainFilter, rainLfoGain, rainGain);
+
+  // Layer 2: Tent fabric resonance - low rumble with character
+  const tentBuffer = createNoiseBuffer(ctx, 'brown', 15);
   const tentSource = ctx.createBufferSource();
   tentSource.buffer = tentBuffer;
   tentSource.loop = true;
 
   const tentFilter = ctx.createBiquadFilter();
   tentFilter.type = 'bandpass';
-  tentFilter.frequency.value = 200; // Lower, more muffled
-  tentFilter.Q.value = 0.8;
+  tentFilter.frequency.value = 180;
+  tentFilter.Q.value = 1.2;
+
+  // Subtle modulation for tent "breathing"
+  const tentLfo = ctx.createOscillator();
+  tentLfo.type = 'sine';
+  tentLfo.frequency.value = 0.05;
+  const tentLfoGain = ctx.createGain();
+  tentLfoGain.gain.value = 30;
+  tentLfo.connect(tentLfoGain);
+  tentLfoGain.connect(tentFilter.frequency);
+  tentLfo.start();
 
   const tentGain = ctx.createGain();
   tentGain.gain.value = 0.2;
@@ -817,62 +961,121 @@ function playRainOnTent() {
   tentGain.connect(masterGain);
   tentSource.start();
 
-  ambientNodes.sources.push(tentSource);
-  ambientNodes.nodes.push(tentFilter, tentGain);
+  ambientNodes.sources.push(tentSource, tentLfo);
+  ambientNodes.nodes.push(tentFilter, tentLfoGain, tentGain);
 
-  // Layer 3: Very subtle high detail (distant droplets on tent)
-  const dropBuffer = createNoiseBuffer(ctx, 'white', 4);
-  const dropSource = ctx.createBufferSource();
-  dropSource.buffer = dropBuffer;
-  dropSource.loop = true;
+  // Layer 3: Rain detail - occasional droplet emphasis
+  const detailBuffer = createNoiseBuffer(ctx, 'pink', 12);
+  const detailSource = ctx.createBufferSource();
+  detailSource.buffer = detailBuffer;
+  detailSource.loop = true;
 
-  const dropFilter = ctx.createBiquadFilter();
-  dropFilter.type = 'bandpass';
-  dropFilter.frequency.value = 1200;
-  dropFilter.Q.value = 0.5;
+  const detailFilter = ctx.createBiquadFilter();
+  detailFilter.type = 'bandpass';
+  detailFilter.frequency.value = 800;
+  detailFilter.Q.value = 0.8;
 
-  const dropGain = ctx.createGain();
-  dropGain.gain.value = 0.03; // Very subtle
+  const detailGain = ctx.createGain();
+  detailGain.gain.value = 0.06;
 
-  dropSource.connect(dropFilter);
-  dropFilter.connect(dropGain);
-  dropGain.connect(masterGain);
-  dropSource.start();
+  detailSource.connect(detailFilter);
+  detailFilter.connect(detailGain);
+  detailGain.connect(masterGain);
+  detailSource.start();
 
-  ambientNodes.sources.push(dropSource);
-  ambientNodes.nodes.push(dropFilter, dropGain);
+  ambientNodes.sources.push(detailSource);
+  ambientNodes.nodes.push(detailFilter, detailGain);
 
-  // Occasional distant thunder
+  // Layer 4: Very subtle high frequency (water streaming down tent)
+  const streamBuffer = createNoiseBuffer(ctx, 'white', 10);
+  const streamSource = ctx.createBufferSource();
+  streamSource.buffer = streamBuffer;
+  streamSource.loop = true;
+
+  const streamFilter = ctx.createBiquadFilter();
+  streamFilter.type = 'highpass';
+  streamFilter.frequency.value = 2500;
+  streamFilter.Q.value = 0.3;
+
+  const streamGain = ctx.createGain();
+  streamGain.gain.value = 0.015;
+
+  streamSource.connect(streamFilter);
+  streamFilter.connect(streamGain);
+  streamGain.connect(masterGain);
+  streamSource.start();
+
+  ambientNodes.sources.push(streamSource);
+  ambientNodes.nodes.push(streamFilter, streamGain);
+
+  // Random individual heavy drops hitting tent
+  function playDrop() {
+    if (!ambientNodes.gain) return;
+
+    const dropGain = ctx.createGain();
+    const intensity = 0.05 + Math.random() * 0.08;
+    dropGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
+    dropGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05 + Math.random() * 0.03);
+    dropGain.connect(masterGain);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300 + Math.random() * 200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.05);
+
+    osc.connect(dropGain);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.08);
+  }
+
+  // Schedule random drops
+  function scheduleDrops() {
+    if (!ambientNodes.gain) return;
+    // Random cluster of 1-4 drops
+    const count = 1 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        if (ambientNodes.gain) playDrop();
+      }, i * (30 + Math.random() * 60));
+    }
+    // Next cluster in 0.5-2 seconds
+    const nextDelay = 500 + Math.random() * 1500;
+    ambientNodes.extraInterval = setTimeout(scheduleDrops, nextDelay);
+  }
+  scheduleDrops();
+
+  // Distant thunder
   function playThunder() {
     if (!ambientNodes.gain) return;
 
     const thunderGain = ctx.createGain();
-    const intensity = 0.15 + Math.random() * 0.2;
+    const intensity = 0.12 + Math.random() * 0.15;
+    const duration = 2 + Math.random() * 3;
+
     thunderGain.gain.setValueAtTime(0, ctx.currentTime);
-    thunderGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.3);
-    thunderGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2 + Math.random() * 2);
+    thunderGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.4);
+    thunderGain.gain.setValueAtTime(intensity * (state.volume / 100) * 0.8, ctx.currentTime + 0.6);
+    thunderGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     thunderGain.connect(masterGain);
 
-    // Deep rumble using brown noise
-    const thunderBuffer = createNoiseBuffer(ctx, 'brown', 4);
+    const thunderBuffer = createNoiseBuffer(ctx, 'brown', 5);
     const thunderSource = ctx.createBufferSource();
     thunderSource.buffer = thunderBuffer;
 
     const thunderFilter = ctx.createBiquadFilter();
     thunderFilter.type = 'lowpass';
-    thunderFilter.frequency.value = 100 + Math.random() * 50;
-    thunderFilter.Q.value = 0.5;
+    thunderFilter.frequency.value = 80 + Math.random() * 40;
+    thunderFilter.Q.value = 0.7;
 
     thunderSource.connect(thunderFilter);
     thunderFilter.connect(thunderGain);
     thunderSource.start();
-    thunderSource.stop(ctx.currentTime + 4);
+    thunderSource.stop(ctx.currentTime + duration + 1);
   }
 
-  // Random thunder every 20-60 seconds
   function scheduleThunder() {
     if (!ambientNodes.gain) return;
-    const delay = 20000 + Math.random() * 40000;
+    const delay = 25000 + Math.random() * 50000;
     ambientNodes.thunderTimeout = setTimeout(() => {
       playThunder();
       scheduleThunder();
@@ -881,7 +1084,7 @@ function playRainOnTent() {
   scheduleThunder();
 }
 
-// Peaceful crackling fireplace
+// Peaceful crackling fireplace - warm, cozy, with natural variation
 function playFireplace() {
   const ctx = initAudioContext();
   stopAmbientSound();
@@ -893,41 +1096,51 @@ function playFireplace() {
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Soft warm base (gentle brown noise)
-  const baseBuffer = createNoiseBuffer(ctx, 'brown', 4);
+  // Layer 1: Deep warm base - the "body" of the fire
+  const baseBuffer = createTexturedNoiseBuffer(ctx, 20);
   const baseSource = ctx.createBufferSource();
   baseSource.buffer = baseBuffer;
   baseSource.loop = true;
 
   const baseFilter = ctx.createBiquadFilter();
   baseFilter.type = 'lowpass';
-  baseFilter.frequency.value = 300; // Softer, warmer
-  baseFilter.Q.value = 0.5;
+  baseFilter.frequency.value = 250;
+  baseFilter.Q.value = 0.6;
+
+  // Slow breathing modulation (fire intensity varies)
+  const baseLfo = ctx.createOscillator();
+  baseLfo.type = 'sine';
+  baseLfo.frequency.value = 0.04;
+  const baseLfoGain = ctx.createGain();
+  baseLfoGain.gain.value = 50;
+  baseLfo.connect(baseLfoGain);
+  baseLfoGain.connect(baseFilter.frequency);
+  baseLfo.start();
 
   const baseGain = ctx.createGain();
-  baseGain.gain.value = 0.4;
+  baseGain.gain.value = 0.35;
 
   baseSource.connect(baseFilter);
   baseFilter.connect(baseGain);
   baseGain.connect(masterGain);
   baseSource.start();
 
-  ambientNodes.sources.push(baseSource);
-  ambientNodes.nodes.push(baseFilter, baseGain);
+  ambientNodes.sources.push(baseSource, baseLfo);
+  ambientNodes.nodes.push(baseFilter, baseLfoGain, baseGain);
 
-  // Layer 2: Gentle mid warmth
-  const midBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  // Layer 2: Mid-frequency warmth
+  const midBuffer = createNoiseBuffer(ctx, 'pink', 15);
   const midSource = ctx.createBufferSource();
   midSource.buffer = midBuffer;
   midSource.loop = true;
 
   const midFilter = ctx.createBiquadFilter();
   midFilter.type = 'bandpass';
-  midFilter.frequency.value = 600;
-  midFilter.Q.value = 0.6;
+  midFilter.frequency.value = 450;
+  midFilter.Q.value = 0.8;
 
   const midGain = ctx.createGain();
-  midGain.gain.value = 0.1;
+  midGain.gain.value = 0.12;
 
   midSource.connect(midFilter);
   midFilter.connect(midGain);
@@ -937,265 +1150,329 @@ function playFireplace() {
   ambientNodes.sources.push(midSource);
   ambientNodes.nodes.push(midFilter, midGain);
 
-  // Gentle crackle pops - quieter and more varied
+  // Layer 3: Subtle high crackle texture
+  const textureBuffer = createNoiseBuffer(ctx, 'white', 12);
+  const textureSource = ctx.createBufferSource();
+  textureSource.buffer = textureBuffer;
+  textureSource.loop = true;
+
+  const textureFilter = ctx.createBiquadFilter();
+  textureFilter.type = 'bandpass';
+  textureFilter.frequency.value = 2000;
+  textureFilter.Q.value = 1.5;
+
+  const textureGain = ctx.createGain();
+  textureGain.gain.value = 0.02;
+
+  textureSource.connect(textureFilter);
+  textureFilter.connect(textureGain);
+  textureGain.connect(masterGain);
+  textureSource.start();
+
+  ambientNodes.sources.push(textureSource);
+  ambientNodes.nodes.push(textureFilter, textureGain);
+
+  // Dynamic crackles and pops
   function playCrackle() {
     if (!ambientNodes.gain) return;
 
     const crackleGain = ctx.createGain();
-    const intensity = 0.05 + Math.random() * 0.12; // Quieter
+    const intensity = 0.04 + Math.random() * 0.08;
+    const duration = 0.02 + Math.random() * 0.05;
+
     crackleGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
-    crackleGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03 + Math.random() * 0.08);
+    crackleGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     crackleGain.connect(masterGain);
 
-    // Use noise burst for more natural crackle
-    const crackleBuffer = createNoiseBuffer(ctx, 'white', 0.2);
+    const crackleBuffer = createNoiseBuffer(ctx, 'white', 0.3);
     const crackleSource = ctx.createBufferSource();
     crackleSource.buffer = crackleBuffer;
 
     const crackleFilter = ctx.createBiquadFilter();
     crackleFilter.type = 'bandpass';
-    crackleFilter.frequency.value = 1500 + Math.random() * 2000;
-    crackleFilter.Q.value = 3 + Math.random() * 5;
+    crackleFilter.frequency.value = 1200 + Math.random() * 2500;
+    crackleFilter.Q.value = 2 + Math.random() * 4;
 
     crackleSource.connect(crackleFilter);
     crackleFilter.connect(crackleGain);
     crackleSource.start();
-    crackleSource.stop(ctx.currentTime + 0.1);
+    crackleSource.stop(ctx.currentTime + duration + 0.05);
   }
 
-  // Soft pop sounds
-  function playSoftPop() {
+  function playPop() {
     if (!ambientNodes.gain) return;
 
     const popGain = ctx.createGain();
-    const intensity = 0.03 + Math.random() * 0.06;
+    const intensity = 0.06 + Math.random() * 0.1;
     popGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
-    popGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    popGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
     popGain.connect(masterGain);
 
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(200 + Math.random() * 100, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.1);
+    const startFreq = 150 + Math.random() * 100;
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.1);
 
     osc.connect(popGain);
     osc.start();
-    osc.stop(ctx.currentTime + 0.15);
+    osc.stop(ctx.currentTime + 0.12);
   }
 
-  // More frequent but gentler crackles
-  ambientNodes.interval = setInterval(() => {
+  function playSnap() {
+    if (!ambientNodes.gain) return;
+
+    const snapGain = ctx.createGain();
+    const intensity = 0.08 + Math.random() * 0.12;
+    snapGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
+    snapGain.connect(masterGain);
+
+    const snapBuffer = createNoiseBuffer(ctx, 'white', 0.1);
+    const snapSource = ctx.createBufferSource();
+    snapSource.buffer = snapBuffer;
+
+    const snapFilter = ctx.createBiquadFilter();
+    snapFilter.type = 'highpass';
+    snapFilter.frequency.value = 3000 + Math.random() * 2000;
+
+    snapSource.connect(snapFilter);
+    snapFilter.connect(snapGain);
+    snapSource.start();
+    snapSource.stop(ctx.currentTime + 0.03);
+  }
+
+  // Variable crackle scheduling
+  function scheduleCrackles() {
+    if (!ambientNodes.gain) return;
+
     const rand = Math.random();
-    if (rand > 0.6) {
+    if (rand > 0.5) {
       playCrackle();
-    } else if (rand > 0.85) {
-      playSoftPop();
     }
-  }, 150 + Math.random() * 300);
+    if (rand > 0.85) {
+      playPop();
+    }
+    if (rand > 0.95) {
+      playSnap();
+    }
+
+    // Variable timing for natural feel
+    const nextDelay = 80 + Math.random() * 400;
+    ambientNodes.interval = setTimeout(scheduleCrackles, nextDelay);
+  }
+  scheduleCrackles();
+
+  // Occasional louder crackle sequences (log shifting)
+  function playLogShift() {
+    if (!ambientNodes.gain) return;
+
+    const count = 3 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        if (ambientNodes.gain) {
+          playCrackle();
+          if (Math.random() > 0.5) playPop();
+        }
+      }, i * (40 + Math.random() * 80));
+    }
+  }
+
+  function scheduleLogShift() {
+    if (!ambientNodes.gain) return;
+    const delay = 8000 + Math.random() * 20000;
+    ambientNodes.extraInterval = setTimeout(() => {
+      playLogShift();
+      scheduleLogShift();
+    }, delay);
+  }
+  scheduleLogShift();
 }
 
-// Slow peaceful river
-function playRiver() {
+// Peaceful forest with birds and gentle breeze
+function playForest() {
   const ctx = initAudioContext();
   stopAmbientSound();
 
   const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.45;
+  masterGain.gain.value = state.volume / 100 * 0.5;
   masterGain.connect(ctx.destination);
   ambientNodes.gain = masterGain;
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Deep slow current (brown noise, very low and smooth)
-  const deepBuffer = createNoiseBuffer(ctx, 'brown', 4);
-  const deepSource = ctx.createBufferSource();
-  deepSource.buffer = deepBuffer;
-  deepSource.loop = true;
+  // Layer 1: Deep forest ambience (brown noise, low rumble)
+  const ambientBuffer = createNoiseBuffer(ctx, 'brown', 6);
+  const ambientSource = ctx.createBufferSource();
+  ambientSource.buffer = ambientBuffer;
+  ambientSource.loop = true;
 
-  const deepFilter = ctx.createBiquadFilter();
-  deepFilter.type = 'lowpass';
-  deepFilter.frequency.value = 150; // Very deep
-  deepFilter.Q.value = 0.3;
+  const ambientFilter = ctx.createBiquadFilter();
+  ambientFilter.type = 'lowpass';
+  ambientFilter.frequency.value = 200;
+  ambientFilter.Q.value = 0.5;
 
-  const deepGain = ctx.createGain();
-  deepGain.gain.value = 0.35;
+  const ambientGain = ctx.createGain();
+  ambientGain.gain.value = 0.15;
 
-  deepSource.connect(deepFilter);
-  deepFilter.connect(deepGain);
-  deepGain.connect(masterGain);
-  deepSource.start();
+  ambientSource.connect(ambientFilter);
+  ambientFilter.connect(ambientGain);
+  ambientGain.connect(masterGain);
+  ambientSource.start();
 
-  ambientNodes.sources.push(deepSource);
-  ambientNodes.nodes.push(deepFilter, deepGain);
+  ambientNodes.sources.push(ambientSource);
+  ambientNodes.nodes.push(ambientFilter, ambientGain);
 
-  // Layer 2: Gentle main flow (pink noise with very slow modulation)
-  const flowBuffer = createNoiseBuffer(ctx, 'pink', 4);
-  const flowSource = ctx.createBufferSource();
-  flowSource.buffer = flowBuffer;
-  flowSource.loop = true;
+  // Layer 2: Gentle wind through leaves (pink noise with slow modulation)
+  const windBuffer = createNoiseBuffer(ctx, 'pink', 6);
+  const windSource = ctx.createBufferSource();
+  windSource.buffer = windBuffer;
+  windSource.loop = true;
 
-  const flowFilter = ctx.createBiquadFilter();
-  flowFilter.type = 'bandpass';
-  flowFilter.frequency.value = 400; // Lower frequency for slower feel
-  flowFilter.Q.value = 0.3;
+  const windFilter = ctx.createBiquadFilter();
+  windFilter.type = 'bandpass';
+  windFilter.frequency.value = 600;
+  windFilter.Q.value = 0.4;
 
-  // Very slow, subtle modulation
-  const lfo = ctx.createOscillator();
-  lfo.type = 'sine';
-  lfo.frequency.value = 0.08; // Very slow modulation
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.value = 50; // Subtle variation
-  lfo.connect(lfoGain);
-  lfoGain.connect(flowFilter.frequency);
-  lfo.start();
+  // Slow breathing modulation for wind
+  const windLfo = ctx.createOscillator();
+  windLfo.type = 'sine';
+  windLfo.frequency.value = 0.1;
+  const windLfoGain = ctx.createGain();
+  windLfoGain.gain.value = 200;
+  windLfo.connect(windLfoGain);
+  windLfoGain.connect(windFilter.frequency);
+  windLfo.start();
 
-  const flowGain = ctx.createGain();
-  flowGain.gain.value = 0.3;
+  // Volume modulation for natural wind gusts
+  const windVolLfo = ctx.createOscillator();
+  windVolLfo.type = 'sine';
+  windVolLfo.frequency.value = 0.05;
+  const windVolLfoGain = ctx.createGain();
+  windVolLfoGain.gain.value = 0.08;
 
-  flowSource.connect(flowFilter);
-  flowFilter.connect(flowGain);
-  flowGain.connect(masterGain);
-  flowSource.start();
+  const windGain = ctx.createGain();
+  windGain.gain.value = 0.2;
 
-  ambientNodes.sources.push(flowSource, lfo);
-  ambientNodes.nodes.push(flowFilter, lfoGain, flowGain);
+  windVolLfo.connect(windVolLfoGain);
+  windVolLfoGain.connect(windGain.gain);
+  windVolLfo.start();
 
-  // Layer 3: Very subtle high shimmer (distant water sparkle)
-  const shimmerBuffer = createNoiseBuffer(ctx, 'white', 4);
-  const shimmerSource = ctx.createBufferSource();
-  shimmerSource.buffer = shimmerBuffer;
-  shimmerSource.loop = true;
+  windSource.connect(windFilter);
+  windFilter.connect(windGain);
+  windGain.connect(masterGain);
+  windSource.start();
 
-  const shimmerFilter = ctx.createBiquadFilter();
-  shimmerFilter.type = 'bandpass';
-  shimmerFilter.frequency.value = 2000;
-  shimmerFilter.Q.value = 1;
+  ambientNodes.sources.push(windSource, windLfo, windVolLfo);
+  ambientNodes.nodes.push(windFilter, windLfoGain, windVolLfoGain, windGain);
 
-  const shimmerGain = ctx.createGain();
-  shimmerGain.gain.value = 0.015; // Very quiet
+  // Layer 3: Subtle leaf rustle (white noise, high frequency)
+  const rustleBuffer = createNoiseBuffer(ctx, 'white', 4);
+  const rustleSource = ctx.createBufferSource();
+  rustleSource.buffer = rustleBuffer;
+  rustleSource.loop = true;
 
-  shimmerSource.connect(shimmerFilter);
-  shimmerFilter.connect(shimmerGain);
-  shimmerGain.connect(masterGain);
-  shimmerSource.start();
+  const rustleFilter = ctx.createBiquadFilter();
+  rustleFilter.type = 'highpass';
+  rustleFilter.frequency.value = 3000;
+  rustleFilter.Q.value = 0.5;
 
-  ambientNodes.sources.push(shimmerSource);
-  ambientNodes.nodes.push(shimmerFilter, shimmerGain);
+  const rustleGain = ctx.createGain();
+  rustleGain.gain.value = 0.02;
+
+  rustleSource.connect(rustleFilter);
+  rustleFilter.connect(rustleGain);
+  rustleGain.connect(masterGain);
+  rustleSource.start();
+
+  ambientNodes.sources.push(rustleSource);
+  ambientNodes.nodes.push(rustleFilter, rustleGain);
+
+  // Bird chirps - random bird-like sounds
+  function playBirdChirp() {
+    if (!ambientNodes.gain) return;
+
+    const chirpGain = ctx.createGain();
+    const intensity = 0.08 + Math.random() * 0.1;
+
+    // Create a bird-like chirp using oscillator
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+
+    // Random bird frequency (higher pitched)
+    const baseFreq = 1800 + Math.random() * 1200;
+    osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+
+    // Bird-like frequency modulation (chirp pattern)
+    const chirpDuration = 0.08 + Math.random() * 0.15;
+    const pattern = Math.random();
+
+    if (pattern > 0.6) {
+      // Rising chirp
+      osc.frequency.linearRampToValueAtTime(baseFreq * 1.3, ctx.currentTime + chirpDuration * 0.5);
+      osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, ctx.currentTime + chirpDuration);
+    } else if (pattern > 0.3) {
+      // Falling chirp
+      osc.frequency.linearRampToValueAtTime(baseFreq * 0.7, ctx.currentTime + chirpDuration);
+    } else {
+      // Trill (rapid frequency changes)
+      for (let i = 0; i < 4; i++) {
+        const t = ctx.currentTime + (chirpDuration / 4) * i;
+        osc.frequency.setValueAtTime(baseFreq * (1 + (i % 2) * 0.15), t);
+      }
+    }
+
+    // Envelope
+    chirpGain.gain.setValueAtTime(0, ctx.currentTime);
+    chirpGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.01);
+    chirpGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + chirpDuration + 0.05);
+
+    osc.connect(chirpGain);
+    chirpGain.connect(masterGain);
+    osc.start();
+    osc.stop(ctx.currentTime + chirpDuration + 0.1);
+  }
+
+  // Schedule random bird chirps
+  function scheduleBirdChirps() {
+    if (!ambientNodes.gain) return;
+
+    // Play 1-3 chirps in a sequence (birds often chirp in patterns)
+    const chirpCount = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < chirpCount; i++) {
+      setTimeout(() => {
+        if (ambientNodes.gain) playBirdChirp();
+      }, i * (100 + Math.random() * 200));
+    }
+
+    // Schedule next bird chirp sequence (every 3-10 seconds)
+    const nextDelay = 3000 + Math.random() * 7000;
+    ambientNodes.thunderTimeout = setTimeout(scheduleBirdChirps, nextDelay);
+  }
+
+  // Start bird chirps after a short delay
+  ambientNodes.thunderTimeout = setTimeout(scheduleBirdChirps, 2000);
 }
 
-// Synthwave Track 1: Drive - Energetic, pulsing, driving feel
+// Synthwave Track 1: Neon Drive - Upbeat, driving, energetic ambient synthwave
 function playSynthDrive() {
   const ctx = initAudioContext();
   stopAmbientSound();
 
   const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.35;
+  masterGain.gain.value = state.volume / 100 * 0.32;
   masterGain.connect(ctx.destination);
   ambientNodes.gain = masterGain;
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Driving bass - pulsing saw wave
-  const bassOsc = ctx.createOscillator();
-  bassOsc.type = 'sawtooth';
-  bassOsc.frequency.value = 55; // A1
-
-  const bassFilter = ctx.createBiquadFilter();
-  bassFilter.type = 'lowpass';
-  bassFilter.frequency.value = 400;
-  bassFilter.Q.value = 2;
-
-  // Rhythmic pulse on the bass (eighth notes feel)
-  const bassLfo = ctx.createOscillator();
-  bassLfo.type = 'square';
-  bassLfo.frequency.value = 2; // Pulsing rhythm
-  const bassLfoGain = ctx.createGain();
-  bassLfoGain.gain.value = 0.15;
-  bassLfo.connect(bassLfoGain);
-  bassLfoGain.connect(masterGain);
-
-  const bassGain = ctx.createGain();
-  bassGain.gain.value = 0.25;
-  bassLfo.start();
-
-  bassOsc.connect(bassFilter);
-  bassFilter.connect(bassGain);
-  bassGain.connect(masterGain);
-  bassOsc.start();
-
-  ambientNodes.sources.push(bassOsc, bassLfo);
-  ambientNodes.nodes.push(bassFilter, bassLfoGain, bassGain);
-
-  // Arpeggio layer - cycling through notes
-  const arpNotes = [220, 277.18, 329.63, 440]; // A3, C#4, E4, A4
-  let arpIndex = 0;
-
-  const arpOsc = ctx.createOscillator();
-  arpOsc.type = 'sawtooth';
-  arpOsc.frequency.value = arpNotes[0];
-
-  const arpFilter = ctx.createBiquadFilter();
-  arpFilter.type = 'lowpass';
-  arpFilter.frequency.value = 2000;
-  arpFilter.Q.value = 3;
-
-  // Filter sweep LFO
-  const arpFilterLfo = ctx.createOscillator();
-  arpFilterLfo.type = 'sine';
-  arpFilterLfo.frequency.value = 0.15;
-  const arpFilterLfoGain = ctx.createGain();
-  arpFilterLfoGain.gain.value = 1000;
-  arpFilterLfo.connect(arpFilterLfoGain);
-  arpFilterLfoGain.connect(arpFilter.frequency);
-  arpFilterLfo.start();
-
-  const arpGain = ctx.createGain();
-  arpGain.gain.value = 0.12;
-
-  arpOsc.connect(arpFilter);
-  arpFilter.connect(arpGain);
-  arpGain.connect(masterGain);
-  arpOsc.start();
-
-  // Cycle through arp notes
-  ambientNodes.interval = setInterval(() => {
-    if (!ambientNodes.gain) return;
-    arpIndex = (arpIndex + 1) % arpNotes.length;
-    arpOsc.frequency.setTargetAtTime(arpNotes[arpIndex], ctx.currentTime, 0.02);
-  }, 150);
-
-  ambientNodes.sources.push(arpOsc, arpFilterLfo);
-  ambientNodes.nodes.push(arpFilter, arpFilterLfoGain, arpGain);
-
-  // Pad layer - warm sustained chords
-  const padFreqs = [110, 138.59, 165]; // A2, C#3, E3 (A major)
-  padFreqs.forEach((freq, i) => {
-    const padOsc = ctx.createOscillator();
-    padOsc.type = 'sine';
-    padOsc.frequency.value = freq;
-
-    // Slight detuning for warmth
-    const detune = (i - 1) * 5;
-    padOsc.detune.value = detune;
-
-    const padGain = ctx.createGain();
-    padGain.gain.value = 0.06;
-
-    padOsc.connect(padGain);
-    padGain.connect(masterGain);
-    padOsc.start();
-
-    ambientNodes.sources.push(padOsc);
-    ambientNodes.nodes.push(padGain);
-  });
-
-  // Sub bass for depth
+  // Deep sub bass - foundation
   const subOsc = ctx.createOscillator();
   subOsc.type = 'sine';
-  subOsc.frequency.value = 27.5; // A0
+  subOsc.frequency.value = 55; // A1
 
   const subGain = ctx.createGain();
-  subGain.gain.value = 0.18;
+  subGain.gain.value = 0.2;
 
   subOsc.connect(subGain);
   subGain.connect(masterGain);
@@ -1203,39 +1480,110 @@ function playSynthDrive() {
 
   ambientNodes.sources.push(subOsc);
   ambientNodes.nodes.push(subGain);
-}
 
-// Synthwave Track 2: Neon - Dreamy, atmospheric, lush
-function playSynthNeon() {
-  const ctx = initAudioContext();
-  stopAmbientSound();
+  // Pulsing bass with filter envelope
+  const bassOsc = ctx.createOscillator();
+  bassOsc.type = 'sawtooth';
+  bassOsc.frequency.value = 110; // A2
 
-  const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.35;
-  masterGain.connect(ctx.destination);
-  ambientNodes.gain = masterGain;
-  ambientNodes.sources = [];
-  ambientNodes.nodes = [];
+  const bassFilter = ctx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 300;
+  bassFilter.Q.value = 4;
 
-  // Lush pad - layered triangle waves with slow modulation
-  const padFreqs = [130.81, 164.81, 196, 261.63]; // C3, E3, G3, C4 (C major)
-  padFreqs.forEach((freq, i) => {
+  // Rhythmic filter pulse
+  const bassFilterLfo = ctx.createOscillator();
+  bassFilterLfo.type = 'sawtooth';
+  bassFilterLfo.frequency.value = 2; // Pumping rhythm
+  const bassFilterLfoGain = ctx.createGain();
+  bassFilterLfoGain.gain.value = 400;
+  bassFilterLfo.connect(bassFilterLfoGain);
+  bassFilterLfoGain.connect(bassFilter.frequency);
+  bassFilterLfo.start();
+
+  const bassGain = ctx.createGain();
+  bassGain.gain.value = 0.15;
+
+  bassOsc.connect(bassFilter);
+  bassFilter.connect(bassGain);
+  bassGain.connect(masterGain);
+  bassOsc.start();
+
+  ambientNodes.sources.push(bassOsc, bassFilterLfo);
+  ambientNodes.nodes.push(bassFilter, bassFilterLfoGain, bassGain);
+
+  // Arpeggiator - classic synthwave feel
+  const arpNotes = [440, 554.37, 659.25, 880, 659.25, 554.37]; // A4, C#5, E5, A5, E5, C#5
+  let arpIndex = 0;
+
+  const arpOsc = ctx.createOscillator();
+  arpOsc.type = 'sawtooth';
+  arpOsc.frequency.value = arpNotes[0];
+
+  const arpOsc2 = ctx.createOscillator();
+  arpOsc2.type = 'sawtooth';
+  arpOsc2.frequency.value = arpNotes[0];
+  arpOsc2.detune.value = 7; // Slight detune for fatness
+
+  const arpFilter = ctx.createBiquadFilter();
+  arpFilter.type = 'lowpass';
+  arpFilter.frequency.value = 3000;
+  arpFilter.Q.value = 2;
+
+  // Slow filter sweep
+  const arpSweepLfo = ctx.createOscillator();
+  arpSweepLfo.type = 'sine';
+  arpSweepLfo.frequency.value = 0.08;
+  const arpSweepGain = ctx.createGain();
+  arpSweepGain.gain.value = 1500;
+  arpSweepLfo.connect(arpSweepGain);
+  arpSweepGain.connect(arpFilter.frequency);
+  arpSweepLfo.start();
+
+  const arpGain = ctx.createGain();
+  arpGain.gain.value = 0.08;
+
+  const arpMerge = ctx.createGain();
+  arpOsc.connect(arpMerge);
+  arpOsc2.connect(arpMerge);
+  arpMerge.connect(arpFilter);
+  arpFilter.connect(arpGain);
+  arpGain.connect(masterGain);
+  arpOsc.start();
+  arpOsc2.start();
+
+  // Arpeggio sequencer
+  ambientNodes.interval = setInterval(() => {
+    if (!ambientNodes.gain) return;
+    arpIndex = (arpIndex + 1) % arpNotes.length;
+    const freq = arpNotes[arpIndex];
+    arpOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+    arpOsc2.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+  }, 125);
+
+  ambientNodes.sources.push(arpOsc, arpOsc2, arpSweepLfo);
+  ambientNodes.nodes.push(arpFilter, arpSweepGain, arpGain, arpMerge);
+
+  // Warm pad layer - A major chord
+  const padNotes = [220, 277.18, 329.63, 440]; // A3, C#4, E4, A4
+  padNotes.forEach((freq, i) => {
     const padOsc = ctx.createOscillator();
     padOsc.type = 'triangle';
     padOsc.frequency.value = freq;
+    padOsc.detune.value = (i - 1.5) * 4;
 
-    // Slow vibrato
+    // Subtle vibrato
     const vibLfo = ctx.createOscillator();
     vibLfo.type = 'sine';
-    vibLfo.frequency.value = 0.3 + i * 0.1;
+    vibLfo.frequency.value = 4 + i * 0.5;
     const vibGain = ctx.createGain();
-    vibGain.gain.value = freq * 0.01;
+    vibGain.gain.value = freq * 0.003;
     vibLfo.connect(vibGain);
     vibGain.connect(padOsc.frequency);
     vibLfo.start();
 
     const padGain = ctx.createGain();
-    padGain.gain.value = 0.08;
+    padGain.gain.value = 0.04;
 
     padOsc.connect(padGain);
     padGain.connect(masterGain);
@@ -1245,20 +1593,19 @@ function playSynthNeon() {
     ambientNodes.nodes.push(vibGain, padGain);
   });
 
-  // Shimmering high layer
+  // Shimmer layer - high octave
   const shimmerOsc = ctx.createOscillator();
   shimmerOsc.type = 'sine';
-  shimmerOsc.frequency.value = 523.25; // C5
+  shimmerOsc.frequency.value = 1760; // A6
 
-  // Tremolo effect
   const shimmerLfo = ctx.createOscillator();
   shimmerLfo.type = 'sine';
-  shimmerLfo.frequency.value = 6;
+  shimmerLfo.frequency.value = 0.2;
   const shimmerLfoGain = ctx.createGain();
-  shimmerLfoGain.gain.value = 0.04;
+  shimmerLfoGain.gain.value = 0.02;
 
   const shimmerGain = ctx.createGain();
-  shimmerGain.gain.value = 0.04;
+  shimmerGain.gain.value = 0.02;
 
   shimmerLfo.connect(shimmerLfoGain);
   shimmerLfoGain.connect(shimmerGain.gain);
@@ -1270,172 +1617,213 @@ function playSynthNeon() {
 
   ambientNodes.sources.push(shimmerOsc, shimmerLfo);
   ambientNodes.nodes.push(shimmerLfoGain, shimmerGain);
+}
 
-  // Deep bass drone
-  const bassOsc = ctx.createOscillator();
-  bassOsc.type = 'sine';
-  bassOsc.frequency.value = 65.41; // C2
+// Synthwave Track 2: Midnight - Atmospheric, dreamy, evolving ambient synthwave
+function playSynthNeon() {
+  const ctx = initAudioContext();
+  stopAmbientSound();
 
-  const bassFilter = ctx.createBiquadFilter();
-  bassFilter.type = 'lowpass';
-  bassFilter.frequency.value = 200;
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.32;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
 
-  const bassGain = ctx.createGain();
-  bassGain.gain.value = 0.2;
+  // Deep sub bass
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.value = 65.41; // C2
 
-  bassOsc.connect(bassFilter);
-  bassFilter.connect(bassGain);
-  bassGain.connect(masterGain);
-  bassOsc.start();
+  // Subtle sub movement
+  const subLfo = ctx.createOscillator();
+  subLfo.type = 'sine';
+  subLfo.frequency.value = 0.05;
+  const subLfoGain = ctx.createGain();
+  subLfoGain.gain.value = 3;
+  subLfo.connect(subLfoGain);
+  subLfoGain.connect(subOsc.frequency);
+  subLfo.start();
 
-  ambientNodes.sources.push(bassOsc);
-  ambientNodes.nodes.push(bassFilter, bassGain);
+  const subGain = ctx.createGain();
+  subGain.gain.value = 0.18;
 
-  // Slow evolving filter sweep on noise for texture
-  const noiseBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  subOsc.connect(subGain);
+  subGain.connect(masterGain);
+  subOsc.start();
+
+  ambientNodes.sources.push(subOsc, subLfo);
+  ambientNodes.nodes.push(subLfoGain, subGain);
+
+  // Lush evolving pad - C minor 7 for that moody feel
+  const padNotes = [130.81, 155.56, 196, 233.08]; // C3, Eb3, G3, Bb3
+  padNotes.forEach((freq, i) => {
+    // Main oscillator
+    const padOsc = ctx.createOscillator();
+    padOsc.type = i % 2 === 0 ? 'triangle' : 'sine';
+    padOsc.frequency.value = freq;
+    padOsc.detune.value = (i - 1.5) * 6;
+
+    // Detuned layer
+    const padOsc2 = ctx.createOscillator();
+    padOsc2.type = 'triangle';
+    padOsc2.frequency.value = freq;
+    padOsc2.detune.value = (i - 1.5) * 6 + 8;
+
+    // Slow vibrato
+    const vibLfo = ctx.createOscillator();
+    vibLfo.type = 'sine';
+    vibLfo.frequency.value = 0.15 + i * 0.05;
+    const vibGain = ctx.createGain();
+    vibGain.gain.value = freq * 0.008;
+    vibLfo.connect(vibGain);
+    vibGain.connect(padOsc.frequency);
+    vibGain.connect(padOsc2.frequency);
+    vibLfo.start();
+
+    const padFilter = ctx.createBiquadFilter();
+    padFilter.type = 'lowpass';
+    padFilter.frequency.value = 1500;
+    padFilter.Q.value = 0.5;
+
+    // Slow filter movement
+    const filterLfo = ctx.createOscillator();
+    filterLfo.type = 'sine';
+    filterLfo.frequency.value = 0.03 + i * 0.01;
+    const filterLfoGain = ctx.createGain();
+    filterLfoGain.gain.value = 500;
+    filterLfo.connect(filterLfoGain);
+    filterLfoGain.connect(padFilter.frequency);
+    filterLfo.start();
+
+    const padGain = ctx.createGain();
+    padGain.gain.value = 0.045;
+
+    const padMerge = ctx.createGain();
+    padOsc.connect(padMerge);
+    padOsc2.connect(padMerge);
+    padMerge.connect(padFilter);
+    padFilter.connect(padGain);
+    padGain.connect(masterGain);
+    padOsc.start();
+    padOsc2.start();
+
+    ambientNodes.sources.push(padOsc, padOsc2, vibLfo, filterLfo);
+    ambientNodes.nodes.push(vibGain, padFilter, filterLfoGain, padGain, padMerge);
+  });
+
+  // High shimmer arpeggio
+  const shimmerNotes = [523.25, 622.25, 783.99, 932.33]; // C5, Eb5, G5, Bb5
+  let shimmerIndex = 0;
+
+  const shimmerOsc = ctx.createOscillator();
+  shimmerOsc.type = 'sine';
+  shimmerOsc.frequency.value = shimmerNotes[0];
+
+  const shimmerFilter = ctx.createBiquadFilter();
+  shimmerFilter.type = 'lowpass';
+  shimmerFilter.frequency.value = 4000;
+
+  const shimmerGain = ctx.createGain();
+  shimmerGain.gain.value = 0.025;
+
+  shimmerOsc.connect(shimmerFilter);
+  shimmerFilter.connect(shimmerGain);
+  shimmerGain.connect(masterGain);
+  shimmerOsc.start();
+
+  // Slow shimmer arpeggio
+  ambientNodes.interval = setInterval(() => {
+    if (!ambientNodes.gain) return;
+    shimmerIndex = (shimmerIndex + 1) % shimmerNotes.length;
+    shimmerOsc.frequency.setTargetAtTime(shimmerNotes[shimmerIndex], ctx.currentTime, 0.1);
+  }, 800);
+
+  ambientNodes.sources.push(shimmerOsc);
+  ambientNodes.nodes.push(shimmerFilter, shimmerGain);
+
+  // Atmospheric texture
+  const noiseBuffer = createNoiseBuffer(ctx, 'pink', 15);
   const noiseSource = ctx.createBufferSource();
   noiseSource.buffer = noiseBuffer;
   noiseSource.loop = true;
 
   const noiseFilter = ctx.createBiquadFilter();
   noiseFilter.type = 'bandpass';
-  noiseFilter.frequency.value = 800;
-  noiseFilter.Q.value = 2;
+  noiseFilter.frequency.value = 1200;
+  noiseFilter.Q.value = 1.5;
 
-  // Slow sweep
-  const noiseLfo = ctx.createOscillator();
-  noiseLfo.type = 'sine';
-  noiseLfo.frequency.value = 0.05;
-  const noiseLfoGain = ctx.createGain();
-  noiseLfoGain.gain.value = 400;
-  noiseLfo.connect(noiseLfoGain);
-  noiseLfoGain.connect(noiseFilter.frequency);
-  noiseLfo.start();
+  // Evolving sweep
+  const noiseSweepLfo = ctx.createOscillator();
+  noiseSweepLfo.type = 'sine';
+  noiseSweepLfo.frequency.value = 0.02;
+  const noiseSweepGain = ctx.createGain();
+  noiseSweepGain.gain.value = 800;
+  noiseSweepLfo.connect(noiseSweepGain);
+  noiseSweepGain.connect(noiseFilter.frequency);
+  noiseSweepLfo.start();
 
   const noiseGain = ctx.createGain();
-  noiseGain.gain.value = 0.03;
+  noiseGain.gain.value = 0.025;
 
   noiseSource.connect(noiseFilter);
   noiseFilter.connect(noiseGain);
   noiseGain.connect(masterGain);
   noiseSource.start();
 
-  ambientNodes.sources.push(noiseSource, noiseLfo);
-  ambientNodes.nodes.push(noiseFilter, noiseLfoGain, noiseGain);
+  ambientNodes.sources.push(noiseSource, noiseSweepLfo);
+  ambientNodes.nodes.push(noiseFilter, noiseSweepGain, noiseGain);
+
+  // Occasional "sparkle" high notes
+  function playSparkle() {
+    if (!ambientNodes.gain) return;
+
+    const sparkleOsc = ctx.createOscillator();
+    sparkleOsc.type = 'sine';
+    const freq = shimmerNotes[Math.floor(Math.random() * shimmerNotes.length)] * 2;
+    sparkleOsc.frequency.value = freq;
+
+    const sparkleGain = ctx.createGain();
+    const intensity = 0.015 + Math.random() * 0.015;
+    sparkleGain.gain.setValueAtTime(0, ctx.currentTime);
+    sparkleGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.05);
+    sparkleGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+
+    sparkleOsc.connect(sparkleGain);
+    sparkleGain.connect(masterGain);
+    sparkleOsc.start();
+    sparkleOsc.stop(ctx.currentTime + 1);
+  }
+
+  function scheduleSparkles() {
+    if (!ambientNodes.gain) return;
+    playSparkle();
+    const nextDelay = 2000 + Math.random() * 4000;
+    ambientNodes.extraInterval = setTimeout(scheduleSparkles, nextDelay);
+  }
+  setTimeout(scheduleSparkles, 3000);
 }
 
-// Synthwave Track 3: Grid - Retro, sequenced, classic 80s
+// Synthwave Track 3: Retrowave - Classic 80s, driving, energetic
 function playSynthGrid() {
   const ctx = initAudioContext();
   stopAmbientSound();
 
   const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.35;
+  masterGain.gain.value = state.volume / 100 * 0.32;
   masterGain.connect(ctx.destination);
   ambientNodes.gain = masterGain;
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Classic sequenced bass pattern (D minor)
-  const bassNotes = [73.42, 73.42, 87.31, 98]; // D2, D2, F2, G2
-  let bassIndex = 0;
-
-  const bassOsc = ctx.createOscillator();
-  bassOsc.type = 'square';
-  bassOsc.frequency.value = bassNotes[0];
-
-  const bassFilter = ctx.createBiquadFilter();
-  bassFilter.type = 'lowpass';
-  bassFilter.frequency.value = 600;
-  bassFilter.Q.value = 4;
-
-  // Filter envelope simulation with LFO
-  const bassEnvLfo = ctx.createOscillator();
-  bassEnvLfo.type = 'sawtooth';
-  bassEnvLfo.frequency.value = 2;
-  const bassEnvGain = ctx.createGain();
-  bassEnvGain.gain.value = 300;
-  bassEnvLfo.connect(bassEnvGain);
-  bassEnvGain.connect(bassFilter.frequency);
-  bassEnvLfo.start();
-
-  const bassGain = ctx.createGain();
-  bassGain.gain.value = 0.15;
-
-  bassOsc.connect(bassFilter);
-  bassFilter.connect(bassGain);
-  bassGain.connect(masterGain);
-  bassOsc.start();
-
-  // Sequence the bass
-  ambientNodes.interval = setInterval(() => {
-    if (!ambientNodes.gain) return;
-    bassIndex = (bassIndex + 1) % bassNotes.length;
-    bassOsc.frequency.setTargetAtTime(bassNotes[bassIndex], ctx.currentTime, 0.01);
-  }, 250);
-
-  ambientNodes.sources.push(bassOsc, bassEnvLfo);
-  ambientNodes.nodes.push(bassFilter, bassEnvGain, bassGain);
-
-  // Arpeggiated lead (D minor: D, F, A, D)
-  const leadNotes = [293.66, 349.23, 440, 587.33]; // D4, F4, A4, D5
-  let leadIndex = 0;
-
-  const leadOsc = ctx.createOscillator();
-  leadOsc.type = 'sawtooth';
-  leadOsc.frequency.value = leadNotes[0];
-
-  const leadFilter = ctx.createBiquadFilter();
-  leadFilter.type = 'lowpass';
-  leadFilter.frequency.value = 3000;
-  leadFilter.Q.value = 2;
-
-  const leadGain = ctx.createGain();
-  leadGain.gain.value = 0.08;
-
-  leadOsc.connect(leadFilter);
-  leadFilter.connect(leadGain);
-  leadGain.connect(masterGain);
-  leadOsc.start();
-
-  // Faster arpeggio for lead
-  const leadInterval = setInterval(() => {
-    if (!ambientNodes.gain) {
-      clearInterval(leadInterval);
-      return;
-    }
-    leadIndex = (leadIndex + 1) % leadNotes.length;
-    leadOsc.frequency.setTargetAtTime(leadNotes[leadIndex], ctx.currentTime, 0.01);
-  }, 125);
-
-  ambientNodes.sources.push(leadOsc);
-  ambientNodes.nodes.push(leadFilter, leadGain);
-
-  // Pad for fullness
-  const padFreqs = [146.83, 174.61, 220]; // D3, F3, A3
-  padFreqs.forEach((freq) => {
-    const padOsc = ctx.createOscillator();
-    padOsc.type = 'triangle';
-    padOsc.frequency.value = freq;
-
-    const padGain = ctx.createGain();
-    padGain.gain.value = 0.05;
-
-    padOsc.connect(padGain);
-    padGain.connect(masterGain);
-    padOsc.start();
-
-    ambientNodes.sources.push(padOsc);
-    ambientNodes.nodes.push(padGain);
-  });
-
-  // Sub bass
+  // Deep sub bass
   const subOsc = ctx.createOscillator();
   subOsc.type = 'sine';
-  subOsc.frequency.value = 36.71; // D1
+  subOsc.frequency.value = 73.42; // D2
 
   const subGain = ctx.createGain();
-  subGain.gain.value = 0.15;
+  subGain.gain.value = 0.18;
 
   subOsc.connect(subGain);
   subGain.connect(masterGain);
@@ -1444,26 +1832,195 @@ function playSynthGrid() {
   ambientNodes.sources.push(subOsc);
   ambientNodes.nodes.push(subGain);
 
-  // Store extra interval for cleanup
-  const originalStop = stopAmbientSound;
-  ambientNodes.extraInterval = leadInterval;
+  // Classic sequenced bass - D minor progression
+  const bassNotes = [73.42, 73.42, 87.31, 82.41, 73.42, 73.42, 98, 87.31]; // D2, D2, F2, E2, D2, D2, G2, F2
+  let bassIndex = 0;
+
+  const bassOsc = ctx.createOscillator();
+  bassOsc.type = 'sawtooth';
+  bassOsc.frequency.value = bassNotes[0];
+
+  const bassOsc2 = ctx.createOscillator();
+  bassOsc2.type = 'square';
+  bassOsc2.frequency.value = bassNotes[0];
+
+  const bassFilter = ctx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 400;
+  bassFilter.Q.value = 3;
+
+  // Pumping filter envelope
+  const bassEnvLfo = ctx.createOscillator();
+  bassEnvLfo.type = 'sawtooth';
+  bassEnvLfo.frequency.value = 4; // 16th note feel at 120 BPM
+  const bassEnvGain = ctx.createGain();
+  bassEnvGain.gain.value = 350;
+  bassEnvLfo.connect(bassEnvGain);
+  bassEnvGain.connect(bassFilter.frequency);
+  bassEnvLfo.start();
+
+  const bassGain = ctx.createGain();
+  bassGain.gain.value = 0.12;
+
+  const bassMerge = ctx.createGain();
+  bassMerge.gain.value = 0.7;
+  bassOsc.connect(bassMerge);
+  bassOsc2.connect(bassMerge);
+  bassMerge.connect(bassFilter);
+  bassFilter.connect(bassGain);
+  bassGain.connect(masterGain);
+  bassOsc.start();
+  bassOsc2.start();
+
+  // Bass sequence
+  ambientNodes.interval = setInterval(() => {
+    if (!ambientNodes.gain) return;
+    bassIndex = (bassIndex + 1) % bassNotes.length;
+    const freq = bassNotes[bassIndex];
+    bassOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+    bassOsc2.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+    subOsc.frequency.setTargetAtTime(freq / 2, ctx.currentTime, 0.02);
+  }, 250);
+
+  ambientNodes.sources.push(bassOsc, bassOsc2, bassEnvLfo);
+  ambientNodes.nodes.push(bassFilter, bassEnvGain, bassGain, bassMerge);
+
+  // Fast arpeggiator - D minor
+  const arpNotes = [587.33, 698.46, 880, 1174.66, 880, 698.46]; // D5, F5, A5, D6, A5, F5
+  let arpIndex = 0;
+
+  const arpOsc = ctx.createOscillator();
+  arpOsc.type = 'sawtooth';
+  arpOsc.frequency.value = arpNotes[0];
+
+  const arpOsc2 = ctx.createOscillator();
+  arpOsc2.type = 'sawtooth';
+  arpOsc2.frequency.value = arpNotes[0];
+  arpOsc2.detune.value = 10;
+
+  const arpFilter = ctx.createBiquadFilter();
+  arpFilter.type = 'lowpass';
+  arpFilter.frequency.value = 4000;
+  arpFilter.Q.value = 1.5;
+
+  // Filter sweep
+  const arpSweepLfo = ctx.createOscillator();
+  arpSweepLfo.type = 'sine';
+  arpSweepLfo.frequency.value = 0.1;
+  const arpSweepGain = ctx.createGain();
+  arpSweepGain.gain.value = 2000;
+  arpSweepLfo.connect(arpSweepGain);
+  arpSweepGain.connect(arpFilter.frequency);
+  arpSweepLfo.start();
+
+  const arpGain = ctx.createGain();
+  arpGain.gain.value = 0.06;
+
+  const arpMerge = ctx.createGain();
+  arpOsc.connect(arpMerge);
+  arpOsc2.connect(arpMerge);
+  arpMerge.connect(arpFilter);
+  arpFilter.connect(arpGain);
+  arpGain.connect(masterGain);
+  arpOsc.start();
+  arpOsc2.start();
+
+  // Fast arpeggio (16th notes)
+  const arpInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(arpInterval);
+      return;
+    }
+    arpIndex = (arpIndex + 1) % arpNotes.length;
+    const freq = arpNotes[arpIndex];
+    arpOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.005);
+    arpOsc2.frequency.setTargetAtTime(freq, ctx.currentTime, 0.005);
+  }, 125);
+
+  ambientNodes.extraInterval = arpInterval;
+
+  ambientNodes.sources.push(arpOsc, arpOsc2, arpSweepLfo);
+  ambientNodes.nodes.push(arpFilter, arpSweepGain, arpGain, arpMerge);
+
+  // Warm pad - D minor chord
+  const padNotes = [293.66, 349.23, 440]; // D4, F4, A4
+  padNotes.forEach((freq, i) => {
+    const padOsc = ctx.createOscillator();
+    padOsc.type = 'triangle';
+    padOsc.frequency.value = freq;
+    padOsc.detune.value = (i - 1) * 5;
+
+    // Gentle vibrato
+    const vibLfo = ctx.createOscillator();
+    vibLfo.type = 'sine';
+    vibLfo.frequency.value = 4.5 + i * 0.3;
+    const vibGain = ctx.createGain();
+    vibGain.gain.value = freq * 0.004;
+    vibLfo.connect(vibGain);
+    vibGain.connect(padOsc.frequency);
+    vibLfo.start();
+
+    const padGain = ctx.createGain();
+    padGain.gain.value = 0.04;
+
+    padOsc.connect(padGain);
+    padGain.connect(masterGain);
+    padOsc.start();
+
+    ambientNodes.sources.push(padOsc, vibLfo);
+    ambientNodes.nodes.push(vibGain, padGain);
+  });
+
+  // Snare-like accent on beat 2 and 4 feel
+  function playAccent() {
+    if (!ambientNodes.gain) return;
+
+    const accentGain = ctx.createGain();
+    accentGain.gain.setValueAtTime(0.04 * (state.volume / 100), ctx.currentTime);
+    accentGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    accentGain.connect(masterGain);
+
+    const noiseBuffer = createNoiseBuffer(ctx, 'white', 0.2);
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = 2000;
+
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(accentGain);
+    noiseSource.start();
+    noiseSource.stop(ctx.currentTime + 0.1);
+  }
+
+  // Accent on beats
+  let accentCount = 0;
+  const accentInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(accentInterval);
+      return;
+    }
+    accentCount++;
+    if (accentCount % 4 === 2 || accentCount % 4 === 0) {
+      playAccent();
+    }
+  }, 250);
+
+  ambientNodes.thunderTimeout = accentInterval;
 }
 
 function playAmbientSound(soundType) {
   state.currentSound = soundType;
 
   // Update UI
-  elements.soundBtns.forEach(btn => {
-    const isActive = btn.dataset.sound === soundType;
-    btn.classList.toggle('active', isActive);
-    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-  });
+  updateSoundUI();
 
   // Stop current sound
   stopAmbientSound();
 
-  // Only play during work mode or if timer is idle
-  const shouldPlay = state.mode === 'work' || state.status === 'idle';
+  // Only play during active session (running)
+  const shouldPlay = state.status === 'running';
 
   if (soundType !== 'off' && shouldPlay) {
     switch (soundType) {
@@ -1473,8 +2030,8 @@ function playAmbientSound(soundType) {
       case 'fireplace':
         playFireplace();
         break;
-      case 'river':
-        playRiver();
+      case 'forest':
+        playForest();
         break;
       case 'synthDrive':
         playSynthDrive();
@@ -1488,7 +2045,8 @@ function playAmbientSound(soundType) {
     }
   }
 
-  saveToStorage();
+  // Don't persist sound selection between sessions
+  // saveToStorage();
 }
 
 function updateVolume(value) {
@@ -1497,9 +2055,9 @@ function updateVolume(value) {
   if (ambientNodes.gain) {
     // Scale based on sound type
     let scale = 0.5;
-    if (state.currentSound === 'rain') scale = 0.6;
-    if (state.currentSound === 'fireplace') scale = 0.5;
-    if (state.currentSound === 'river') scale = 0.5;
+    if (state.currentSound === 'rain') scale = 0.5;
+    if (state.currentSound === 'fireplace') scale = 0.45;
+    if (state.currentSound === 'forest') scale = 0.5;
     if (state.currentSound === 'synthDrive') scale = 0.35;
     if (state.currentSound === 'synthNeon') scale = 0.35;
     if (state.currentSound === 'synthGrid') scale = 0.35;
@@ -1511,8 +2069,8 @@ function updateVolume(value) {
 }
 
 function updateAmbientSoundForMode() {
-  // Pause sounds during breaks, resume during work
-  if (state.mode === 'break' || state.status === 'completed') {
+  // Stop sounds when timer completes, keep playing during work and break
+  if (state.status === 'completed') {
     stopAmbientSound();
   } else if (state.currentSound !== 'off' && state.status === 'running') {
     playAmbientSound(state.currentSound);
@@ -1799,14 +2357,27 @@ function initEventListeners() {
   elements.themeToggle.addEventListener('click', cycleTheme);
 
   // Sound controls
-  elements.soundBtns.forEach(btn => {
+  elements.soundToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSoundDropdown();
+  });
+
+  elements.soundOptions.forEach(btn => {
     btn.addEventListener('click', () => {
       playAmbientSound(btn.dataset.sound);
+      closeSoundDropdown();
     });
   });
 
   elements.volumeSlider.addEventListener('input', (e) => {
     updateVolume(parseInt(e.target.value, 10));
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!elements.soundControl.contains(e.target)) {
+      closeSoundDropdown();
+    }
   });
 
   // Stats modal
@@ -1923,12 +2494,9 @@ function init() {
   // Initialize break duration display
   updateBreakDisplay();
 
-  // Restore sound button UI state
-  elements.soundBtns.forEach(btn => {
-    const isActive = btn.dataset.sound === state.currentSound;
-    btn.classList.toggle('active', isActive);
-    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-  });
+  // Reset sound to off (don't persist between sessions)
+  state.currentSound = 'off';
+  updateSoundUI();
 
   // Restore task UI state
   updateTaskUI();

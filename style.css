@@ -897,241 +897,281 @@ body {
   opacity: 0.5;
 }
 
-/* Sound Controls */
-.sound-controls {
-  width: 100%;
+/* Header Controls Container */
+.header-controls {
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-.sound-buttons {
-  display: flex;
-  gap: var(--spacing-xs);
-  justify-content: center;
-}
-
-.sound-btn {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: var(--spacing-sm);
-  font-family: inherit;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-  background-color: var(--color-background);
-  border: 2px solid transparent;
-  border-radius: var(--radius-md);
+  gap: var(--spacing-sm);
+}
+
+/* Sound Control (Dropdown-based) */
+.sound-control {
+  position: relative;
+}
+
+.sound-control[hidden] {
+  display: none;
+}
+
+.sound-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background-color: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--transition-fast);
-  flex: 1;
-  min-width: 60px;
 }
 
-.sound-btn:hover {
-  color: var(--color-primary);
-  background-color: var(--color-surface-elevated);
+.sound-toggle:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-background);
 }
 
-.sound-btn:focus-visible {
+.sound-toggle:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
 }
 
-.sound-btn.active {
-  color: var(--color-primary);
+.sound-toggle.active {
   border-color: var(--color-primary);
-  background-color: var(--color-surface);
+  background-color: var(--color-primary);
 }
 
-.sound-icon {
-  width: 20px;
-  height: 20px;
+.sound-toggle.active .sound-toggle-icon::before,
+.sound-toggle.active .sound-toggle-icon::after {
+  background: white;
+}
+
+/* Sound toggle icon - music note style */
+.sound-toggle-icon {
+  width: 18px;
+  height: 18px;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Off icon - crossed circle */
-.sound-icon--off::before {
+.sound-toggle-icon::before {
   content: '';
-  width: 16px;
-  height: 16px;
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 50%;
+  bottom: 0;
+  left: 0;
+}
+
+.sound-toggle-icon::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 14px;
+  background: currentColor;
+  left: 6px;
+  bottom: 4px;
+  border-radius: 1px;
+}
+
+/* Sound Dropdown */
+.sound-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 200px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+.sound-dropdown[hidden] {
+  display: none;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sound-dropdown-header {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sound-options {
+  padding: var(--spacing-xs);
+}
+
+.sound-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.sound-option:hover {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.sound-option.active {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.sound-option:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+.sound-option-icon {
+  width: 18px;
+  height: 18px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Off icon */
+.sound-option-icon--off::before {
+  content: '';
+  width: 14px;
+  height: 14px;
   border: 2px solid currentColor;
   border-radius: 50%;
 }
 
-.sound-icon--off::after {
+.sound-option-icon--off::after {
   content: '';
   position: absolute;
   width: 2px;
-  height: 18px;
+  height: 16px;
   background: currentColor;
   transform: rotate(45deg);
 }
 
-/* Rain icon - three droplets */
-.sound-icon--rain::before,
-.sound-icon--rain::after {
+/* Rain icon */
+.sound-option-icon--rain::before {
   content: '';
-  position: absolute;
-  width: 2px;
-  background: currentColor;
-  border-radius: 0 0 2px 2px;
-}
-
-.sound-icon--rain::before {
+  width: 12px;
   height: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  border-radius: 0 50% 50% 50%;
+  border: 2px solid currentColor;
+  transform: rotate(45deg);
 }
 
-.sound-icon--rain::after {
-  height: 8px;
-  left: calc(50% - 6px);
-  top: 4px;
-  box-shadow: 12px 2px 0 currentColor;
-}
-
-/* Fire icon - flame shape */
-.sound-icon--fire::before {
+/* Fire icon */
+.sound-option-icon--fire::before {
   content: '';
   width: 10px;
   height: 14px;
   background: currentColor;
   border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-  transform: rotate(-10deg);
 }
 
-.sound-icon--fire::after {
+/* Forest icon - tree shape */
+.sound-option-icon--forest::before {
   content: '';
-  position: absolute;
-  width: 5px;
-  height: 7px;
-  background: var(--color-background);
-  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-  bottom: 2px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 12px solid currentColor;
 }
 
-/* River icon - wavy lines */
-.sound-icon--river::before,
-.sound-icon--river::after {
+.sound-option-icon--forest::after {
   content: '';
   position: absolute;
-  width: 18px;
-  height: 2px;
+  width: 3px;
+  height: 4px;
   background: currentColor;
-  border-radius: 2px;
+  bottom: 0;
 }
 
-.sound-icon--river::before {
-  top: 6px;
-  clip-path: polygon(0% 50%, 15% 0%, 35% 100%, 55% 0%, 75% 100%, 100% 50%, 100% 100%, 0% 100%);
-  height: 4px;
-}
-
-.sound-icon--river::after {
-  bottom: 4px;
-  clip-path: polygon(0% 50%, 15% 100%, 35% 0%, 55% 100%, 75% 0%, 100% 50%, 100% 100%, 0% 100%);
-  height: 4px;
-}
-
-/* Theme-conditional sound buttons */
-/* Hide synth buttons by default (show only in synthwave theme) */
-.sound-btn--synth {
-  display: none;
-}
-
-/* Show synth buttons in synthwave theme, hide nature buttons */
-[data-theme="synthwave"] .sound-btn--synth {
-  display: flex;
-}
-
-[data-theme="synthwave"] .sound-btn--nature {
-  display: none;
-}
-
-/* Drive icon - car/road shape */
-.sound-icon--drive::before {
+/* Drive icon */
+.sound-option-icon--drive::before {
   content: '';
   width: 14px;
-  height: 8px;
+  height: 6px;
   background: currentColor;
-  border-radius: 4px 4px 0 0;
-  position: relative;
-  top: 2px;
+  border-radius: 3px 3px 0 0;
 }
 
-.sound-icon--drive::after {
+.sound-option-icon--drive::after {
   content: '';
   position: absolute;
   width: 16px;
-  height: 4px;
+  height: 3px;
   background: currentColor;
   bottom: 2px;
   border-radius: 2px;
 }
 
-/* Neon icon - glowing lines */
-.sound-icon--neon::before {
+/* Neon icon */
+.sound-option-icon--neon::before {
   content: '';
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border: 2px solid currentColor;
   border-radius: 2px;
   transform: rotate(45deg);
 }
 
-.sound-icon--neon::after {
+/* Grid icon */
+.sound-option-icon--grid::before {
   content: '';
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  background: currentColor;
-  border-radius: 50%;
-}
-
-/* Grid icon - perspective grid */
-.sound-icon--grid::before {
-  content: '';
-  width: 14px;
+  width: 12px;
   height: 10px;
   background:
-    repeating-linear-gradient(
-      90deg,
-      currentColor 0px,
-      currentColor 1px,
-      transparent 1px,
-      transparent 4px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      currentColor 0px,
-      currentColor 1px,
-      transparent 1px,
-      transparent 4px
-    );
+    repeating-linear-gradient(90deg, currentColor 0px, currentColor 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(0deg, currentColor 0px, currentColor 1px, transparent 1px, transparent 4px);
 }
 
-.sound-icon--grid::after {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  width: 14px;
-  height: 4px;
-  background: currentColor;
-  clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+/* Theme-conditional sound options */
+.sound-option--synth {
+  display: none;
 }
 
-.sound-label {
-  font-size: var(--font-size-xs);
+[data-theme="synthwave"] .sound-option--synth {
+  display: flex;
+}
+
+[data-theme="synthwave"] .sound-option--nature {
+  display: none;
+}
+
+/* Volume control in dropdown */
+.sound-volume {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--color-border);
 }
 
 .volume-control {
@@ -1606,23 +1646,35 @@ body {
 }
 
 /* Sound controls */
-[data-theme="synthwave"] .sound-controls {
+[data-theme="synthwave"] .sound-toggle {
   background: rgba(45, 27, 78, 0.8);
   border-color: rgba(155, 77, 202, 0.5);
 }
 
-[data-theme="synthwave"] .sound-btn {
-  background: rgba(26, 10, 46, 0.6);
-}
-
-[data-theme="synthwave"] .sound-btn:hover {
+[data-theme="synthwave"] .sound-toggle:hover {
   border-color: #ff6b35;
   box-shadow: var(--glow-primary);
 }
 
-[data-theme="synthwave"] .sound-btn.active {
-  background: linear-gradient(135deg, #6b3fa0, #4a2c7a);
+[data-theme="synthwave"] .sound-toggle.active {
+  background: linear-gradient(135deg, #ff6b35, #e55a2b);
   border-color: #ff6b35;
+  box-shadow: var(--glow-primary);
+}
+
+[data-theme="synthwave"] .sound-dropdown {
+  background: rgba(45, 27, 78, 0.95);
+  border-color: rgba(155, 77, 202, 0.5);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), var(--glow-accent);
+}
+
+[data-theme="synthwave"] .sound-option:hover {
+  background: rgba(107, 63, 160, 0.4);
+}
+
+[data-theme="synthwave"] .sound-option.active {
+  background: linear-gradient(135deg, #ff6b35, #e55a2b);
+  box-shadow: var(--glow-primary);
 }
 
 /* Task intent - synthwave */

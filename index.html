@@ -10,14 +10,61 @@
 </head>
 <body>
   <div class="app">
-    <!-- Header with theme toggle -->
+    <!-- Header with theme toggle and sound control -->
     <div class="header">
       <h1 class="app-title">Pomo</h1>
-      <button class="theme-toggle" id="themeToggle" aria-label="Cycle theme">
-        <span class="theme-icon theme-icon--light"></span>
-        <span class="theme-icon theme-icon--dark"></span>
-        <span class="theme-icon theme-icon--synthwave"></span>
-      </button>
+      <div class="header-controls">
+        <!-- Sound Control (only visible during sessions) -->
+        <div class="sound-control" id="soundControl" hidden>
+          <button class="sound-toggle" id="soundToggle" aria-label="Toggle soundscape menu" aria-expanded="false">
+            <span class="sound-toggle-icon"></span>
+          </button>
+          <div class="sound-dropdown" id="soundDropdown" hidden>
+            <div class="sound-dropdown-header">Soundscape</div>
+            <div class="sound-options">
+              <button class="sound-option active" data-sound="off" aria-pressed="true">
+                <span class="sound-option-icon sound-option-icon--off"></span>
+                <span>Off</span>
+              </button>
+              <!-- Nature sounds (light/dark themes) -->
+              <button class="sound-option sound-option--nature" data-sound="rain" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--rain"></span>
+                <span>Rain on Tent</span>
+              </button>
+              <button class="sound-option sound-option--nature" data-sound="fireplace" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--fire"></span>
+                <span>Fireplace</span>
+              </button>
+              <button class="sound-option sound-option--nature" data-sound="forest" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--forest"></span>
+                <span>Forest</span>
+              </button>
+              <!-- Synthwave tracks (synthwave theme only) -->
+              <button class="sound-option sound-option--synth" data-sound="synthDrive" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--drive"></span>
+                <span>Neon Drive</span>
+              </button>
+              <button class="sound-option sound-option--synth" data-sound="synthNeon" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--neon"></span>
+                <span>Midnight</span>
+              </button>
+              <button class="sound-option sound-option--synth" data-sound="synthGrid" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--grid"></span>
+                <span>Retrowave</span>
+              </button>
+            </div>
+            <div class="sound-volume">
+              <span class="volume-icon"></span>
+              <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="50" aria-label="Volume">
+            </div>
+          </div>
+        </div>
+        <button class="theme-toggle" id="themeToggle" aria-label="Cycle theme">
+          <span class="theme-icon theme-icon--light"></span>
+          <span class="theme-icon theme-icon--dark"></span>
+          <span class="theme-icon theme-icon--synthwave"></span>
+        </button>
+      </div>
     </div>
 
     <!-- Timer Display -->
@@ -102,46 +149,6 @@
       <button class="btn btn--secondary" id="skipBtn" aria-label="Skip to next session" hidden>
         Skip
       </button>
-    </div>
-
-    <!-- Ambient Sounds -->
-    <div class="sound-controls">
-      <div class="sound-buttons">
-        <button class="sound-btn active" data-sound="off" aria-pressed="true">
-          <span class="sound-icon sound-icon--off"></span>
-          <span class="sound-label">Off</span>
-        </button>
-        <!-- Nature sounds (light/dark themes) -->
-        <button class="sound-btn sound-btn--nature" data-sound="rain" aria-pressed="false">
-          <span class="sound-icon sound-icon--rain"></span>
-          <span class="sound-label">Rain</span>
-        </button>
-        <button class="sound-btn sound-btn--nature" data-sound="fireplace" aria-pressed="false">
-          <span class="sound-icon sound-icon--fire"></span>
-          <span class="sound-label">Fire</span>
-        </button>
-        <button class="sound-btn sound-btn--nature" data-sound="river" aria-pressed="false">
-          <span class="sound-icon sound-icon--river"></span>
-          <span class="sound-label">River</span>
-        </button>
-        <!-- Synthwave tracks (synthwave theme only) -->
-        <button class="sound-btn sound-btn--synth" data-sound="synthDrive" aria-pressed="false">
-          <span class="sound-icon sound-icon--drive"></span>
-          <span class="sound-label">Drive</span>
-        </button>
-        <button class="sound-btn sound-btn--synth" data-sound="synthNeon" aria-pressed="false">
-          <span class="sound-icon sound-icon--neon"></span>
-          <span class="sound-label">Neon</span>
-        </button>
-        <button class="sound-btn sound-btn--synth" data-sound="synthGrid" aria-pressed="false">
-          <span class="sound-icon sound-icon--grid"></span>
-          <span class="sound-label">Grid</span>
-        </button>
-      </div>
-      <div class="volume-control">
-        <span class="volume-icon"></span>
-        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="50" aria-label="Volume">
-      </div>
     </div>
 
     <!-- Session Info -->
