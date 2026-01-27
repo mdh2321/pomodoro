@@ -887,101 +887,125 @@ function createTexturedNoiseBuffer(ctx, duration = 15) {
   return buffer;
 }
 
-// Rain on tent - soft, warm, muffled (NO harsh white noise)
+// Rain on tent - PARTICLE-BASED: hundreds of individual droplet sounds
 function playRainOnTent() {
   const ctx = initAudioContext();
   stopAmbientSound();
 
   const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.7;
+  masterGain.gain.value = state.volume / 100 * 0.5;
   masterGain.connect(ctx.destination);
   ambientNodes.gain = masterGain;
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Main rain - soft brown noise, heavily filtered for warmth
-  const rainBuffer = createNoiseBuffer(ctx, 'brown', 20);
-  const rainSource = ctx.createBufferSource();
-  rainSource.buffer = rainBuffer;
-  rainSource.loop = true;
+  // Create a short impulse buffer for droplets (shared)
+  const impulseLength = 0.05; // 50ms
+  const impulseBuffer = ctx.createBuffer(2, ctx.sampleRate * impulseLength, ctx.sampleRate);
+  for (let channel = 0; channel < 2; channel++) {
+    const data = impulseBuffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i++) {
+      // Exponentially decaying noise burst
+      const decay = Math.exp(-i / (ctx.sampleRate * 0.008));
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+  }
 
-  // Heavy low-pass to remove ALL harshness
-  const rainFilter = ctx.createBiquadFilter();
-  rainFilter.type = 'lowpass';
-  rainFilter.frequency.value = 300;
-  rainFilter.Q.value = 0.3;
+  // Function to play a single raindrop
+  function playDrop() {
+    if (!ambientNodes.gain) return;
 
-  // Second filter for extra smoothness
-  const rainFilter2 = ctx.createBiquadFilter();
-  rainFilter2.type = 'lowpass';
-  rainFilter2.frequency.value = 500;
-  rainFilter2.Q.value = 0.2;
+    const dropSource = ctx.createBufferSource();
+    dropSource.buffer = impulseBuffer;
 
-  // Gentle modulation
-  const rainLfo = ctx.createOscillator();
-  rainLfo.type = 'sine';
-  rainLfo.frequency.value = 0.015;
-  const rainLfoGain = ctx.createGain();
-  rainLfoGain.gain.value = 60;
-  rainLfo.connect(rainLfoGain);
-  rainLfoGain.connect(rainFilter.frequency);
-  rainLfo.start();
+    // Randomize playback rate for pitch variation (tent material resonance)
+    dropSource.playbackRate.value = 0.5 + Math.random() * 1.5;
 
-  const rainGain = ctx.createGain();
-  rainGain.gain.value = 0.8;
+    // Filter to shape the drop sound
+    const dropFilter = ctx.createBiquadFilter();
+    dropFilter.type = 'bandpass';
+    dropFilter.frequency.value = 800 + Math.random() * 2000;
+    dropFilter.Q.value = 1 + Math.random() * 2;
 
-  rainSource.connect(rainFilter);
-  rainFilter.connect(rainFilter2);
-  rainFilter2.connect(rainGain);
-  rainGain.connect(masterGain);
-  rainSource.start();
+    // Random volume and panning
+    const dropGain = ctx.createGain();
+    const intensity = 0.03 + Math.random() * 0.07;
+    dropGain.gain.value = intensity;
 
-  ambientNodes.sources.push(rainSource, rainLfo);
-  ambientNodes.nodes.push(rainFilter, rainFilter2, rainLfoGain, rainGain);
+    // Stereo panning for spatial effect
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 1.5;
 
-  // Layer 2: Deep tent resonance - very low rumble only
-  const tentBuffer = createNoiseBuffer(ctx, 'brown', 15);
-  const tentSource = ctx.createBufferSource();
-  tentSource.buffer = tentBuffer;
-  tentSource.loop = true;
+    dropSource.connect(dropFilter);
+    dropFilter.connect(dropGain);
+    dropGain.connect(panner);
+    panner.connect(masterGain);
 
-  const tentFilter = ctx.createBiquadFilter();
-  tentFilter.type = 'lowpass';
-  tentFilter.frequency.value = 100;
-  tentFilter.Q.value = 0.5;
+    dropSource.start();
+  }
 
-  const tentGain = ctx.createGain();
-  tentGain.gain.value = 0.3;
+  // Rain intensity controller - spawn many drops
+  let dropsPerSecond = 80; // Moderate rain
 
-  tentSource.connect(tentFilter);
-  tentFilter.connect(tentGain);
-  tentGain.connect(masterGain);
-  tentSource.start();
+  function rainLoop() {
+    if (!ambientNodes.gain) return;
 
-  ambientNodes.sources.push(tentSource);
-  ambientNodes.nodes.push(tentFilter, tentGain);
+    // Spawn a batch of drops
+    const batchSize = Math.floor(dropsPerSecond / 20); // 50ms batches
+    for (let i = 0; i < batchSize; i++) {
+      setTimeout(() => {
+        if (ambientNodes.gain) playDrop();
+      }, Math.random() * 50);
+    }
 
-  // Occasional soft thunder
+    // Vary intensity slowly
+    dropsPerSecond = 60 + Math.sin(Date.now() / 10000) * 30 + Math.random() * 20;
+
+    ambientNodes.interval = setTimeout(rainLoop, 50);
+  }
+  rainLoop();
+
+  // Very subtle low-frequency tent resonance (minimal)
+  const resonanceBuffer = createNoiseBuffer(ctx, 'brown', 10);
+  const resonanceSource = ctx.createBufferSource();
+  resonanceSource.buffer = resonanceBuffer;
+  resonanceSource.loop = true;
+
+  const resonanceFilter = ctx.createBiquadFilter();
+  resonanceFilter.type = 'lowpass';
+  resonanceFilter.frequency.value = 80;
+
+  const resonanceGain = ctx.createGain();
+  resonanceGain.gain.value = 0.08; // Very quiet, just adds body
+
+  resonanceSource.connect(resonanceFilter);
+  resonanceFilter.connect(resonanceGain);
+  resonanceGain.connect(masterGain);
+  resonanceSource.start();
+
+  ambientNodes.sources.push(resonanceSource);
+  ambientNodes.nodes.push(resonanceFilter, resonanceGain);
+
+  // Occasional thunder
   function playThunder() {
     if (!ambientNodes.gain) return;
 
     const thunderGain = ctx.createGain();
-    const intensity = 0.2 + Math.random() * 0.15;
+    const intensity = 0.25;
     const duration = 4 + Math.random() * 3;
 
     thunderGain.gain.setValueAtTime(0, ctx.currentTime);
-    thunderGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 1);
+    thunderGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.5);
     thunderGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     thunderGain.connect(masterGain);
 
-    const thunderBuffer = createNoiseBuffer(ctx, 'brown', 6);
+    const thunderBuffer = createNoiseBuffer(ctx, 'brown', 5);
     const thunderSource = ctx.createBufferSource();
     thunderSource.buffer = thunderBuffer;
 
     const thunderFilter = ctx.createBiquadFilter();
     thunderFilter.type = 'lowpass';
-    thunderFilter.frequency.value = 50;
-    thunderFilter.Q.value = 0.3;
+    thunderFilter.frequency.value = 60;
 
     thunderSource.connect(thunderFilter);
     thunderFilter.connect(thunderGain);
@@ -991,7 +1015,7 @@ function playRainOnTent() {
 
   function scheduleThunder() {
     if (!ambientNodes.gain) return;
-    const delay = 40000 + Math.random() * 60000;
+    const delay = 45000 + Math.random() * 60000;
     ambientNodes.thunderTimeout = setTimeout(() => {
       playThunder();
       scheduleThunder();
@@ -1000,7 +1024,7 @@ function playRainOnTent() {
   scheduleThunder();
 }
 
-// Peaceful crackling fireplace - warm, cozy (NO harsh noise)
+// Fireplace - PARTICLE-BASED: many individual crackles and pops
 function playFireplace() {
   const ctx = initAudioContext();
   stopAmbientSound();
@@ -1012,167 +1036,167 @@ function playFireplace() {
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Deep warm base - very low brown noise only
-  const baseBuffer = createNoiseBuffer(ctx, 'brown', 20);
-  const baseSource = ctx.createBufferSource();
-  baseSource.buffer = baseBuffer;
-  baseSource.loop = true;
+  // Create crackle impulse buffer (shared) - short sharp transient
+  const crackleLength = 0.03; // 30ms
+  const crackleBuffer = ctx.createBuffer(2, ctx.sampleRate * crackleLength, ctx.sampleRate);
+  for (let channel = 0; channel < 2; channel++) {
+    const data = crackleBuffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i++) {
+      // Sharp attack, fast decay
+      const decay = Math.exp(-i / (ctx.sampleRate * 0.004));
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+  }
 
-  // Heavy filtering for warmth
-  const baseFilter = ctx.createBiquadFilter();
-  baseFilter.type = 'lowpass';
-  baseFilter.frequency.value = 180;
-  baseFilter.Q.value = 0.3;
+  // Play individual crackle
+  function playCrackle() {
+    if (!ambientNodes.gain) return;
 
-  const baseFilter2 = ctx.createBiquadFilter();
-  baseFilter2.type = 'lowpass';
-  baseFilter2.frequency.value = 300;
-  baseFilter2.Q.value = 0.2;
+    const source = ctx.createBufferSource();
+    source.buffer = crackleBuffer;
+    source.playbackRate.value = 0.8 + Math.random() * 1.2;
 
-  // Slow breathing modulation
-  const baseLfo = ctx.createOscillator();
-  baseLfo.type = 'sine';
-  baseLfo.frequency.value = 0.025;
-  const baseLfoGain = ctx.createGain();
-  baseLfoGain.gain.value = 40;
-  baseLfo.connect(baseLfoGain);
-  baseLfoGain.connect(baseFilter.frequency);
-  baseLfo.start();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 1000 + Math.random() * 3000;
+    filter.Q.value = 2 + Math.random() * 4;
 
-  const baseGain = ctx.createGain();
-  baseGain.gain.value = 0.7;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.08 + Math.random() * 0.12;
 
-  baseSource.connect(baseFilter);
-  baseFilter.connect(baseFilter2);
-  baseFilter2.connect(baseGain);
-  baseGain.connect(masterGain);
-  baseSource.start();
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 0.8;
 
-  ambientNodes.sources.push(baseSource, baseLfo);
-  ambientNodes.nodes.push(baseFilter, baseFilter2, baseLfoGain, baseGain);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(panner);
+    panner.connect(masterGain);
+    source.start();
+  }
 
-  // Soft pops only - using sine waves, no harsh noise
+  // Play a deeper pop sound
   function playPop() {
     if (!ambientNodes.gain) return;
 
-    const popGain = ctx.createGain();
-    const intensity = 0.08 + Math.random() * 0.1;
-    popGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
-    popGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    popGain.connect(masterGain);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.15 + Math.random() * 0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    gain.connect(masterGain);
 
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    const startFreq = 120 + Math.random() * 80;
-    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.12);
+    const freq = 80 + Math.random() * 60;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(20, ctx.currentTime + 0.15);
 
-    osc.connect(popGain);
+    osc.connect(gain);
     osc.start();
-    osc.stop(ctx.currentTime + 0.15);
+    osc.stop(ctx.currentTime + 0.2);
   }
 
-  // Very soft crackle - low frequency, filtered
-  function playSoftCrackle() {
+  // Play a snap/click
+  function playSnap() {
     if (!ambientNodes.gain) return;
 
-    const crackleGain = ctx.createGain();
-    const intensity = 0.05 + Math.random() * 0.06;
-    crackleGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
-    crackleGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-    crackleGain.connect(masterGain);
+    const source = ctx.createBufferSource();
+    source.buffer = crackleBuffer;
+    source.playbackRate.value = 1.5 + Math.random() * 1.0;
 
-    // Use filtered brown noise for softer crackle
-    const crackleBuffer = createNoiseBuffer(ctx, 'brown', 0.2);
-    const crackleSource = ctx.createBufferSource();
-    crackleSource.buffer = crackleBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 2000 + Math.random() * 2000;
 
-    const crackleFilter = ctx.createBiquadFilter();
-    crackleFilter.type = 'bandpass';
-    crackleFilter.frequency.value = 300 + Math.random() * 400;
-    crackleFilter.Q.value = 1;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.1 + Math.random() * 0.1;
 
-    crackleSource.connect(crackleFilter);
-    crackleFilter.connect(crackleGain);
-    crackleSource.start();
-    crackleSource.stop(ctx.currentTime + 0.1);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(masterGain);
+    source.start();
   }
 
-  // Schedule gentle sounds
-  function scheduleSounds() {
+  // Continuous crackle loop - many events per second
+  let cracklesPerSecond = 15;
+
+  function crackleLoop() {
     if (!ambientNodes.gain) return;
 
-    const rand = Math.random();
-    if (rand > 0.6) {
-      playSoftCrackle();
-    }
-    if (rand > 0.85) {
-      playPop();
+    // Spawn crackles
+    const batchSize = Math.floor(cracklesPerSecond / 10);
+    for (let i = 0; i < batchSize; i++) {
+      setTimeout(() => {
+        if (!ambientNodes.gain) return;
+        playCrackle();
+        // Occasional pop or snap
+        if (Math.random() > 0.92) playPop();
+        if (Math.random() > 0.95) playSnap();
+      }, Math.random() * 100);
     }
 
-    const nextDelay = 200 + Math.random() * 600;
-    ambientNodes.interval = setTimeout(scheduleSounds, nextDelay);
+    // Vary intensity
+    cracklesPerSecond = 10 + Math.sin(Date.now() / 8000) * 8 + Math.random() * 5;
+
+    ambientNodes.interval = setTimeout(crackleLoop, 100);
   }
-  scheduleSounds();
+  crackleLoop();
+
+  // Very subtle low rumble for fire "body" (minimal!)
+  const rumbleBuffer = createNoiseBuffer(ctx, 'brown', 10);
+  const rumbleSource = ctx.createBufferSource();
+  rumbleSource.buffer = rumbleBuffer;
+  rumbleSource.loop = true;
+
+  const rumbleFilter = ctx.createBiquadFilter();
+  rumbleFilter.type = 'lowpass';
+  rumbleFilter.frequency.value = 100;
+
+  const rumbleGain = ctx.createGain();
+  rumbleGain.gain.value = 0.06; // Very quiet background
+
+  rumbleSource.connect(rumbleFilter);
+  rumbleFilter.connect(rumbleGain);
+  rumbleGain.connect(masterGain);
+  rumbleSource.start();
+
+  ambientNodes.sources.push(rumbleSource);
+  ambientNodes.nodes.push(rumbleFilter, rumbleGain);
 }
 
-// Peaceful forest - soft wind, gentle birds (NO harsh noise)
+// Forest - birds are the star, wind is subtle background
 function playForest() {
   const ctx = initAudioContext();
   stopAmbientSound();
 
   const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.6;
+  masterGain.gain.value = state.volume / 100 * 0.5;
   masterGain.connect(ctx.destination);
   ambientNodes.gain = masterGain;
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Deep forest ambience - very low brown noise only
-  const ambientBuffer = createNoiseBuffer(ctx, 'brown', 20);
-  const ambientSource = ctx.createBufferSource();
-  ambientSource.buffer = ambientBuffer;
-  ambientSource.loop = true;
-
-  const ambientFilter = ctx.createBiquadFilter();
-  ambientFilter.type = 'lowpass';
-  ambientFilter.frequency.value = 120;
-  ambientFilter.Q.value = 0.3;
-
-  const ambientGain = ctx.createGain();
-  ambientGain.gain.value = 0.4;
-
-  ambientSource.connect(ambientFilter);
-  ambientFilter.connect(ambientGain);
-  ambientGain.connect(masterGain);
-  ambientSource.start();
-
-  ambientNodes.sources.push(ambientSource);
-  ambientNodes.nodes.push(ambientFilter, ambientGain);
-
-  // Layer 2: Gentle wind - soft brown noise with modulation
-  const windBuffer = createNoiseBuffer(ctx, 'brown', 15);
+  // Very subtle wind/ambience (quiet background only)
+  const windBuffer = createNoiseBuffer(ctx, 'pink', 15);
   const windSource = ctx.createBufferSource();
   windSource.buffer = windBuffer;
   windSource.loop = true;
 
   const windFilter = ctx.createBiquadFilter();
   windFilter.type = 'lowpass';
-  windFilter.frequency.value = 250;
-  windFilter.Q.value = 0.2;
+  windFilter.frequency.value = 400;
+  windFilter.Q.value = 0.3;
 
-  // Slow breathing modulation for wind
+  // Gentle wind modulation
   const windLfo = ctx.createOscillator();
   windLfo.type = 'sine';
-  windLfo.frequency.value = 0.03;
+  windLfo.frequency.value = 0.05;
   const windLfoGain = ctx.createGain();
-  windLfoGain.gain.value = 80;
+  windLfoGain.gain.value = 150;
   windLfo.connect(windLfoGain);
   windLfoGain.connect(windFilter.frequency);
   windLfo.start();
 
   const windGain = ctx.createGain();
-  windGain.gain.value = 0.35;
+  windGain.gain.value = 0.06; // Very quiet - just atmosphere
 
   windSource.connect(windFilter);
   windFilter.connect(windGain);
@@ -1182,60 +1206,109 @@ function playForest() {
   ambientNodes.sources.push(windSource, windLfo);
   ambientNodes.nodes.push(windFilter, windLfoGain, windGain);
 
-  // Bird chirps - gentle sine wave birds
-  function playBirdChirp() {
+  // Birds - the main feature! Multiple bird types
+
+  // Small songbird chirp
+  function playSongbird() {
     if (!ambientNodes.gain) return;
 
-    const chirpGain = ctx.createGain();
-    const intensity = 0.06 + Math.random() * 0.08;
-
+    const gain = ctx.createGain();
+    const intensity = 0.12 + Math.random() * 0.1;
     const osc = ctx.createOscillator();
     osc.type = 'sine';
 
-    // Softer, lower bird frequencies
-    const baseFreq = 1200 + Math.random() * 800;
-    osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+    const baseFreq = 2000 + Math.random() * 1500;
+    const duration = 0.08 + Math.random() * 0.12;
 
-    const chirpDuration = 0.1 + Math.random() * 0.15;
+    // Varied patterns
     const pattern = Math.random();
-
-    if (pattern > 0.5) {
-      // Rising chirp
-      osc.frequency.linearRampToValueAtTime(baseFreq * 1.2, ctx.currentTime + chirpDuration * 0.5);
-      osc.frequency.linearRampToValueAtTime(baseFreq * 0.95, ctx.currentTime + chirpDuration);
+    if (pattern > 0.7) {
+      // Two-tone chirp
+      osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+      osc.frequency.setValueAtTime(baseFreq * 1.3, ctx.currentTime + duration * 0.5);
+    } else if (pattern > 0.4) {
+      // Rising whistle
+      osc.frequency.setValueAtTime(baseFreq * 0.8, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(baseFreq * 1.2, ctx.currentTime + duration);
     } else {
       // Falling chirp
-      osc.frequency.linearRampToValueAtTime(baseFreq * 0.8, ctx.currentTime + chirpDuration);
+      osc.frequency.setValueAtTime(baseFreq * 1.1, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(baseFreq * 0.7, ctx.currentTime + duration);
     }
 
-    // Soft envelope
-    chirpGain.gain.setValueAtTime(0, ctx.currentTime);
-    chirpGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.02);
-    chirpGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + chirpDuration + 0.1);
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(intensity, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
 
-    osc.connect(chirpGain);
-    chirpGain.connect(masterGain);
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 1.6;
+
+    osc.connect(gain);
+    gain.connect(panner);
+    panner.connect(masterGain);
     osc.start();
-    osc.stop(ctx.currentTime + chirpDuration + 0.15);
+    osc.stop(ctx.currentTime + duration + 0.05);
   }
 
-  // Schedule bird chirps - less frequent
-  function scheduleBirdChirps() {
+  // Deeper woodland bird (like a dove or thrush)
+  function playWoodlandBird() {
     if (!ambientNodes.gain) return;
 
-    const chirpCount = 1 + Math.floor(Math.random() * 2);
-    for (let i = 0; i < chirpCount; i++) {
-      setTimeout(() => {
-        if (ambientNodes.gain) playBirdChirp();
-      }, i * (150 + Math.random() * 250));
-    }
+    const gain = ctx.createGain();
+    const intensity = 0.15 + Math.random() * 0.1;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
 
-    // Longer gaps between bird sequences
-    const nextDelay = 5000 + Math.random() * 10000;
-    ambientNodes.thunderTimeout = setTimeout(scheduleBirdChirps, nextDelay);
+    const baseFreq = 800 + Math.random() * 600;
+    const duration = 0.15 + Math.random() * 0.2;
+
+    // Cooing pattern
+    osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, ctx.currentTime + duration * 0.3);
+    osc.frequency.linearRampToValueAtTime(baseFreq * 1.05, ctx.currentTime + duration * 0.6);
+    osc.frequency.linearRampToValueAtTime(baseFreq * 0.85, ctx.currentTime + duration);
+
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(intensity, ctx.currentTime + 0.03);
+    gain.gain.setValueAtTime(intensity * 0.8, ctx.currentTime + duration * 0.5);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 1.2;
+
+    osc.connect(gain);
+    gain.connect(panner);
+    panner.connect(masterGain);
+    osc.start();
+    osc.stop(ctx.currentTime + duration + 0.05);
   }
 
-  ambientNodes.thunderTimeout = setTimeout(scheduleBirdChirps, 3000);
+  // Schedule birds - frequent and varied
+  function scheduleBirds() {
+    if (!ambientNodes.gain) return;
+
+    // Random bird type
+    const birdType = Math.random();
+    if (birdType > 0.4) {
+      // Songbird (more common)
+      const count = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          if (ambientNodes.gain) playSongbird();
+        }, i * (80 + Math.random() * 150));
+      }
+    } else {
+      // Woodland bird (less common)
+      playWoodlandBird();
+    }
+
+    // Birds call every 1-4 seconds (frequent!)
+    const nextDelay = 1000 + Math.random() * 3000;
+    ambientNodes.thunderTimeout = setTimeout(scheduleBirds, nextDelay);
+  }
+
+  // Start birds quickly
+  ambientNodes.thunderTimeout = setTimeout(scheduleBirds, 500);
 }
 
 // Synthwave Track 1: Neon Drive - Upbeat, driving, energetic ambient synthwave
