@@ -61,6 +61,9 @@ let ambientNodes = {
   filter: null
 };
 
+// Cache for loaded audio file buffers
+const audioBufferCache = {};
+
 // ============================================
 // DOM Elements
 // ============================================
@@ -798,6 +801,52 @@ function stopAmbientSound() {
   ambientNodes = { source: null, gain: null, filter: null, sources: [], nodes: [], interval: null, extraInterval: null, thunderTimeout: null };
 }
 
+// Load audio file from /audio/ folder
+async function loadAudioFile(filename) {
+  const ctx = initAudioContext();
+
+  // Check cache first
+  if (audioBufferCache[filename]) {
+    return audioBufferCache[filename];
+  }
+
+  try {
+    const response = await fetch(`audio/${filename}`);
+    if (!response.ok) {
+      throw new Error(`Failed to load ${filename}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    audioBufferCache[filename] = audioBuffer;
+    return audioBuffer;
+  } catch (error) {
+    console.log(`Audio file ${filename} not available, using synthesis fallback`);
+    return null;
+  }
+}
+
+// Play a loaded audio buffer in a seamless loop
+function playLoadedAudio(buffer, volumeScale = 0.5) {
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = state.volume / 100 * volumeScale;
+
+  source.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  source.start();
+
+  ambientNodes.source = source;
+  ambientNodes.gain = gainNode;
+  ambientNodes.sources = [source];
+  ambientNodes.nodes = [gainNode];
+}
+
 // Create noise buffer with specified characteristics
 // Using longer duration (10+ seconds) for more natural variation
 function createNoiseBuffer(ctx, type, duration = 10) {
@@ -887,8 +936,16 @@ function createTexturedNoiseBuffer(ctx, duration = 15) {
   return buffer;
 }
 
-// Rain on tent - PARTICLE-BASED: hundreds of individual droplet sounds
-function playRainOnTent() {
+// Rain on tent - Uses audio file if available, falls back to particle synthesis
+async function playRainOnTent() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('rain.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.5);
+    return;
+  }
+
+  // Fallback to particle-based synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
@@ -1024,8 +1081,16 @@ function playRainOnTent() {
   scheduleThunder();
 }
 
-// Fireplace - PARTICLE-BASED: many individual crackles and pops
-function playFireplace() {
+// Fireplace - Uses audio file if available, falls back to particle synthesis
+async function playFireplace() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('fireplace.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.6);
+    return;
+  }
+
+  // Fallback to particle-based synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
@@ -1162,8 +1227,16 @@ function playFireplace() {
   ambientNodes.nodes.push(rumbleFilter, rumbleGain);
 }
 
-// Forest - birds are the star, wind is subtle background
-function playForest() {
+// Forest - Uses audio file if available, falls back to bird synthesis
+async function playForest() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('forest.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.5);
+    return;
+  }
+
+  // Fallback to synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
@@ -1311,8 +1384,16 @@ function playForest() {
   ambientNodes.thunderTimeout = setTimeout(scheduleBirds, 500);
 }
 
-// Synthwave Track 1: Neon Drive - Upbeat, driving, energetic ambient synthwave
-function playSynthDrive() {
+// Synthwave Track 1: Neon Drive - Uses audio file if available
+async function playSynthDrive() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('synthwave1.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  // Fallback to synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
@@ -1476,8 +1557,16 @@ function playSynthDrive() {
   ambientNodes.nodes.push(shimmerLfoGain, shimmerGain);
 }
 
-// Synthwave Track 2: Midnight - Atmospheric, dreamy, evolving ambient synthwave
-function playSynthNeon() {
+// Synthwave Track 2: Midnight - Uses audio file if available
+async function playSynthNeon() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('synthwave2.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  // Fallback to synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
@@ -1662,8 +1751,16 @@ function playSynthNeon() {
   setTimeout(scheduleSparkles, 3000);
 }
 
-// Synthwave Track 3: Retrowave - Classic 80s, driving, energetic
-function playSynthGrid() {
+// Synthwave Track 3: Retrowave - Uses audio file if available
+async function playSynthGrid() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('synthwave3.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  // Fallback to synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
