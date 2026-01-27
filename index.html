@@ -160,6 +160,57 @@
     </div>
   </div>
 
+  <!-- Task Sidebar -->
+  <div class="task-sidebar" id="taskSidebar">
+    <!-- Sidebar Tab (visible when closed) -->
+    <button class="sidebar-tab" id="sidebarTab" aria-label="Open task list">
+      <span class="sidebar-tab-icon">☰</span>
+    </button>
+
+    <!-- Sidebar Panel -->
+    <div class="sidebar-panel" id="sidebarPanel">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Tasks</h2>
+        <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">×</button>
+      </div>
+
+      <!-- Add Task Form -->
+      <div class="add-task-form">
+        <input
+          type="text"
+          class="add-task-input"
+          id="addTaskInput"
+          placeholder="Add a task..."
+          maxlength="100"
+          aria-label="New task name"
+        >
+        <select class="add-task-estimate" id="addTaskEstimate" aria-label="Estimated time">
+          <option value="">Est.</option>
+          <option value="5">5m</option>
+          <option value="10">10m</option>
+          <option value="15">15m</option>
+          <option value="20">20m</option>
+          <option value="25">25m</option>
+          <option value="30">30m</option>
+          <option value="35">35m</option>
+          <option value="40">40m</option>
+          <option value="45">45m</option>
+          <option value="50">50m</option>
+          <option value="55">55m</option>
+          <option value="60">60m</option>
+          <option value="90">90m</option>
+          <option value="120">120m</option>
+        </select>
+        <button class="add-task-btn" id="addTaskBtn" aria-label="Add task">+</button>
+      </div>
+
+      <!-- Task List -->
+      <div class="task-list" id="taskList">
+        <!-- Tasks will be rendered here -->
+      </div>
+    </div>
+  </div>
+
   <!-- Statistics Modal -->
   <div class="modal-overlay" id="statsOverlay" aria-hidden="true">
     <div class="modal modal--stats" role="dialog" aria-labelledby="statsTitle" aria-modal="true">
@@ -205,6 +256,20 @@
               <span class="settings-value" id="breakDurationDisplay">5 min</span>
               <button class="stepper-btn stepper-btn--sm" id="breakIncreaseBtn" aria-label="Increase break time">+</button>
             </div>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">Show completed tasks</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="showCompletedToggle" checked>
+              <span class="settings-toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">On task completion</span>
+            <select class="settings-select" id="taskCompletionSelect">
+              <option value="nextTask">Start next task</option>
+              <option value="endSession">End session</option>
+            </select>
           </div>
         </div>
       </div>

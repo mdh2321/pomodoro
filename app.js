@@ -39,8 +39,20 @@ const state = {
   // Theme: 'light' | 'dark' | 'synthwave'
   theme: 'light',
 
-  // Task intent
+  // Task intent (legacy - keeping for compatibility)
   currentTask: '',
+
+  // Tasks system
+  tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt }
+  activeTaskId: null, // ID of task being worked on during Pomo
+
+  // Task settings
+  showCompletedTasks: true, // Show struck-out completed tasks
+  taskCompletionBehavior: 'nextTask', // 'endSession' | 'nextTask'
+  lastVisitDate: null, // For clearing done tasks on new day
+
+  // Sidebar state
+  sidebarOpen: false,
 
   // Ambient sounds
   currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'forest' | 'synthDrive' | 'synthNeon' | 'synthGrid'
@@ -114,14 +126,28 @@ const elements = {
   statsSummary: document.getElementById('statsSummary'),
   statsToggleBtns: document.querySelectorAll('.stats-toggle-btn'),
 
-  // Task intent
+  // Task intent (legacy)
   taskTrigger: document.getElementById('taskTrigger'),
   taskModalOverlay: document.getElementById('taskModalOverlay'),
   taskInput: document.getElementById('taskInput'),
   taskDisplay: document.getElementById('taskDisplay'),
   taskText: document.getElementById('taskText'),
   taskCompleteBtn: document.getElementById('taskCompleteBtn'),
-  taskClearBtn: document.getElementById('taskClearBtn')
+  taskClearBtn: document.getElementById('taskClearBtn'),
+
+  // Task sidebar
+  taskSidebar: document.getElementById('taskSidebar'),
+  sidebarTab: document.getElementById('sidebarTab'),
+  sidebarPanel: document.getElementById('sidebarPanel'),
+  sidebarClose: document.getElementById('sidebarClose'),
+  addTaskInput: document.getElementById('addTaskInput'),
+  addTaskEstimate: document.getElementById('addTaskEstimate'),
+  addTaskBtn: document.getElementById('addTaskBtn'),
+  taskList: document.getElementById('taskList'),
+
+  // Task settings
+  showCompletedToggle: document.getElementById('showCompletedToggle'),
+  taskCompletionSelect: document.getElementById('taskCompletionSelect')
 };
 
 // ============================================
@@ -177,7 +203,7 @@ function loadFromStorage() {
         state.history = data.history;
       }
 
-      // Restore current task
+      // Restore current task (legacy)
       if (data.currentTask) {
         state.currentTask = data.currentTask;
       }
@@ -185,6 +211,22 @@ function loadFromStorage() {
       // Restore stats view preference
       if (data.statsView) {
         state.statsView = data.statsView;
+      }
+
+      // Restore tasks
+      if (data.tasks && Array.isArray(data.tasks)) {
+        state.tasks = data.tasks;
+      }
+
+      // Restore task settings
+      if (typeof data.showCompletedTasks === 'boolean') {
+        state.showCompletedTasks = data.showCompletedTasks;
+      }
+      if (data.taskCompletionBehavior) {
+        state.taskCompletionBehavior = data.taskCompletionBehavior;
+      }
+      if (data.lastVisitDate) {
+        state.lastVisitDate = data.lastVisitDate;
       }
     }
   } catch (e) {
@@ -205,6 +247,11 @@ function saveToStorage() {
       history: state.history,
       currentTask: state.currentTask,
       statsView: state.statsView,
+      // Tasks
+      tasks: state.tasks,
+      showCompletedTasks: state.showCompletedTasks,
+      taskCompletionBehavior: state.taskCompletionBehavior,
+      lastVisitDate: state.lastVisitDate,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -226,6 +273,9 @@ function startTimer() {
 
   state.status = 'running';
 
+  // Set active task for this Pomo session
+  setActiveTaskForPomo();
+
   // Reset sound to off at session start (don't persist between sessions)
   if (state.currentSound !== 'off') {
     state.currentSound = 'off';
@@ -239,6 +289,9 @@ function startTimer() {
 
   state.intervalId = setInterval(() => {
     state.remainingSeconds--;
+
+    // Track time on active task
+    trackTaskTime();
 
     if (state.remainingSeconds <= 0) {
       completeTimer();
@@ -310,6 +363,9 @@ function continueTimer() {
 
   state.intervalId = setInterval(() => {
     state.remainingSeconds--;
+
+    // Track time on active task
+    trackTaskTime();
 
     if (state.remainingSeconds <= 0) {
       completeTimer();
@@ -2277,6 +2333,434 @@ function requestNotificationPermission() {
 }
 
 // ============================================
+// Task Sidebar
+// ============================================
+
+// Generate unique ID for tasks
+function generateTaskId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// Open sidebar
+function openSidebar() {
+  state.sidebarOpen = true;
+  elements.taskSidebar.classList.add('open');
+}
+
+// Close sidebar
+function closeSidebar() {
+  state.sidebarOpen = false;
+  elements.taskSidebar.classList.remove('open');
+}
+
+// Toggle sidebar
+function toggleSidebar() {
+  if (state.sidebarOpen) {
+    closeSidebar();
+  } else {
+    openSidebar();
+  }
+}
+
+// Add a new task
+function addTask(name, estimatedMinutes = null) {
+  if (!name.trim()) return;
+
+  const task = {
+    id: generateTaskId(),
+    name: name.trim(),
+    estimatedMinutes: estimatedMinutes,
+    actualSeconds: 0,
+    completed: false,
+    createdAt: Date.now()
+  };
+
+  state.tasks.push(task);
+  saveToStorage();
+  renderTasks();
+}
+
+// Complete a task
+function completeTaskById(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  task.completed = true;
+
+  // Play ding sound
+  playCompletionDing();
+
+  // If this was the active task during a Pomo
+  if (state.activeTaskId === taskId && state.status === 'running') {
+    if (state.taskCompletionBehavior === 'endSession') {
+      // End the session
+      doneTimer();
+    } else {
+      // Move to next task
+      const nextTask = getNextIncompleteTask();
+      if (nextTask) {
+        state.activeTaskId = nextTask.id;
+      } else {
+        state.activeTaskId = null;
+      }
+    }
+  }
+
+  saveToStorage();
+  renderTasks();
+}
+
+// Uncomplete a task
+function uncompleteTaskById(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  task.completed = false;
+  saveToStorage();
+  renderTasks();
+}
+
+// Delete a task
+function deleteTask(taskId) {
+  state.tasks = state.tasks.filter(t => t.id !== taskId);
+  if (state.activeTaskId === taskId) {
+    state.activeTaskId = null;
+  }
+  saveToStorage();
+  renderTasks();
+}
+
+// Edit task name
+function editTaskName(taskId, newName) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task || !newName.trim()) return;
+
+  task.name = newName.trim();
+  saveToStorage();
+}
+
+// Get the next incomplete task (first in list)
+function getNextIncompleteTask() {
+  return state.tasks.find(t => !t.completed);
+}
+
+// Reorder tasks (for drag and drop)
+function reorderTasks(fromIndex, toIndex) {
+  // Don't allow reordering during a Pomo session
+  if (state.status === 'running') return;
+
+  const task = state.tasks.splice(fromIndex, 1)[0];
+  state.tasks.splice(toIndex, 0, task);
+  saveToStorage();
+  renderTasks();
+}
+
+// Clear completed tasks (for new day)
+function clearCompletedTasks() {
+  state.tasks = state.tasks.filter(t => !t.completed);
+  saveToStorage();
+  renderTasks();
+}
+
+// Check if it's a new day and clear completed tasks
+function checkNewDay() {
+  const today = getTodayDate();
+  if (state.lastVisitDate && state.lastVisitDate !== today) {
+    clearCompletedTasks();
+  }
+  state.lastVisitDate = today;
+  saveToStorage();
+}
+
+// Format time for display (seconds to "Xm" or "Xh Ym")
+function formatTimeSpent(seconds) {
+  if (seconds < 60) return '< 1m';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
+// Render tasks in the sidebar
+function renderTasks() {
+  const taskList = elements.taskList;
+  taskList.innerHTML = '';
+
+  const nextTask = getNextIncompleteTask();
+  let visibleTasks = state.tasks;
+
+  // Filter out completed tasks if setting is off
+  if (!state.showCompletedTasks) {
+    visibleTasks = state.tasks.filter(t => !t.completed);
+  }
+
+  visibleTasks.forEach((task, index) => {
+    const isNext = task.id === nextTask?.id && !task.completed;
+    const isActive = task.id === state.activeTaskId && state.status === 'running';
+
+    const taskEl = document.createElement('div');
+    taskEl.className = 'task-item';
+    taskEl.dataset.taskId = task.id;
+    taskEl.dataset.index = index;
+    taskEl.draggable = state.status !== 'running';
+
+    if (task.completed) taskEl.classList.add('completed');
+    if (isNext) taskEl.classList.add('next-task');
+    if (isActive) taskEl.classList.add('active-task');
+
+    // Time display
+    let timeHtml = '';
+    if (task.estimatedMinutes || task.actualSeconds > 0) {
+      const actualTime = task.actualSeconds > 0 ? formatTimeSpent(task.actualSeconds) : '0m';
+      const estTime = task.estimatedMinutes ? `${task.estimatedMinutes}m` : '-';
+      timeHtml = `
+        <div class="task-item-time">
+          <span class="task-item-time-actual">${actualTime}</span>
+          <span class="task-item-time-separator">/</span>
+          <span class="task-item-time-est">Est: ${estTime}</span>
+        </div>
+      `;
+    }
+
+    taskEl.innerHTML = `
+      <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
+      <div class="task-item-content">
+        <div class="task-item-name" contenteditable="false">${escapeHtml(task.name)}</div>
+        ${timeHtml}
+      </div>
+      <div class="task-item-actions">
+        <button class="task-item-action edit" aria-label="Edit task">✎</button>
+        <button class="task-item-action delete" aria-label="Delete task">×</button>
+      </div>
+    `;
+
+    // Event listeners
+    const checkbox = taskEl.querySelector('.task-item-checkbox');
+    checkbox.addEventListener('click', () => {
+      if (task.completed) {
+        uncompleteTaskById(task.id);
+      } else {
+        completeTaskById(task.id);
+      }
+    });
+
+    const nameEl = taskEl.querySelector('.task-item-name');
+    const editBtn = taskEl.querySelector('.task-item-action.edit');
+    editBtn.addEventListener('click', () => {
+      nameEl.contentEditable = 'true';
+      nameEl.focus();
+      // Select all text
+      const range = document.createRange();
+      range.selectNodeContents(nameEl);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
+
+    nameEl.addEventListener('blur', () => {
+      nameEl.contentEditable = 'false';
+      editTaskName(task.id, nameEl.textContent);
+    });
+
+    nameEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        nameEl.blur();
+      } else if (e.key === 'Escape') {
+        nameEl.textContent = task.name;
+        nameEl.blur();
+      }
+    });
+
+    const deleteBtn = taskEl.querySelector('.task-item-action.delete');
+    deleteBtn.addEventListener('click', () => {
+      deleteTask(task.id);
+    });
+
+    // Drag and drop
+    taskEl.addEventListener('dragstart', handleDragStart);
+    taskEl.addEventListener('dragend', handleDragEnd);
+    taskEl.addEventListener('dragover', handleDragOver);
+    taskEl.addEventListener('drop', handleDrop);
+    taskEl.addEventListener('dragleave', handleDragLeave);
+
+    taskList.appendChild(taskEl);
+  });
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Drag and drop handlers
+let draggedTaskIndex = null;
+
+function handleDragStart(e) {
+  if (state.status === 'running') {
+    e.preventDefault();
+    return;
+  }
+  draggedTaskIndex = parseInt(e.target.dataset.index);
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
+  draggedTaskIndex = null;
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const taskItem = e.target.closest('.task-item');
+  if (taskItem && !taskItem.classList.contains('dragging')) {
+    taskItem.classList.add('drag-over');
+  }
+}
+
+function handleDragLeave(e) {
+  const taskItem = e.target.closest('.task-item');
+  if (taskItem) {
+    taskItem.classList.remove('drag-over');
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const taskItem = e.target.closest('.task-item');
+  if (taskItem && draggedTaskIndex !== null) {
+    const toIndex = parseInt(taskItem.dataset.index);
+    if (draggedTaskIndex !== toIndex) {
+      reorderTasks(draggedTaskIndex, toIndex);
+    }
+  }
+  document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
+}
+
+// Play completion ding sound
+function playCompletionDing() {
+  const ctx = initAudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+  osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1); // C#6
+
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.3);
+}
+
+// Track time on active task during Pomo
+function trackTaskTime() {
+  if (state.status === 'running' && state.mode === 'work' && state.activeTaskId) {
+    const task = state.tasks.find(t => t.id === state.activeTaskId);
+    if (task && !task.completed) {
+      task.actualSeconds += 1;
+      // Save periodically (every 30 seconds) to avoid too many writes
+      if (task.actualSeconds % 30 === 0) {
+        saveToStorage();
+      }
+    }
+  }
+}
+
+// Set active task when Pomo starts
+function setActiveTaskForPomo() {
+  if (state.mode === 'work') {
+    const nextTask = getNextIncompleteTask();
+    if (nextTask) {
+      state.activeTaskId = nextTask.id;
+    } else {
+      state.activeTaskId = null;
+    }
+    renderTasks();
+  }
+}
+
+// Initialize task settings UI
+function initTaskSettings() {
+  // Show completed toggle
+  if (elements.showCompletedToggle) {
+    elements.showCompletedToggle.checked = state.showCompletedTasks;
+    elements.showCompletedToggle.addEventListener('change', (e) => {
+      state.showCompletedTasks = e.target.checked;
+      saveToStorage();
+      renderTasks();
+    });
+  }
+
+  // Task completion behavior select
+  if (elements.taskCompletionSelect) {
+    elements.taskCompletionSelect.value = state.taskCompletionBehavior;
+    elements.taskCompletionSelect.addEventListener('change', (e) => {
+      state.taskCompletionBehavior = e.target.value;
+      saveToStorage();
+    });
+  }
+}
+
+// Initialize task sidebar event listeners
+function initTaskSidebarListeners() {
+  // Sidebar toggle
+  elements.sidebarTab.addEventListener('click', openSidebar);
+  elements.sidebarClose.addEventListener('click', closeSidebar);
+
+  // Add task form
+  elements.addTaskBtn.addEventListener('click', () => {
+    const name = elements.addTaskInput.value.trim();
+    const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
+    if (name) {
+      addTask(name, estimate);
+      elements.addTaskInput.value = '';
+      elements.addTaskEstimate.value = '';
+      elements.addTaskInput.focus();
+    }
+  });
+
+  elements.addTaskInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const name = elements.addTaskInput.value.trim();
+      const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
+      if (name) {
+        addTask(name, estimate);
+        elements.addTaskInput.value = '';
+        elements.addTaskEstimate.value = '';
+      }
+    }
+  });
+
+  // Close sidebar when clicking outside (optional - remove if not desired)
+  document.addEventListener('click', (e) => {
+    if (state.sidebarOpen &&
+        !elements.taskSidebar.contains(e.target) &&
+        !e.target.closest('.task-sidebar')) {
+      closeSidebar();
+    }
+  });
+
+  // Initialize settings
+  initTaskSettings();
+
+  // Check for new day and clear completed tasks
+  checkNewDay();
+
+  // Initial render
+  renderTasks();
+}
+
+// ============================================
 // Event Listeners
 // ============================================
 
@@ -2444,6 +2928,9 @@ function init() {
   state.remainingSeconds = state.totalSeconds;
 
   initEventListeners();
+
+  // Initialize task sidebar
+  initTaskSidebarListeners();
 
   // Initialize break duration display
   updateBreakDisplay();
