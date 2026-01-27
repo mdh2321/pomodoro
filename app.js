@@ -941,7 +941,7 @@ async function playRainOnTent() {
   // Try to load audio file first
   const audioBuffer = await loadAudioFile('rain.mp3');
   if (audioBuffer) {
-    playLoadedAudio(audioBuffer, 1.5);
+    playLoadedAudio(audioBuffer, 4.0);
     return;
   }
 
