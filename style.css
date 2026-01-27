@@ -887,14 +887,17 @@ body {
 /* Session Info */
 .session-info {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
-.session-separator {
-  opacity: 0.5;
+.session-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
 }
 
 /* Header Controls Container */

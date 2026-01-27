@@ -105,7 +105,6 @@ const elements = {
   skipBtn: document.getElementById('skipBtn'),
 
   // Session info
-  sessionCount: document.getElementById('sessionCount'),
   totalTime: document.getElementById('totalTime'),
 
   // Theme toggle
@@ -654,7 +653,6 @@ function updateControlButtons() {
 }
 
 function updateSessionInfo() {
-  elements.sessionCount.textContent = `Session #${state.sessionCount}`;
   elements.totalTime.textContent = `${state.totalFocusedMinutes} min focused today`;
 }
 
