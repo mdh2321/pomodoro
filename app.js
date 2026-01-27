@@ -2556,12 +2556,15 @@ function updateDailyProgress() {
     .filter(t => t.estimatedMinutes)
     .reduce((sum, t) => sum + t.estimatedMinutes, 0);
 
-  // Completed time (actual time on completed tasks + estimated for those without actual)
+  // Completed time: use estimated time for completed tasks (completing = full credit)
+  // This avoids gaps where actual < estimated
   const completedMinutes = completedTasks.reduce((sum, t) => {
-    if (t.actualSeconds > 0) {
-      return sum + Math.round(t.actualSeconds / 60);
+    // Use estimated time if available, otherwise use actual time
+    if (t.estimatedMinutes) {
+      return sum + t.estimatedMinutes;
     }
-    return sum + (t.estimatedMinutes || 0);
+    // Fall back to actual time for tasks without estimates
+    return sum + Math.round(t.actualSeconds / 60);
   }, 0);
 
   // Calculate percentage
@@ -2667,6 +2670,10 @@ function trackTaskTime() {
       // Save periodically (every 30 seconds) to avoid too many writes
       if (task.actualSeconds % 30 === 0) {
         saveToStorage();
+      }
+      // Update task display every minute to show accrued time
+      if (task.actualSeconds % 60 === 0) {
+        renderTasks();
       }
     }
   }
