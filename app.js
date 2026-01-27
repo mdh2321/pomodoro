@@ -62,7 +62,12 @@ const state = {
   history: {}, // { "2026-01-18": { sessions: 4, minutes: 100 }, ... }
 
   // Stats view preference
-  statsView: 'sessions' // 'sessions' | 'minutes'
+  statsView: 'sessions', // 'sessions' | 'minutes'
+
+  // Daily goal & streaks
+  dailyGoalMinutes: 90, // Target focused minutes per day
+  currentStreak: 0, // Consecutive days hitting goal
+  longestStreak: 0 // All-time best streak
 };
 
 // Audio context and nodes for ambient sounds
@@ -104,8 +109,10 @@ const elements = {
   abandonBtn: document.getElementById('abandonBtn'),
   skipBtn: document.getElementById('skipBtn'),
 
-  // Session info
-  totalTime: document.getElementById('totalTime'),
+  // Goal progress
+  goalProgress: document.getElementById('goalProgress'),
+  goalProgressBar: document.getElementById('goalProgressBar'),
+  goalProgressText: document.getElementById('goalProgressText'),
 
   // Theme toggle
   themeToggle: document.getElementById('themeToggle'),
@@ -142,10 +149,15 @@ const elements = {
   settingsBtn: document.getElementById('settingsBtn'),
   settingsOverlay: document.getElementById('settingsOverlay'),
   settingsCloseBtn: document.getElementById('settingsCloseBtn'),
+  dailyGoalSelect: document.getElementById('dailyGoalSelect'),
 
-  // Daily progress
+  // Daily progress (task sidebar)
   dailyProgressBar: document.getElementById('dailyProgressBar'),
-  dailyProgressText: document.getElementById('dailyProgressText')
+  dailyProgressText: document.getElementById('dailyProgressText'),
+
+  // Streak stats
+  currentStreakDisplay: document.getElementById('currentStreak'),
+  longestStreakDisplay: document.getElementById('longestStreak')
 };
 
 // ============================================
@@ -226,6 +238,17 @@ function loadFromStorage() {
       if (data.lastVisitDate) {
         state.lastVisitDate = data.lastVisitDate;
       }
+
+      // Restore daily goal & streaks
+      if (typeof data.dailyGoalMinutes === 'number') {
+        state.dailyGoalMinutes = data.dailyGoalMinutes;
+      }
+      if (typeof data.currentStreak === 'number') {
+        state.currentStreak = data.currentStreak;
+      }
+      if (typeof data.longestStreak === 'number') {
+        state.longestStreak = data.longestStreak;
+      }
     }
   } catch (e) {
     console.warn('Failed to load from storage:', e);
@@ -250,6 +273,10 @@ function saveToStorage() {
       showCompletedTasks: state.showCompletedTasks,
       taskCompletionBehavior: state.taskCompletionBehavior,
       lastVisitDate: state.lastVisitDate,
+      // Daily goal & streaks
+      dailyGoalMinutes: state.dailyGoalMinutes,
+      currentStreak: state.currentStreak,
+      longestStreak: state.longestStreak,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -653,7 +680,29 @@ function updateControlButtons() {
 }
 
 function updateSessionInfo() {
-  elements.totalTime.textContent = `${state.totalFocusedMinutes} min focused today`;
+  updateGoalProgress();
+}
+
+function updateGoalProgress() {
+  const progress = state.totalFocusedMinutes;
+  const goal = state.dailyGoalMinutes;
+  const percentage = Math.min(100, Math.round((progress / goal) * 100));
+  const isComplete = progress >= goal;
+
+  // Update progress bar
+  if (elements.goalProgressBar) {
+    elements.goalProgressBar.style.width = `${percentage}%`;
+  }
+
+  // Update text
+  if (elements.goalProgressText) {
+    elements.goalProgressText.textContent = `${progress} / ${goal} min`;
+  }
+
+  // Toggle completed state for gold styling
+  if (elements.goalProgress) {
+    elements.goalProgress.classList.toggle('goal-complete', isComplete);
+  }
 }
 
 function updateBrowserTab() {
@@ -2162,6 +2211,14 @@ function updateStatsDisplay() {
     btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
 
+  // Update streak displays
+  if (elements.currentStreakDisplay) {
+    elements.currentStreakDisplay.textContent = state.currentStreak;
+  }
+  if (elements.longestStreakDisplay) {
+    elements.longestStreakDisplay.textContent = state.longestStreak;
+  }
+
   // Generate chart
   generateChart();
 }
@@ -2387,10 +2444,41 @@ function clearCompletedTasks() {
 function checkNewDay() {
   const today = getTodayDate();
   if (state.lastVisitDate && state.lastVisitDate !== today) {
+    // Update streak based on yesterday's performance
+    updateStreakForNewDay(state.lastVisitDate);
+    // Clear completed tasks
     clearCompletedTasks();
   }
   state.lastVisitDate = today;
   saveToStorage();
+}
+
+// Update streak when a new day starts
+function updateStreakForNewDay(lastDate) {
+  // Check if the last visit date was yesterday
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  // Get the minutes focused on the last visit date
+  const lastDayData = state.history[lastDate];
+  const lastDayMinutes = lastDayData?.minutes || 0;
+
+  if (lastDate === yesterdayStr) {
+    // Last visit was yesterday - check if goal was met
+    if (lastDayMinutes >= state.dailyGoalMinutes) {
+      state.currentStreak++;
+      if (state.currentStreak > state.longestStreak) {
+        state.longestStreak = state.currentStreak;
+      }
+    } else {
+      // Goal not met, reset streak
+      state.currentStreak = 0;
+    }
+  } else {
+    // Missed one or more days, reset streak
+    state.currentStreak = 0;
+  }
 }
 
 // Format time for display (seconds to "Xm" or "Xh Ym")
@@ -2710,6 +2798,16 @@ function initTaskSettings() {
     elements.taskCompletionSelect.addEventListener('change', (e) => {
       state.taskCompletionBehavior = e.target.value;
       saveToStorage();
+    });
+  }
+
+  // Daily goal select
+  if (elements.dailyGoalSelect) {
+    elements.dailyGoalSelect.value = state.dailyGoalMinutes.toString();
+    elements.dailyGoalSelect.addEventListener('change', (e) => {
+      state.dailyGoalMinutes = parseInt(e.target.value, 10);
+      saveToStorage();
+      updateGoalProgress();
     });
   }
 }

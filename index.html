@@ -118,7 +118,12 @@
 
     <!-- Session Info -->
     <div class="session-info">
-      <span class="total-time" id="totalTime">0 min focused today</span>
+      <div class="goal-progress" id="goalProgress">
+        <div class="goal-progress-bar-container">
+          <div class="goal-progress-bar" id="goalProgressBar"></div>
+        </div>
+        <span class="goal-progress-text" id="goalProgressText">0 / 90 min</span>
+      </div>
       <div class="session-buttons">
         <button class="stats-btn" id="statsBtn" aria-label="View statistics">📊</button>
         <button class="settings-btn" id="settingsBtn" aria-label="Settings">⚙️</button>
@@ -215,6 +220,19 @@
             <span class="stat-label">All Time</span>
           </div>
         </div>
+        <!-- Streak Stats -->
+        <div class="stats-streaks">
+          <div class="streak-card">
+            <span class="streak-icon">🔥</span>
+            <span class="streak-value" id="currentStreak">0</span>
+            <span class="streak-label">Current Streak</span>
+          </div>
+          <div class="streak-card">
+            <span class="streak-icon">🏆</span>
+            <span class="streak-value" id="longestStreak">0</span>
+            <span class="streak-label">Longest Streak</span>
+          </div>
+        </div>
         <!-- Chart -->
         <div class="stats-chart-container">
           <h3 class="chart-title">Last 14 Days</h3>
@@ -257,6 +275,24 @@
             <select class="settings-select" id="taskCompletionSelect">
               <option value="nextTask">Start next task</option>
               <option value="endSession">End session</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h3 class="settings-group-title">Daily Goal</h3>
+          <div class="settings-row">
+            <span class="settings-label">Focus goal</span>
+            <select class="settings-select" id="dailyGoalSelect">
+              <option value="30">30 min</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+              <option value="150">2.5 hours</option>
+              <option value="180">3 hours</option>
+              <option value="240">4 hours</option>
+              <option value="300">5 hours</option>
+              <option value="360">6 hours</option>
+              <option value="480">8 hours</option>
             </select>
           </div>
         </div>
