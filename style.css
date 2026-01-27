@@ -1851,6 +1851,40 @@ body {
   background: var(--color-background);
 }
 
+/* Daily Progress Bar (Sunsama-style) */
+.daily-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.daily-progress-bar-container {
+  flex: 1;
+  height: 8px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.daily-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: width var(--transition-normal);
+}
+
+.daily-progress-text {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  min-width: 80px;
+  text-align: right;
+}
+
 /* Add Task Form */
 .add-task-form {
   display: flex;
@@ -1961,6 +1995,12 @@ body {
   border-color: var(--color-primary);
 }
 
+/* Next task checkbox - more prominent */
+.task-item.next-task .task-item-checkbox {
+  border-color: var(--color-primary);
+  border-width: 2px;
+}
+
 /* Active task during Pomo */
 .task-item.active-task {
   background: color-mix(in srgb, var(--color-primary) 15%, var(--color-background));
@@ -1968,9 +2008,16 @@ body {
   border-width: 2px;
 }
 
+/* Active task checkbox */
+.task-item.active-task .task-item-checkbox {
+  border-color: var(--color-primary);
+  border-width: 2px;
+}
+
 /* Completed task */
 .task-item.completed {
   opacity: 0.6;
+  cursor: default;
 }
 
 .task-item.completed .task-item-name {
@@ -2062,6 +2109,30 @@ body {
 
 .task-item-time-separator {
   opacity: 0.5;
+}
+
+/* Task Estimate Select (inline) */
+.task-item-estimate-select {
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.task-item-estimate-select:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.task-item-estimate-select:focus {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
 }
 
 /* Task Actions */

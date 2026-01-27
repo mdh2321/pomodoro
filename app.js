@@ -126,15 +126,6 @@ const elements = {
   statsSummary: document.getElementById('statsSummary'),
   statsToggleBtns: document.querySelectorAll('.stats-toggle-btn'),
 
-  // Task intent (legacy)
-  taskTrigger: document.getElementById('taskTrigger'),
-  taskModalOverlay: document.getElementById('taskModalOverlay'),
-  taskInput: document.getElementById('taskInput'),
-  taskDisplay: document.getElementById('taskDisplay'),
-  taskText: document.getElementById('taskText'),
-  taskCompleteBtn: document.getElementById('taskCompleteBtn'),
-  taskClearBtn: document.getElementById('taskClearBtn'),
-
   // Task sidebar
   taskSidebar: document.getElementById('taskSidebar'),
   sidebarTab: document.getElementById('sidebarTab'),
@@ -142,7 +133,6 @@ const elements = {
   sidebarClose: document.getElementById('sidebarClose'),
   addTaskInput: document.getElementById('addTaskInput'),
   addTaskEstimate: document.getElementById('addTaskEstimate'),
-  addTaskBtn: document.getElementById('addTaskBtn'),
   taskList: document.getElementById('taskList'),
 
   // Task settings
@@ -2216,96 +2206,6 @@ function setStatsView(view) {
 }
 
 // ============================================
-// Task Intent
-// ============================================
-
-function openTaskModal() {
-  elements.taskModalOverlay.hidden = false;
-  elements.taskModalOverlay.setAttribute('aria-hidden', 'false');
-  elements.taskInput.value = '';
-  elements.taskInput.focus();
-}
-
-function closeTaskModal() {
-  elements.taskModalOverlay.hidden = true;
-  elements.taskModalOverlay.setAttribute('aria-hidden', 'true');
-}
-
-function setTask(text) {
-  const trimmed = text.trim().slice(0, 70);
-  if (!trimmed) return;
-
-  state.currentTask = trimmed;
-  elements.taskText.textContent = trimmed;
-  elements.taskInput.value = '';
-  elements.taskTrigger.hidden = true;
-  elements.taskDisplay.hidden = false;
-  closeTaskModal();
-  saveToStorage();
-}
-
-function clearTask() {
-  state.currentTask = '';
-  elements.taskInput.value = '';
-  elements.taskTrigger.hidden = false;
-  elements.taskDisplay.hidden = true;
-  saveToStorage();
-}
-
-function completeTask() {
-  playCompleteSound();
-
-  // Animate the card and checkbox
-  elements.taskDisplay.classList.add('completing');
-  elements.taskCompleteBtn.classList.add('checked');
-
-  setTimeout(() => {
-    elements.taskDisplay.classList.remove('completing');
-    elements.taskCompleteBtn.classList.remove('checked');
-    clearTask();
-  }, 500);
-}
-
-function playCompleteSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-    // Pleasant two-tone chime
-    const playTone = (freq, delay, duration) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      const startTime = ctx.currentTime + delay;
-      gain.gain.setValueAtTime(0.25, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-
-      osc.start(startTime);
-      osc.stop(startTime + duration);
-    };
-
-    playTone(880, 0, 0.12);       // A5
-    playTone(1318.5, 0.08, 0.18); // E6
-  } catch (e) {
-    console.warn('Could not play complete sound:', e);
-  }
-}
-
-function updateTaskUI() {
-  if (state.currentTask) {
-    elements.taskText.textContent = state.currentTask;
-    elements.taskTrigger.hidden = true;
-    elements.taskDisplay.hidden = false;
-  } else {
-    elements.taskTrigger.hidden = false;
-    elements.taskDisplay.hidden = true;
-  }
-}
-
-// ============================================
 // Theme Management
 // ============================================
 
@@ -2487,12 +2387,22 @@ function renderTasks() {
   const taskList = elements.taskList;
   taskList.innerHTML = '';
 
+  // Update progress bar
+  updateDailyProgress();
+
   const nextTask = getNextIncompleteTask();
-  let visibleTasks = state.tasks;
+  let visibleTasks = [...state.tasks];
 
   // Filter out completed tasks if setting is off
   if (!state.showCompletedTasks) {
-    visibleTasks = state.tasks.filter(t => !t.completed);
+    visibleTasks = visibleTasks.filter(t => !t.completed);
+  } else {
+    // Sort completed tasks to bottom
+    visibleTasks.sort((a, b) => {
+      if (a.completed && !b.completed) return 1;
+      if (!a.completed && b.completed) return -1;
+      return 0;
+    });
   }
 
   visibleTasks.forEach((task, index) => {
@@ -2502,32 +2412,35 @@ function renderTasks() {
     const taskEl = document.createElement('div');
     taskEl.className = 'task-item';
     taskEl.dataset.taskId = task.id;
-    taskEl.dataset.index = index;
-    taskEl.draggable = state.status !== 'running';
+    taskEl.dataset.index = state.tasks.findIndex(t => t.id === task.id);
+    taskEl.draggable = state.status !== 'running' && !task.completed;
 
     if (task.completed) taskEl.classList.add('completed');
     if (isNext) taskEl.classList.add('next-task');
     if (isActive) taskEl.classList.add('active-task');
 
-    // Time display
-    let timeHtml = '';
-    if (task.estimatedMinutes || task.actualSeconds > 0) {
-      const actualTime = task.actualSeconds > 0 ? formatTimeSpent(task.actualSeconds) : '0m';
-      const estTime = task.estimatedMinutes ? `${task.estimatedMinutes}m` : '-';
-      timeHtml = `
-        <div class="task-item-time">
-          <span class="task-item-time-actual">${actualTime}</span>
-          <span class="task-item-time-separator">/</span>
-          <span class="task-item-time-est">Est: ${estTime}</span>
-        </div>
-      `;
-    }
+    // Time display - always show
+    const actualTime = task.actualSeconds > 0 ? formatTimeSpent(task.actualSeconds) : '0m';
+    const estTime = task.estimatedMinutes ? `${task.estimatedMinutes}m` : '-';
+
+    // Build estimate options
+    const estimateOptions = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 90, 120];
+    const optionsHtml = estimateOptions.map(m =>
+      `<option value="${m}" ${task.estimatedMinutes === m ? 'selected' : ''}>${m}m</option>`
+    ).join('');
 
     taskEl.innerHTML = `
       <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
       <div class="task-item-content">
         <div class="task-item-name" contenteditable="false">${escapeHtml(task.name)}</div>
-        ${timeHtml}
+        <div class="task-item-time">
+          <span class="task-item-time-actual">${actualTime}</span>
+          <span class="task-item-time-separator">/</span>
+          <select class="task-item-estimate-select" aria-label="Estimated time">
+            <option value="" ${!task.estimatedMinutes ? 'selected' : ''}>Est: -</option>
+            ${optionsHtml}
+          </select>
+        </div>
       </div>
       <div class="task-item-actions">
         <button class="task-item-action edit" aria-label="Edit task">✎</button>
@@ -2573,20 +2486,82 @@ function renderTasks() {
       }
     });
 
+    // Estimate select
+    const estimateSelect = taskEl.querySelector('.task-item-estimate-select');
+    estimateSelect.addEventListener('change', (e) => {
+      const newEstimate = e.target.value ? parseInt(e.target.value) : null;
+      editTaskEstimate(task.id, newEstimate);
+    });
+
     const deleteBtn = taskEl.querySelector('.task-item-action.delete');
     deleteBtn.addEventListener('click', () => {
       deleteTask(task.id);
     });
 
-    // Drag and drop
-    taskEl.addEventListener('dragstart', handleDragStart);
-    taskEl.addEventListener('dragend', handleDragEnd);
-    taskEl.addEventListener('dragover', handleDragOver);
-    taskEl.addEventListener('drop', handleDrop);
-    taskEl.addEventListener('dragleave', handleDragLeave);
+    // Drag and drop (only for incomplete tasks)
+    if (!task.completed) {
+      taskEl.addEventListener('dragstart', handleDragStart);
+      taskEl.addEventListener('dragend', handleDragEnd);
+      taskEl.addEventListener('dragover', handleDragOver);
+      taskEl.addEventListener('drop', handleDrop);
+      taskEl.addEventListener('dragleave', handleDragLeave);
+    }
 
     taskList.appendChild(taskEl);
   });
+}
+
+// Edit task estimated time
+function editTaskEstimate(taskId, estimatedMinutes) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  task.estimatedMinutes = estimatedMinutes;
+  saveToStorage();
+  updateDailyProgress();
+}
+
+// Calculate and update daily progress bar
+function updateDailyProgress() {
+  const progressBar = document.getElementById('dailyProgressBar');
+  const progressText = document.getElementById('dailyProgressText');
+  if (!progressBar || !progressText) return;
+
+  const incompleteTasks = state.tasks.filter(t => !t.completed);
+  const completedTasks = state.tasks.filter(t => t.completed);
+
+  // Total estimated for all tasks with estimates
+  const totalEstimatedMinutes = state.tasks
+    .filter(t => t.estimatedMinutes)
+    .reduce((sum, t) => sum + t.estimatedMinutes, 0);
+
+  // Completed time (actual time on completed tasks + estimated for those without actual)
+  const completedMinutes = completedTasks.reduce((sum, t) => {
+    if (t.actualSeconds > 0) {
+      return sum + Math.round(t.actualSeconds / 60);
+    }
+    return sum + (t.estimatedMinutes || 0);
+  }, 0);
+
+  // Calculate percentage
+  let percentage = 0;
+  if (totalEstimatedMinutes > 0) {
+    percentage = Math.min(100, Math.round((completedMinutes / totalEstimatedMinutes) * 100));
+  }
+
+  progressBar.style.width = `${percentage}%`;
+
+  // Format text like Sunsama: "Xh Ym / Xh Ym"
+  const formatDuration = (minutes) => {
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  };
+
+  const completedStr = formatDuration(completedMinutes);
+  const totalStr = totalEstimatedMinutes > 0 ? formatDuration(totalEstimatedMinutes) : '-';
+  progressText.textContent = `${completedStr} / ${totalStr}`;
 }
 
 // Escape HTML to prevent XSS
@@ -2717,18 +2692,7 @@ function initTaskSidebarListeners() {
   elements.sidebarTab.addEventListener('click', openSidebar);
   elements.sidebarClose.addEventListener('click', closeSidebar);
 
-  // Add task form
-  elements.addTaskBtn.addEventListener('click', () => {
-    const name = elements.addTaskInput.value.trim();
-    const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
-    if (name) {
-      addTask(name, estimate);
-      elements.addTaskInput.value = '';
-      elements.addTaskEstimate.value = '';
-      elements.addTaskInput.focus();
-    }
-  });
-
+  // Add task form - Enter to add
   elements.addTaskInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       const name = elements.addTaskInput.value.trim();
@@ -2738,15 +2702,6 @@ function initTaskSidebarListeners() {
         elements.addTaskInput.value = '';
         elements.addTaskEstimate.value = '';
       }
-    }
-  });
-
-  // Close sidebar when clicking outside (optional - remove if not desired)
-  document.addEventListener('click', (e) => {
-    if (state.sidebarOpen &&
-        !elements.taskSidebar.contains(e.target) &&
-        !e.target.closest('.task-sidebar')) {
-      closeSidebar();
     }
   });
 
@@ -2839,26 +2794,6 @@ function initEventListeners() {
     });
   });
 
-  // Task intent
-  elements.taskTrigger.addEventListener('click', openTaskModal);
-
-  elements.taskModalOverlay.addEventListener('click', (e) => {
-    if (e.target === elements.taskModalOverlay) {
-      closeTaskModal();
-    }
-  });
-
-  elements.taskInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && elements.taskInput.value.trim()) {
-      setTask(elements.taskInput.value);
-    } else if (e.key === 'Escape') {
-      closeTaskModal();
-    }
-  });
-
-  elements.taskCompleteBtn.addEventListener('click', completeTask);
-  elements.taskClearBtn.addEventListener('click', clearTask);
-
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     // Don't trigger if typing in input
@@ -2938,9 +2873,6 @@ function init() {
   // Reset sound to off (don't persist between sessions)
   state.currentSound = 'off';
   updateSoundUI();
-
-  // Restore task UI state
-  updateTaskUI();
 
   // Initial UI update
   updateUI();

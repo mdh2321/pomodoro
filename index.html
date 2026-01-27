@@ -94,41 +94,6 @@
       </div>
     </div>
 
-    <!-- Task Intent -->
-    <div class="task-intent" id="taskIntent">
-      <!-- Trigger button (when no task) -->
-      <button class="task-trigger" id="taskTrigger">
-        <span class="task-trigger-icon">+</span>
-        <span>Set focus</span>
-      </button>
-
-      <!-- Task card (when task is set) -->
-      <div class="task-card" id="taskDisplay" hidden>
-        <button class="task-check" id="taskCompleteBtn" aria-label="Complete task">
-          <span class="task-check-icon"></span>
-        </button>
-        <span class="task-card-text" id="taskText"></span>
-        <button class="task-clear" id="taskClearBtn" aria-label="Clear task">
-          <span class="task-clear-icon"></span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Task Modal -->
-    <div class="task-modal-overlay" id="taskModalOverlay" hidden aria-hidden="true">
-      <div class="task-modal">
-        <input
-          type="text"
-          class="task-modal-input"
-          id="taskInput"
-          placeholder="What will you focus on?"
-          maxlength="70"
-          aria-label="Task description"
-        >
-        <div class="task-modal-hint">Press Enter to set · Esc to cancel</div>
-      </div>
-    </div>
-
     <!-- Control Buttons -->
     <div class="controls">
       <button class="btn btn--primary" id="startBtn" aria-label="Start timer">
@@ -174,13 +139,21 @@
         <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">×</button>
       </div>
 
+      <!-- Daily Progress Bar -->
+      <div class="daily-progress">
+        <div class="daily-progress-bar-container">
+          <div class="daily-progress-bar" id="dailyProgressBar"></div>
+        </div>
+        <span class="daily-progress-text" id="dailyProgressText">0m / -</span>
+      </div>
+
       <!-- Add Task Form -->
       <div class="add-task-form">
         <input
           type="text"
           class="add-task-input"
           id="addTaskInput"
-          placeholder="Add a task..."
+          placeholder="Add a task... (Enter to add)"
           maxlength="100"
           aria-label="New task name"
         >
@@ -201,7 +174,6 @@
           <option value="90">90m</option>
           <option value="120">120m</option>
         </select>
-        <button class="add-task-btn" id="addTaskBtn" aria-label="Add task">+</button>
       </div>
 
       <!-- Task List -->
