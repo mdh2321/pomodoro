@@ -122,6 +122,7 @@
       <span class="session-separator">•</span>
       <span class="total-time" id="totalTime">0 min focused today</span>
       <button class="stats-btn" id="statsBtn" aria-label="View statistics">📊</button>
+      <button class="settings-btn" id="settingsBtn" aria-label="Settings">⚙️</button>
     </div>
   </div>
 
@@ -219,8 +220,20 @@
           <h3 class="chart-title">Last 14 Days</h3>
           <div class="stats-chart" id="statsChart"></div>
         </div>
-        <!-- Settings -->
-        <div class="settings-section">
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsOverlay" aria-hidden="true">
+    <div class="modal modal--settings" role="dialog" aria-labelledby="settingsTitle" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="settingsTitle">Settings</h2>
+        <button class="modal-close" id="settingsCloseBtn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-content">
+        <div class="settings-group">
+          <h3 class="settings-group-title">Timer</h3>
           <div class="settings-row">
             <span class="settings-label">Break duration</span>
             <div class="settings-stepper">
@@ -229,6 +242,9 @@
               <button class="stepper-btn stepper-btn--sm" id="breakIncreaseBtn" aria-label="Increase break time">+</button>
             </div>
           </div>
+        </div>
+        <div class="settings-group">
+          <h3 class="settings-group-title">Tasks</h3>
           <div class="settings-row">
             <span class="settings-label">Show completed tasks</span>
             <label class="settings-toggle">

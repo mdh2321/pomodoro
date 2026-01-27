@@ -137,7 +137,16 @@ const elements = {
 
   // Task settings
   showCompletedToggle: document.getElementById('showCompletedToggle'),
-  taskCompletionSelect: document.getElementById('taskCompletionSelect')
+  taskCompletionSelect: document.getElementById('taskCompletionSelect'),
+
+  // Settings modal
+  settingsBtn: document.getElementById('settingsBtn'),
+  settingsOverlay: document.getElementById('settingsOverlay'),
+  settingsCloseBtn: document.getElementById('settingsCloseBtn'),
+
+  // Daily progress
+  dailyProgressBar: document.getElementById('dailyProgressBar'),
+  dailyProgressText: document.getElementById('dailyProgressText')
 };
 
 // ============================================
@@ -2092,6 +2101,20 @@ function closeStatsModal() {
   elements.statsOverlay.setAttribute('aria-hidden', 'true');
 }
 
+// ============================================
+// Settings Modal
+// ============================================
+
+function openSettingsModal() {
+  elements.settingsOverlay.classList.add('active');
+  elements.settingsOverlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeSettingsModal() {
+  elements.settingsOverlay.classList.remove('active');
+  elements.settingsOverlay.setAttribute('aria-hidden', 'true');
+}
+
 function updateStatsDisplay() {
   // Calculate summary stats
   const today = getTodayDate();
@@ -2792,6 +2815,20 @@ function initEventListeners() {
     btn.addEventListener('click', () => {
       setStatsView(btn.dataset.view);
     });
+  });
+
+  // Settings modal
+  elements.settingsBtn.addEventListener('click', openSettingsModal);
+  elements.settingsCloseBtn.addEventListener('click', closeSettingsModal);
+  elements.settingsOverlay.addEventListener('click', (e) => {
+    if (e.target === elements.settingsOverlay) {
+      closeSettingsModal();
+    }
+  });
+  elements.settingsOverlay.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeSettingsModal();
+    }
   });
 
   // Keyboard shortcuts
