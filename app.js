@@ -2842,17 +2842,23 @@ function initTaskSidebarListeners() {
   elements.sidebarTab.addEventListener('click', openSidebar);
   elements.sidebarClose.addEventListener('click', closeSidebar);
 
-  // Add task form - Enter to add
-  elements.addTaskInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const name = elements.addTaskInput.value.trim();
-      const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
-      if (name) {
-        addTask(name, estimate);
-        elements.addTaskInput.value = '';
-        elements.addTaskEstimate.value = '';
-      }
+  // Add task form - Enter to add (from either input or estimate dropdown)
+  const submitNewTask = () => {
+    const name = elements.addTaskInput.value.trim();
+    const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
+    if (name) {
+      addTask(name, estimate);
+      elements.addTaskInput.value = '';
+      elements.addTaskEstimate.value = '';
     }
+  };
+
+  elements.addTaskInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitNewTask();
+  });
+
+  elements.addTaskEstimate.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitNewTask();
   });
 
   // Initialize settings
@@ -2960,8 +2966,8 @@ function initEventListeners() {
 
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
-    // Don't trigger if typing in input
-    if (e.target.tagName === 'INPUT') return;
+    // Don't trigger if typing in input or contenteditable
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
 
     switch (e.code) {
       case 'Space':
