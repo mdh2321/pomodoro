@@ -1714,24 +1714,30 @@ body.focus-mode::before {
   opacity: 1;
 }
 
-/* Hide theme toggle in focus mode */
-body.focus-mode .theme-toggle {
+/* Hide UI elements in focus mode */
+body.focus-mode .theme-toggle,
+body.focus-mode .stats-btn,
+body.focus-mode .settings-btn,
+body.focus-mode .goal-progress {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.4s ease;
 }
 
-.theme-toggle {
+.theme-toggle,
+.stats-btn,
+.settings-btn,
+.goal-progress {
   transition: opacity 0.1s ease;
 }
 
 /* Timer pulse animation */
 @keyframes focus-pulse {
   0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.2));
+    filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.3));
   }
   50% {
-    filter: drop-shadow(0 0 30px rgba(56, 189, 248, 0.5));
+    filter: drop-shadow(0 0 45px rgba(56, 189, 248, 0.7));
   }
 }
 
@@ -1746,10 +1752,10 @@ body.focus-mode .timer-container {
 
 @keyframes focus-pulse-dark {
   0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(34, 211, 238, 0.2));
+    filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.3));
   }
   50% {
-    filter: drop-shadow(0 0 30px rgba(34, 211, 238, 0.5));
+    filter: drop-shadow(0 0 50px rgba(34, 211, 238, 0.8));
   }
 }
 
@@ -1760,10 +1766,10 @@ body.focus-mode .timer-container {
 /* Synthwave theme focus mode */
 @keyframes focus-pulse-synthwave {
   0%, 100% {
-    filter: drop-shadow(0 0 20px rgba(255, 107, 53, 0.3));
+    filter: drop-shadow(0 0 25px rgba(255, 107, 53, 0.4));
   }
   50% {
-    filter: drop-shadow(0 0 40px rgba(255, 107, 53, 0.6));
+    filter: drop-shadow(0 0 60px rgba(255, 107, 53, 0.9));
   }
 }
 
