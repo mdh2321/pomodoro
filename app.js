@@ -667,6 +667,11 @@ function updateControlButtons() {
     elements.startBtn.textContent = 'Start';
     elements.startBtn.classList.toggle('break-mode', mode === 'break');
 
+    // Show skip button when about to start break (after clicking Done)
+    if (mode === 'break') {
+      elements.skipBtn.hidden = false;
+    }
+
   } else if (status === 'running') {
     // Only Pause visible
     elements.pauseBtn.hidden = false;
