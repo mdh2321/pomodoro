@@ -286,7 +286,12 @@ function saveToStorage() {
 }
 
 function getTodayDate() {
-  return new Date().toISOString().split('T')[0];
+  return getDateInAEST(new Date());
+}
+
+// Get date string (YYYY-MM-DD) in AEST/AEDT timezone
+function getDateInAEST(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
 }
 
 // ============================================
@@ -2250,7 +2255,7 @@ function generateChart() {
   for (let i = 13; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(now.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = getDateInAEST(date);
     const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
 
     days.push({
@@ -2469,10 +2474,10 @@ function checkNewDay() {
 
 // Update streak when a new day starts
 function updateStreakForNewDay(lastDate) {
-  // Check if the last visit date was yesterday
+  // Check if the last visit date was yesterday (in AEST)
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const yesterdayStr = getDateInAEST(yesterday);
 
   // Get the minutes focused on the last visit date
   const lastDayData = state.history[lastDate];
