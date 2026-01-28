@@ -358,8 +358,8 @@ function resetTimer() {
 }
 
 function skipTimer() {
-  // Skip break - either when in break mode (paused/running) or when about to start break (work completed)
-  const isBreakMode = state.mode === 'break' && (state.status === 'paused' || state.status === 'running');
+  // Skip break - when in break mode (any status) or when about to start break (work completed)
+  const isBreakMode = state.mode === 'break' && (state.status === 'paused' || state.status === 'running' || state.status === 'idle');
   const isAboutToBreak = state.mode === 'work' && state.status === 'completed';
 
   if (!isBreakMode && !isAboutToBreak) return;
