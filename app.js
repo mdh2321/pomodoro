@@ -353,9 +353,11 @@ function resetTimer() {
 }
 
 function skipTimer() {
-  // Skip is only for break mode
-  if (state.mode !== 'break') return;
-  if (state.status !== 'paused' && state.status !== 'running') return;
+  // Skip break - either when in break mode (paused/running) or when about to start break (work completed)
+  const isBreakMode = state.mode === 'break' && (state.status === 'paused' || state.status === 'running');
+  const isAboutToBreak = state.mode === 'work' && state.status === 'completed';
+
+  if (!isBreakMode && !isAboutToBreak) return;
 
   clearInterval(state.intervalId);
   state.intervalId = null;
@@ -683,6 +685,11 @@ function updateControlButtons() {
     elements.startBtn.hidden = false;
     elements.startBtn.textContent = mode === 'work' ? 'Start Break' : 'Start Work';
     elements.startBtn.classList.toggle('break-mode', mode === 'work');
+
+    // Show skip button when about to start break (just finished work)
+    if (mode === 'work') {
+      elements.skipBtn.hidden = false;
+    }
   }
 }
 
