@@ -1694,6 +1694,87 @@ body {
   color: var(--color-text-secondary);
 }
 
+/* ============================================
+   Focus Mode
+   ============================================ */
+
+/* Vignette overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.4) 100%);
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+body.focus-mode::before {
+  opacity: 1;
+}
+
+/* Hide theme toggle in focus mode */
+body.focus-mode .theme-toggle {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.theme-toggle {
+  transition: opacity 0.1s ease;
+}
+
+/* Timer pulse animation */
+@keyframes focus-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 0 30px rgba(56, 189, 248, 0.5));
+  }
+}
+
+body.focus-mode .timer-container {
+  animation: focus-pulse 4s ease-in-out infinite;
+}
+
+/* Dark theme focus mode */
+[data-theme="dark"] body.focus-mode::before {
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+@keyframes focus-pulse-dark {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(34, 211, 238, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 0 30px rgba(34, 211, 238, 0.5));
+  }
+}
+
+[data-theme="dark"] body.focus-mode .timer-container {
+  animation: focus-pulse-dark 4s ease-in-out infinite;
+}
+
+/* Synthwave theme focus mode */
+@keyframes focus-pulse-synthwave {
+  0%, 100% {
+    filter: drop-shadow(0 0 20px rgba(255, 107, 53, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 40px rgba(255, 107, 53, 0.6));
+  }
+}
+
+[data-theme="synthwave"] body.focus-mode .timer-container {
+  animation: focus-pulse-synthwave 4s ease-in-out infinite;
+}
+
+[data-theme="synthwave"] body.focus-mode::before {
+  background: radial-gradient(ellipse at center, transparent 25%, rgba(10, 5, 20, 0.6) 100%);
+}
+
 /* Responsive Adjustments */
 @media (max-width: 400px) {
   :root {

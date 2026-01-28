@@ -593,6 +593,13 @@ function updateUI() {
   updateModeStyles();
   updateStepperVisibility();
   updateStepperButtons();
+  updateFocusMode();
+}
+
+function updateFocusMode() {
+  // Focus mode is active when running a work session (not paused, not break)
+  const isFocused = state.status === 'running' && state.mode === 'work';
+  document.body.classList.toggle('focus-mode', isFocused);
 }
 
 function updateTimerDisplay() {
