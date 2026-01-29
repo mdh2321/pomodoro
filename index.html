@@ -277,6 +277,13 @@
               <option value="endSession">End session</option>
             </select>
           </div>
+          <div class="settings-row">
+            <span class="settings-label">Keep incomplete tasks daily</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="keepIncompleteTasksToggle" checked>
+              <span class="settings-toggle-slider"></span>
+            </label>
+          </div>
         </div>
         <div class="settings-group">
           <h3 class="settings-group-title">Daily Goal</h3>
@@ -298,6 +305,12 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Undo Toast -->
+  <div class="undo-toast" id="undoToast" hidden>
+    <span class="undo-toast-message">Task deleted</span>
+    <button class="undo-toast-btn" id="undoBtn">Undo</button>
   </div>
 
   <script src="app.js"></script>

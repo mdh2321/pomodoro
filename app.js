@@ -49,6 +49,7 @@ const state = {
   // Task settings
   showCompletedTasks: true, // Show struck-out completed tasks
   taskCompletionBehavior: 'nextTask', // 'endSession' | 'nextTask'
+  keepIncompleteTasks: true, // Keep incomplete tasks on new day (vs clear all)
   lastVisitDate: null, // For clearing done tasks on new day
 
   // Sidebar state
@@ -144,6 +145,11 @@ const elements = {
   // Task settings
   showCompletedToggle: document.getElementById('showCompletedToggle'),
   taskCompletionSelect: document.getElementById('taskCompletionSelect'),
+  keepIncompleteTasksToggle: document.getElementById('keepIncompleteTasksToggle'),
+
+  // Undo toast
+  undoToast: document.getElementById('undoToast'),
+  undoBtn: document.getElementById('undoBtn'),
 
   // Settings modal
   settingsBtn: document.getElementById('settingsBtn'),
@@ -235,6 +241,9 @@ function loadFromStorage() {
       if (data.taskCompletionBehavior) {
         state.taskCompletionBehavior = data.taskCompletionBehavior;
       }
+      if (typeof data.keepIncompleteTasks === 'boolean') {
+        state.keepIncompleteTasks = data.keepIncompleteTasks;
+      }
       if (data.lastVisitDate) {
         state.lastVisitDate = data.lastVisitDate;
       }
@@ -272,6 +281,7 @@ function saveToStorage() {
       tasks: state.tasks,
       showCompletedTasks: state.showCompletedTasks,
       taskCompletionBehavior: state.taskCompletionBehavior,
+      keepIncompleteTasks: state.keepIncompleteTasks,
       lastVisitDate: state.lastVisitDate,
       // Daily goal & streaks
       dailyGoalMinutes: state.dailyGoalMinutes,
@@ -2422,14 +2432,77 @@ function uncompleteTaskById(taskId) {
   renderTasks();
 }
 
+// Undo delete state
+let deletedTaskBackup = null;
+let undoTimeout = null;
+
 // Delete a task
 function deleteTask(taskId) {
+  const taskIndex = state.tasks.findIndex(t => t.id === taskId);
+  if (taskIndex === -1) return;
+
+  // Store backup for undo
+  deletedTaskBackup = {
+    task: { ...state.tasks[taskIndex] },
+    index: taskIndex
+  };
+
   state.tasks = state.tasks.filter(t => t.id !== taskId);
   if (state.activeTaskId === taskId) {
     state.activeTaskId = null;
   }
   saveToStorage();
   renderTasks();
+
+  // Show undo toast
+  showUndoToast();
+}
+
+// Show undo toast
+function showUndoToast() {
+  // Clear any existing timeout
+  if (undoTimeout) {
+    clearTimeout(undoTimeout);
+  }
+
+  const toast = elements.undoToast;
+  toast.hidden = false;
+  // Force reflow for animation
+  toast.offsetHeight;
+  toast.classList.add('visible');
+
+  // Auto-hide after 5 seconds
+  undoTimeout = setTimeout(() => {
+    hideUndoToast();
+    deletedTaskBackup = null;
+  }, 5000);
+}
+
+// Hide undo toast
+function hideUndoToast() {
+  const toast = elements.undoToast;
+  toast.classList.remove('visible');
+  setTimeout(() => {
+    toast.hidden = true;
+  }, 300);
+}
+
+// Undo delete
+function undoDelete() {
+  if (!deletedTaskBackup) return;
+
+  // Restore task at original position
+  state.tasks.splice(deletedTaskBackup.index, 0, deletedTaskBackup.task);
+  saveToStorage();
+  renderTasks();
+
+  // Clear backup and hide toast
+  deletedTaskBackup = null;
+  if (undoTimeout) {
+    clearTimeout(undoTimeout);
+    undoTimeout = null;
+  }
+  hideUndoToast();
 }
 
 // Edit task name
@@ -2457,21 +2530,31 @@ function reorderTasks(fromIndex, toIndex) {
   renderTasks();
 }
 
-// Clear completed tasks (for new day)
-function clearCompletedTasks() {
-  state.tasks = state.tasks.filter(t => !t.completed);
+// Clear tasks for new day (respects keepIncompleteTasks setting)
+function clearTasksForNewDay() {
+  if (state.keepIncompleteTasks) {
+    // Only clear completed tasks
+    state.tasks = state.tasks.filter(t => !t.completed);
+  } else {
+    // Clear all tasks
+    state.tasks = [];
+  }
+  // Reset actual time on remaining tasks for the new day
+  state.tasks.forEach(t => {
+    t.actualSeconds = 0;
+  });
   saveToStorage();
   renderTasks();
 }
 
-// Check if it's a new day and clear completed tasks
+// Check if it's a new day and clear tasks
 function checkNewDay() {
   const today = getTodayDate();
   if (state.lastVisitDate && state.lastVisitDate !== today) {
     // Update streak based on yesterday's performance
     updateStreakForNewDay(state.lastVisitDate);
-    // Clear completed tasks
-    clearCompletedTasks();
+    // Clear tasks for new day
+    clearTasksForNewDay();
   }
   state.lastVisitDate = today;
   saveToStorage();
@@ -2708,49 +2791,73 @@ function escapeHtml(text) {
 }
 
 // Drag and drop handlers
-let draggedTaskIndex = null;
+let draggedTaskId = null;
 
 function handleDragStart(e) {
   if (state.status === 'running') {
     e.preventDefault();
     return;
   }
-  draggedTaskIndex = parseInt(e.target.dataset.index);
+  const taskItem = e.target.closest('.task-item');
+  if (!taskItem) return;
+
+  draggedTaskId = taskItem.dataset.taskId;
   e.target.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', draggedTaskId);
 }
 
 function handleDragEnd(e) {
   e.target.classList.remove('dragging');
   document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
-  draggedTaskIndex = null;
+  draggedTaskId = null;
 }
 
 function handleDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
+
   const taskItem = e.target.closest('.task-item');
-  if (taskItem && !taskItem.classList.contains('dragging')) {
+  if (!taskItem) return;
+
+  // Remove drag-over from all items first
+  document.querySelectorAll('.task-item.drag-over').forEach(el => {
+    if (el !== taskItem) el.classList.remove('drag-over');
+  });
+
+  if (!taskItem.classList.contains('dragging') && !taskItem.classList.contains('completed')) {
     taskItem.classList.add('drag-over');
   }
 }
 
 function handleDragLeave(e) {
+  // Only remove if we're actually leaving the task item
   const taskItem = e.target.closest('.task-item');
-  if (taskItem) {
+  const relatedTarget = e.relatedTarget?.closest('.task-item');
+
+  if (taskItem && taskItem !== relatedTarget) {
     taskItem.classList.remove('drag-over');
   }
 }
 
 function handleDrop(e) {
   e.preventDefault();
-  const taskItem = e.target.closest('.task-item');
-  if (taskItem && draggedTaskIndex !== null) {
-    const toIndex = parseInt(taskItem.dataset.index);
-    if (draggedTaskIndex !== toIndex) {
-      reorderTasks(draggedTaskIndex, toIndex);
-    }
+  e.stopPropagation();
+
+  const targetItem = e.target.closest('.task-item');
+  if (!targetItem || !draggedTaskId) return;
+
+  const targetTaskId = targetItem.dataset.taskId;
+  if (draggedTaskId === targetTaskId) return;
+
+  // Find indices in the actual state.tasks array
+  const fromIndex = state.tasks.findIndex(t => t.id === draggedTaskId);
+  const toIndex = state.tasks.findIndex(t => t.id === targetTaskId);
+
+  if (fromIndex !== -1 && toIndex !== -1) {
+    reorderTasks(fromIndex, toIndex);
   }
+
   document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
 }
 
@@ -2833,6 +2940,20 @@ function initTaskSettings() {
       saveToStorage();
       updateGoalProgress();
     });
+  }
+
+  // Keep incomplete tasks toggle
+  if (elements.keepIncompleteTasksToggle) {
+    elements.keepIncompleteTasksToggle.checked = state.keepIncompleteTasks;
+    elements.keepIncompleteTasksToggle.addEventListener('change', (e) => {
+      state.keepIncompleteTasks = e.target.checked;
+      saveToStorage();
+    });
+  }
+
+  // Undo button
+  if (elements.undoBtn) {
+    elements.undoBtn.addEventListener('click', undoDelete);
   }
 }
 

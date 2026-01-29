@@ -1781,6 +1781,71 @@ body.focus-mode .timer-container {
   background: radial-gradient(ellipse at center, transparent 25%, rgba(10, 5, 20, 0.6) 100%);
 }
 
+/* ============================================
+   Undo Toast
+   ============================================ */
+
+.undo-toast {
+  position: fixed;
+  bottom: var(--spacing-lg);
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-text-primary);
+  color: var(--color-background);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.undo-toast.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.undo-toast[hidden] {
+  display: none;
+}
+
+.undo-toast-message {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.undo-toast-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.undo-toast-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .undo-toast {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+[data-theme="synthwave"] .undo-toast {
+  background: rgba(45, 27, 78, 0.95);
+  color: var(--color-text-primary);
+  border: 1px solid rgba(155, 77, 202, 0.5);
+  box-shadow: 0 0 20px rgba(255, 107, 53, 0.3);
+}
+
 /* Responsive Adjustments */
 @media (max-width: 400px) {
   :root {
@@ -2248,11 +2313,22 @@ body.focus-mode .timer-container {
 .task-item.dragging {
   opacity: 0.5;
   cursor: grabbing;
+  transform: scale(1.02);
 }
 
 .task-item.drag-over {
   border-color: var(--color-primary);
   border-style: dashed;
+  border-width: 2px;
+  background: rgba(var(--color-primary-rgb, 56, 189, 248), 0.1);
+}
+
+.task-item[draggable="true"] {
+  cursor: grab;
+}
+
+.task-item[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 /* Next task highlight */
