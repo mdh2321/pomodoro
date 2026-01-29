@@ -611,6 +611,16 @@ function updateUI() {
   updateStepperVisibility();
   updateStepperButtons();
   updateFocusMode();
+  updateTaskDraggable();
+}
+
+// Update draggable state of tasks based on timer status
+function updateTaskDraggable() {
+  const canDrag = state.status !== 'running';
+  document.querySelectorAll('.task-item').forEach(el => {
+    const isCompleted = el.classList.contains('completed');
+    el.draggable = canDrag && !isCompleted;
+  });
 }
 
 function updateFocusMode() {
