@@ -258,18 +258,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  background-color: var(--color-surface);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-full);
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
+  color: var(--color-text-secondary);
 }
 
 .theme-toggle:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-background);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
 }
 
 .theme-toggle:focus-visible {
@@ -406,18 +407,24 @@ body {
   transform: translateY(-50%);
 }
 
-[data-theme="lofi"] .theme-toggle {
-  border-color: var(--color-primary);
-  background-color: var(--color-surface);
+/* Dark theme icon visibility */
+[data-theme="dark"] .theme-toggle,
+[data-theme="dark"] .sound-toggle,
+[data-theme="synthwave"] .theme-toggle,
+[data-theme="synthwave"] .sound-toggle {
+  color: var(--color-text-secondary);
 }
 
-[data-theme="lofi"] .theme-toggle:hover {
-  box-shadow: var(--glow-warm);
+[data-theme="dark"] .theme-toggle:hover,
+[data-theme="dark"] .sound-toggle:hover,
+[data-theme="synthwave"] .theme-toggle:hover,
+[data-theme="synthwave"] .sound-toggle:hover {
+  color: var(--color-text-primary);
 }
 
-[data-theme="synthwave"] .theme-toggle {
-  border-color: var(--color-primary);
-  box-shadow: var(--glow-primary);
+[data-theme="synthwave"] .sound-toggle.active,
+[data-theme="dark"] .sound-toggle.active {
+  color: var(--color-primary);
 }
 
 /* Timer Container */
@@ -1074,18 +1081,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  background-color: var(--color-surface);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-full);
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
+  color: var(--color-text-secondary);
 }
 
 .sound-toggle:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-background);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
 }
 
 .sound-toggle:focus-visible {
@@ -1094,16 +1102,14 @@ body {
 }
 
 .sound-toggle.active {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
-.sound-toggle.active .sound-toggle-icon::before,
-.sound-toggle.active .sound-toggle-icon::after {
-  background: white;
+.sound-toggle.active:hover {
+  background: var(--color-surface);
 }
 
-/* Sound toggle icon - music note style */
+/* Sound toggle icon - headphones */
 .sound-toggle-icon {
   width: 18px;
   height: 18px;
@@ -1113,26 +1119,31 @@ body {
   justify-content: center;
 }
 
+/* Headband */
 .sound-toggle-icon::before {
   content: '';
   position: absolute;
-  width: 8px;
-  height: 8px;
-  background: currentColor;
-  border-radius: 50%;
-  bottom: 0;
-  left: 0;
+  width: 14px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  top: 1px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
+/* Ear cups */
 .sound-toggle-icon::after {
   content: '';
   position: absolute;
-  width: 2px;
-  height: 14px;
+  width: 4px;
+  height: 6px;
   background: currentColor;
-  left: 6px;
-  bottom: 4px;
-  border-radius: 1px;
+  border-radius: 2px;
+  bottom: 2px;
+  left: 1px;
+  box-shadow: 11px 0 0 currentColor;
 }
 
 /* Sound Dropdown */
@@ -2310,23 +2321,6 @@ body.focus-mode .timer-container {
   box-shadow: var(--glow-primary);
 }
 
-/* Sound controls */
-[data-theme="synthwave"] .sound-toggle {
-  background: rgba(45, 27, 78, 0.8);
-  border-color: rgba(155, 77, 202, 0.5);
-}
-
-[data-theme="synthwave"] .sound-toggle:hover {
-  border-color: #ff6b35;
-  box-shadow: var(--glow-primary);
-}
-
-[data-theme="synthwave"] .sound-toggle.active {
-  background: linear-gradient(135deg, #ff6b35, #e55a2b);
-  border-color: #ff6b35;
-  box-shadow: var(--glow-primary);
-}
-
 [data-theme="synthwave"] .sound-dropdown {
   background: rgba(45, 27, 78, 0.95);
   border-color: rgba(155, 77, 202, 0.5);
@@ -3083,22 +3077,6 @@ body.focus-mode .timer-container {
 [data-theme="lofi"] .btn--secondary:hover:not(:disabled) {
   border-color: var(--color-primary);
   box-shadow: var(--glow-warm);
-}
-
-/* Sound controls */
-[data-theme="lofi"] .sound-toggle {
-  background: var(--color-surface);
-  border-color: var(--color-border);
-}
-
-[data-theme="lofi"] .sound-toggle:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--glow-warm);
-}
-
-[data-theme="lofi"] .sound-toggle.active {
-  background: linear-gradient(135deg, #c4956a, #a67c52);
-  border-color: var(--color-primary);
 }
 
 [data-theme="lofi"] .sound-dropdown {
