@@ -56,7 +56,7 @@ const state = {
   sidebarOpen: false,
 
   // Ambient sounds
-  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'forest' | 'synthDrive' | 'synthNeon' | 'synthGrid' | 'cafeAmbience' | 'lofiJazz' | 'lofiTyping'
+  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'forest' | 'synthDrive' | 'synthNeon' | 'synthGrid' | 'cafeAmbience' | 'lofiJazz' | 'lofiTyping' | 'terminalHum' | 'terminalKeys' | 'terminalData'
   volume: 50,
 
   // History tracking (all-time)
@@ -2582,6 +2582,303 @@ async function playLofiTyping() {
   ambientNodes.extraInterval = spaceInterval;
 }
 
+// ============================================
+// Terminal Ambient Sounds
+// ============================================
+
+// System Hum - Low electronic drone
+async function playTerminalHum() {
+  const audioBuffer = await loadAudioFile('terminal-hum.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.35;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Base hum (60Hz electrical)
+  const humOsc = ctx.createOscillator();
+  humOsc.type = 'sine';
+  humOsc.frequency.value = 60;
+
+  const humGain = ctx.createGain();
+  humGain.gain.value = 0.15;
+
+  humOsc.connect(humGain);
+  humGain.connect(masterGain);
+  humOsc.start();
+
+  ambientNodes.sources.push(humOsc);
+  ambientNodes.nodes.push(humGain);
+
+  // Harmonic at 120Hz
+  const harmOsc = ctx.createOscillator();
+  harmOsc.type = 'sine';
+  harmOsc.frequency.value = 120;
+
+  const harmGain = ctx.createGain();
+  harmGain.gain.value = 0.08;
+
+  harmOsc.connect(harmGain);
+  harmGain.connect(masterGain);
+  harmOsc.start();
+
+  ambientNodes.sources.push(harmOsc);
+  ambientNodes.nodes.push(harmGain);
+
+  // High frequency CRT whine
+  const whineOsc = ctx.createOscillator();
+  whineOsc.type = 'sine';
+  whineOsc.frequency.value = 15750; // CRT horizontal scan frequency
+
+  const whineGain = ctx.createGain();
+  whineGain.gain.value = 0.02;
+
+  // Subtle modulation
+  const whineLfo = ctx.createOscillator();
+  whineLfo.type = 'sine';
+  whineLfo.frequency.value = 0.5;
+  const whineLfoGain = ctx.createGain();
+  whineLfoGain.gain.value = 0.01;
+  whineLfo.connect(whineLfoGain);
+  whineLfoGain.connect(whineGain.gain);
+  whineLfo.start();
+
+  whineOsc.connect(whineGain);
+  whineGain.connect(masterGain);
+  whineOsc.start();
+
+  ambientNodes.sources.push(whineOsc, whineLfo);
+  ambientNodes.nodes.push(whineGain, whineLfoGain);
+
+  // Subtle noise floor
+  const noiseBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const noiseSource = ctx.createBufferSource();
+  noiseSource.buffer = noiseBuffer;
+  noiseSource.loop = true;
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'lowpass';
+  noiseFilter.frequency.value = 500;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = 0.05;
+
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(masterGain);
+  noiseSource.start();
+
+  ambientNodes.sources.push(noiseSource);
+  ambientNodes.nodes.push(noiseFilter, noiseGain);
+}
+
+// Mechanical Keyboard - Typing sounds
+async function playTerminalKeys() {
+  const audioBuffer = await loadAudioFile('terminal-keys.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.4);
+    return;
+  }
+
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.4;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Background hum
+  const humOsc = ctx.createOscillator();
+  humOsc.type = 'sine';
+  humOsc.frequency.value = 60;
+
+  const humGain = ctx.createGain();
+  humGain.gain.value = 0.03;
+
+  humOsc.connect(humGain);
+  humGain.connect(masterGain);
+  humOsc.start();
+
+  ambientNodes.sources.push(humOsc);
+  ambientNodes.nodes.push(humGain);
+
+  // Mechanical key click
+  function playMechKey() {
+    if (!ambientNodes.gain) return;
+
+    const clickGain = ctx.createGain();
+    const vol = (0.08 + Math.random() * 0.06) * (state.volume / 100);
+    clickGain.gain.setValueAtTime(vol, ctx.currentTime);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    clickGain.connect(masterGain);
+
+    // Click down
+    const clickOsc = ctx.createOscillator();
+    clickOsc.type = 'square';
+    clickOsc.frequency.value = 800 + Math.random() * 400;
+
+    const clickFilter = ctx.createBiquadFilter();
+    clickFilter.type = 'bandpass';
+    clickFilter.frequency.value = 2000;
+    clickFilter.Q.value = 1;
+
+    clickOsc.connect(clickFilter);
+    clickFilter.connect(clickGain);
+    clickOsc.start();
+    clickOsc.stop(ctx.currentTime + 0.02);
+
+    // Thock sound
+    const thockOsc = ctx.createOscillator();
+    thockOsc.type = 'sine';
+    thockOsc.frequency.value = 200 + Math.random() * 100;
+
+    const thockGain = ctx.createGain();
+    thockGain.gain.setValueAtTime(vol * 0.7, ctx.currentTime);
+    thockGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+
+    thockOsc.connect(thockGain);
+    thockGain.connect(masterGain);
+    thockOsc.start();
+    thockOsc.stop(ctx.currentTime + 0.1);
+  }
+
+  // Typing rhythm
+  let pauseUntil = 0;
+  const typingInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(typingInterval);
+      return;
+    }
+
+    const now = Date.now();
+    if (now < pauseUntil) return;
+
+    if (Math.random() < 0.03) {
+      pauseUntil = now + 500 + Math.random() * 1500;
+      return;
+    }
+
+    playMechKey();
+  }, 60 + Math.random() * 80);
+
+  ambientNodes.interval = typingInterval;
+}
+
+// Data Stream - Digital processing sounds
+async function playTerminalData() {
+  const audioBuffer = await loadAudioFile('terminal-data.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.35;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Base digital noise
+  const noiseBuffer = createNoiseBuffer(ctx, 'white', 4);
+  const noiseSource = ctx.createBufferSource();
+  noiseSource.buffer = noiseBuffer;
+  noiseSource.loop = true;
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 2000;
+  noiseFilter.Q.value = 2;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = 0.03;
+
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(masterGain);
+  noiseSource.start();
+
+  ambientNodes.sources.push(noiseSource);
+  ambientNodes.nodes.push(noiseFilter, noiseGain);
+
+  // Low digital drone
+  const droneOsc = ctx.createOscillator();
+  droneOsc.type = 'sawtooth';
+  droneOsc.frequency.value = 55;
+
+  const droneFilter = ctx.createBiquadFilter();
+  droneFilter.type = 'lowpass';
+  droneFilter.frequency.value = 200;
+
+  const droneGain = ctx.createGain();
+  droneGain.gain.value = 0.08;
+
+  droneOsc.connect(droneFilter);
+  droneFilter.connect(droneGain);
+  droneGain.connect(masterGain);
+  droneOsc.start();
+
+  ambientNodes.sources.push(droneOsc);
+  ambientNodes.nodes.push(droneFilter, droneGain);
+
+  // Data blips
+  function playBlip() {
+    if (!ambientNodes.gain) return;
+
+    const blipGain = ctx.createGain();
+    blipGain.gain.setValueAtTime(0.06 * (state.volume / 100), ctx.currentTime);
+    blipGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    blipGain.connect(masterGain);
+
+    const blipOsc = ctx.createOscillator();
+    blipOsc.type = 'sine';
+    blipOsc.frequency.value = 400 + Math.random() * 1200;
+    blipOsc.connect(blipGain);
+    blipOsc.start();
+    blipOsc.stop(ctx.currentTime + 0.05 + Math.random() * 0.05);
+  }
+
+  // Occasional data burst
+  function playBurst() {
+    if (!ambientNodes.gain) return;
+
+    for (let i = 0; i < 3 + Math.floor(Math.random() * 4); i++) {
+      setTimeout(() => playBlip(), i * 50);
+    }
+  }
+
+  const dataInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(dataInterval);
+      return;
+    }
+
+    if (Math.random() < 0.3) {
+      playBlip();
+    }
+    if (Math.random() < 0.1) {
+      playBurst();
+    }
+  }, 300);
+
+  ambientNodes.interval = dataInterval;
+}
+
 function playAmbientSound(soundType) {
   state.currentSound = soundType;
 
@@ -2623,6 +2920,15 @@ function playAmbientSound(soundType) {
       case 'lofiTyping':
         playLofiTyping();
         break;
+      case 'terminalHum':
+        playTerminalHum();
+        break;
+      case 'terminalKeys':
+        playTerminalKeys();
+        break;
+      case 'terminalData':
+        playTerminalData();
+        break;
     }
   }
 
@@ -2645,6 +2951,9 @@ function updateVolume(value) {
     if (state.currentSound === 'cafeAmbience') scale = 0.4;
     if (state.currentSound === 'lofiJazz') scale = 0.35;
     if (state.currentSound === 'lofiTyping') scale = 0.4;
+    if (state.currentSound === 'terminalHum') scale = 0.35;
+    if (state.currentSound === 'terminalKeys') scale = 0.4;
+    if (state.currentSound === 'terminalData') scale = 0.35;
 
     ambientNodes.gain.gain.value = value / 100 * scale;
   }
@@ -2938,7 +3247,7 @@ function setStatsView(view) {
 // Theme Management
 // ============================================
 
-const THEMES = ['light', 'dark', 'synthwave', 'lofi'];
+const THEMES = ['light', 'dark', 'synthwave', 'lofi', 'terminal'];
 
 function cycleTheme() {
   const currentIndex = THEMES.indexOf(state.theme);

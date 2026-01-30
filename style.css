@@ -141,6 +141,31 @@
   --glow-warm: 0 0 15px rgba(196, 149, 106, 0.3);
 }
 
+/* Terminal Theme Colors */
+[data-theme="terminal"] {
+  --color-primary: #00ff00;
+  --color-primary-dark: #00cc00;
+  --color-primary-light: #33ff33;
+
+  --color-work: #00ff00;
+  --color-break: #00ffff;
+  --color-break-dark: #00cccc;
+
+  --color-background: #0a0a0a;
+  --color-surface: #111111;
+  --color-surface-elevated: #1a1a1a;
+
+  --color-text-primary: #00ff00;
+  --color-text-secondary: #00cc00;
+  --color-text-muted: #008800;
+
+  --color-border: #003300;
+  --color-border-focus: #00ff00;
+
+  /* Phosphor glow */
+  --glow-terminal: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
 /* Reset & Base Styles */
 *,
 *::before,
@@ -234,6 +259,55 @@ body {
     );
   transform: perspective(300px) rotateX(60deg);
   transform-origin: bottom;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Terminal Background */
+[data-theme="terminal"] body {
+  background: #0a0a0a;
+}
+
+/* CRT Scanlines */
+[data-theme="terminal"] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* CRT Vignette */
+[data-theme="terminal"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 50%,
+    rgba(0, 0, 0, 0.5) 100%
+  );
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* Screen glow */
+[data-theme="terminal"] .app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 255, 0, 0.03) 0%,
+    transparent 70%
+  );
   pointer-events: none;
   z-index: -1;
 }
@@ -407,23 +481,50 @@ body {
   transform: translateY(-50%);
 }
 
+/* Terminal theme - show terminal prompt icon */
+[data-theme="terminal"] .theme-icon--light,
+[data-theme="terminal"] .theme-icon--dark,
+[data-theme="terminal"] .theme-icon--synthwave,
+[data-theme="terminal"] .theme-icon--lofi {
+  display: none;
+}
+
+[data-theme="terminal"] .theme-icon--terminal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-icon--terminal::before {
+  content: '>';
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  font-weight: bold;
+  color: currentColor;
+}
+
 /* Dark theme icon visibility */
 [data-theme="dark"] .theme-toggle,
 [data-theme="dark"] .sound-toggle,
 [data-theme="synthwave"] .theme-toggle,
-[data-theme="synthwave"] .sound-toggle {
+[data-theme="synthwave"] .sound-toggle,
+[data-theme="terminal"] .theme-toggle,
+[data-theme="terminal"] .sound-toggle {
   color: var(--color-text-secondary);
 }
 
 [data-theme="dark"] .theme-toggle:hover,
 [data-theme="dark"] .sound-toggle:hover,
 [data-theme="synthwave"] .theme-toggle:hover,
-[data-theme="synthwave"] .sound-toggle:hover {
+[data-theme="synthwave"] .sound-toggle:hover,
+[data-theme="terminal"] .theme-toggle:hover,
+[data-theme="terminal"] .sound-toggle:hover {
   color: var(--color-text-primary);
 }
 
 [data-theme="synthwave"] .sound-toggle.active,
-[data-theme="dark"] .sound-toggle.active {
+[data-theme="dark"] .sound-toggle.active,
+[data-theme="terminal"] .sound-toggle.active {
   color: var(--color-primary);
 }
 
@@ -1372,12 +1473,60 @@ body {
   border-radius: 2px;
 }
 
+/* Terminal sound icons */
+.sound-option-icon--hum::before {
+  content: '';
+  width: 14px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+}
+
+.sound-option-icon--hum::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.sound-option-icon--keys::before {
+  content: '';
+  width: 14px;
+  height: 10px;
+  background:
+    linear-gradient(90deg,
+      currentColor 2px, transparent 2px, transparent 4px,
+      currentColor 4px, currentColor 6px, transparent 6px, transparent 8px,
+      currentColor 8px, currentColor 10px, transparent 10px
+    );
+  background-size: 100% 3px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.sound-option-icon--data::before {
+  content: '01';
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  font-weight: bold;
+  color: currentColor;
+}
+
 /* Theme-conditional sound options */
 .sound-option--synth {
   display: none;
 }
 
 .sound-option--lofi {
+  display: none;
+}
+
+.sound-option--terminal {
   display: none;
 }
 
@@ -1394,6 +1543,14 @@ body {
 }
 
 [data-theme="lofi"] .sound-option--nature {
+  display: none;
+}
+
+[data-theme="terminal"] .sound-option--terminal {
+  display: flex;
+}
+
+[data-theme="terminal"] .sound-option--nature {
   display: none;
 }
 
@@ -3208,4 +3365,222 @@ body.focus-mode .timer-container {
 
 [data-theme="lofi"] body.focus-mode::before {
   background: radial-gradient(ellipse at center, transparent 30%, rgba(61, 50, 41, 0.3) 100%);
+}
+
+/* ============================================
+   Terminal Theme Specific Styles
+   ============================================ */
+
+/* Monospace everything */
+[data-theme="terminal"] {
+  font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+}
+
+[data-theme="terminal"] .timer-time {
+  font-family: 'Courier New', 'Monaco', monospace;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  text-shadow:
+    0 0 10px rgba(0, 255, 0, 0.8),
+    0 0 20px rgba(0, 255, 0, 0.5),
+    0 0 40px rgba(0, 255, 0, 0.3);
+}
+
+[data-theme="terminal"] .timer-status {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+[data-theme="terminal"] .timer-status::before {
+  content: '[ ';
+}
+
+[data-theme="terminal"] .timer-status::after {
+  content: ' ]';
+}
+
+[data-theme="terminal"] .progress-ring__progress {
+  filter: drop-shadow(0 0 8px rgba(0, 255, 0, 0.6));
+}
+
+[data-theme="terminal"] .progress-ring__progress.break-mode {
+  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.6));
+}
+
+/* Buttons */
+[data-theme="terminal"] .btn {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 1px solid var(--color-primary);
+  background: transparent;
+}
+
+[data-theme="terminal"] .btn--primary {
+  background: var(--color-primary);
+  color: #0a0a0a;
+}
+
+[data-theme="terminal"] .btn--primary:hover:not(:disabled) {
+  box-shadow: var(--glow-terminal), 0 0 20px rgba(0, 255, 0, 0.4);
+}
+
+[data-theme="terminal"] .btn--secondary {
+  background: transparent;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+[data-theme="terminal"] .btn--secondary:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: #0a0a0a;
+}
+
+/* Sound dropdown */
+[data-theme="terminal"] .sound-dropdown {
+  background: rgba(10, 10, 10, 0.95);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="terminal"] .sound-option:hover {
+  background: rgba(0, 255, 0, 0.1);
+}
+
+[data-theme="terminal"] .sound-option.active {
+  background: var(--color-primary);
+  color: #0a0a0a;
+}
+
+/* Goal progress */
+[data-theme="terminal"] .goal-progress-bar {
+  background: var(--color-primary);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+[data-theme="terminal"] .goal-progress.goal-complete .goal-progress-bar {
+  background: #ffff00;
+  box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+}
+
+[data-theme="terminal"] .goal-progress.goal-complete .goal-progress-bar-container {
+  border-color: #ffff00;
+}
+
+[data-theme="terminal"] .goal-progress.goal-complete .goal-progress-text {
+  color: #ffff00;
+}
+
+/* Modals */
+[data-theme="terminal"] .modal {
+  background: rgba(10, 10, 10, 0.98);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="terminal"] .modal-title {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Stats */
+[data-theme="terminal"] .stat-card {
+  background: rgba(0, 255, 0, 0.05);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="terminal"] .streak-card {
+  background: rgba(0, 255, 0, 0.05);
+  border: 1px solid var(--color-border);
+}
+
+/* Task sidebar */
+[data-theme="terminal"] .sidebar-tab {
+  background: rgba(10, 10, 10, 0.9);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="terminal"] .sidebar-tab:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--glow-terminal);
+}
+
+[data-theme="terminal"] .sidebar-panel {
+  background: rgba(10, 10, 10, 0.98);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="terminal"] .task-item {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  font-family: 'Courier New', monospace;
+}
+
+[data-theme="terminal"] .task-item:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+[data-theme="terminal"] .task-item.next-task {
+  border-color: var(--color-primary);
+  background: rgba(0, 255, 0, 0.05);
+}
+
+[data-theme="terminal"] .task-item.active-task {
+  box-shadow: var(--glow-terminal);
+}
+
+[data-theme="terminal"] .task-item-checkbox:hover,
+[data-theme="terminal"] .task-item.completed .task-item-checkbox {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+[data-theme="terminal"] .add-task-input,
+[data-theme="terminal"] .add-task-estimate {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  font-family: 'Courier New', monospace;
+}
+
+[data-theme="terminal"] .add-task-input:focus,
+[data-theme="terminal"] .add-task-estimate:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+[data-theme="terminal"] .add-task-btn {
+  background: var(--color-primary);
+  color: #0a0a0a;
+}
+
+/* Undo toast */
+[data-theme="terminal"] .undo-toast {
+  background: var(--color-primary);
+  color: #0a0a0a;
+  font-family: 'Courier New', monospace;
+}
+
+/* Focus mode */
+@keyframes focus-pulse-terminal {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(0, 255, 0, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 40px rgba(0, 255, 0, 0.8));
+  }
+}
+
+[data-theme="terminal"] body.focus-mode .timer-container {
+  animation: focus-pulse-terminal 4s ease-in-out infinite;
+}
+
+/* Subtle flicker animation */
+@keyframes terminal-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.8; }
+  94% { opacity: 1; }
+  95% { opacity: 0.9; }
+  96% { opacity: 1; }
 }
