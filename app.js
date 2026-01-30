@@ -3137,39 +3137,59 @@ function updateStatsDisplay() {
   let monthStats = { sessions: 0, minutes: 0 };
   let totalStats = { sessions: 0, minutes: 0 };
 
+  // Day of week totals for best day calculation
+  const dayOfWeekTotals = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
+  const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0];
+  let totalDays = 0;
+
   for (const [dateStr, data] of Object.entries(state.history)) {
     const date = new Date(dateStr);
+    const dayOfWeek = date.getDay();
+    const minutes = data.minutes || 0;
+
     totalStats.sessions += data.sessions;
-    totalStats.minutes += data.minutes || 0;
+    totalStats.minutes += minutes;
+
+    if (minutes > 0) {
+      dayOfWeekTotals[dayOfWeek] += minutes;
+      dayOfWeekCounts[dayOfWeek]++;
+      totalDays++;
+    }
 
     if (date >= weekStart) {
       weekStats.sessions += data.sessions;
-      weekStats.minutes += data.minutes || 0;
+      weekStats.minutes += minutes;
     }
     if (date >= monthStart) {
       monthStats.sessions += data.sessions;
-      monthStats.minutes += data.minutes || 0;
+      monthStats.minutes += minutes;
     }
   }
 
-  // Display based on current view mode
-  const isMinutes = state.statsView === 'minutes';
+  // Display stats (always show minutes now)
+  document.getElementById('statToday').textContent = formatMinutesShort(todayData.minutes || 0);
+  document.getElementById('statWeek').textContent = formatMinutesShort(weekStats.minutes);
+  document.getElementById('statMonth').textContent = formatMinutesShort(monthStats.minutes);
+  document.getElementById('statTotal').textContent = formatMinutesShort(totalStats.minutes);
 
-  document.getElementById('statToday').textContent =
-    isMinutes ? todayData.minutes || 0 : todayData.sessions;
-  document.getElementById('statWeek').textContent =
-    isMinutes ? weekStats.minutes : weekStats.sessions;
-  document.getElementById('statMonth').textContent =
-    isMinutes ? monthStats.minutes : monthStats.sessions;
-  document.getElementById('statTotal').textContent =
-    isMinutes ? totalStats.minutes : totalStats.sessions;
+  // Calculate best day of week
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  let bestDay = '-';
+  let bestDayAvg = 0;
+  for (let i = 0; i < 7; i++) {
+    if (dayOfWeekCounts[i] > 0) {
+      const avg = dayOfWeekTotals[i] / dayOfWeekCounts[i];
+      if (avg > bestDayAvg) {
+        bestDayAvg = avg;
+        bestDay = dayNames[i];
+      }
+    }
+  }
+  document.getElementById('bestDayOfWeek').textContent = bestDay;
 
-  // Update toggle button states
-  elements.statsToggleBtns.forEach(btn => {
-    const isActive = btn.dataset.view === state.statsView;
-    btn.classList.toggle('active', isActive);
-    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-  });
+  // Calculate average focus time per day
+  const avgPerDay = totalDays > 0 ? Math.round(totalStats.minutes / totalDays) : 0;
+  document.getElementById('avgFocusPerDay').textContent = formatMinutesShort(avgPerDay);
 
   // Update streak displays
   if (elements.currentStreakDisplay) {
@@ -3179,55 +3199,74 @@ function updateStatsDisplay() {
     elements.longestStreakDisplay.textContent = state.longestStreak;
   }
 
-  // Generate chart
-  generateChart();
+  // Generate charts
+  generateChart('daily');
+  generateTrendLine();
+  generateHeatMap();
 }
 
-function generateChart() {
+// Format minutes for display (e.g., 90 -> "1h 30m", 45 -> "45m")
+function formatMinutesShort(minutes) {
+  if (minutes === 0) return '0';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+// Current chart view state
+let currentChartView = 'daily';
+
+function generateChart(view) {
+  currentChartView = view;
   const chartContainer = elements.statsChart;
   chartContainer.innerHTML = '';
 
-  const isMinutes = state.statsView === 'minutes';
+  // Update tab states
+  document.querySelectorAll('.chart-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.chart === view);
+  });
 
-  // Get last 14 days
-  const days = [];
-  const now = new Date();
+  let data = [];
 
-  for (let i = 13; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(now.getDate() - i);
-    const dateStr = getDateInAEST(date);
-    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
-
-    days.push({
-      date: date,
-      dateStr: dateStr,
-      value: isMinutes ? (data.minutes || 0) : data.sessions,
-      label: date.getDate().toString()
-    });
+  if (view === 'daily') {
+    data = getDailyChartData(14);
+  } else if (view === 'weekly') {
+    data = getWeeklyChartData(12);
+  } else if (view === 'monthly') {
+    data = getMonthlyChartData(12);
   }
 
   // Find max value for scaling
-  const maxValue = Math.max(...days.map(d => d.value), 1);
+  const maxValue = Math.max(...data.map(d => d.value), 1);
 
   // Create bars
-  days.forEach(day => {
+  data.forEach(item => {
     const bar = document.createElement('div');
     bar.className = 'chart-bar';
+    if (item.goalMet) {
+      bar.classList.add('goal-met');
+    }
 
     const fill = document.createElement('div');
-    fill.className = 'chart-bar-fill' + (day.value === 0 ? ' empty' : '');
-    const heightPercent = (day.value / maxValue) * 100;
-    fill.style.height = Math.max(heightPercent, 4) + 'px';
+    fill.className = 'chart-bar-fill';
+    if (item.goalMet) {
+      fill.classList.add('goal-met');
+    }
+    if (item.value === 0) {
+      fill.classList.add('empty');
+    }
+    const heightPercent = (item.value / maxValue) * 100;
+    fill.style.height = Math.max(heightPercent, 4) + '%';
 
     const label = document.createElement('span');
     label.className = 'chart-bar-label';
-    label.textContent = day.label;
+    label.textContent = item.label;
 
-    if (day.value > 0) {
+    if (item.value > 0) {
       const value = document.createElement('span');
       value.className = 'chart-bar-value';
-      value.textContent = day.value;
+      value.textContent = item.value >= 60 ? `${Math.round(item.value / 60)}h` : item.value;
       bar.appendChild(value);
     }
 
@@ -3235,6 +3274,264 @@ function generateChart() {
     bar.appendChild(label);
     chartContainer.appendChild(bar);
   });
+}
+
+function getDailyChartData(numDays) {
+  const days = [];
+  const now = new Date();
+
+  for (let i = numDays - 1; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(now.getDate() - i);
+    const dateStr = getDateInAEST(date);
+    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+    const minutes = data.minutes || 0;
+
+    days.push({
+      date: date,
+      dateStr: dateStr,
+      value: minutes,
+      label: date.getDate().toString(),
+      goalMet: minutes >= state.dailyGoalMinutes
+    });
+  }
+
+  return days;
+}
+
+function getWeeklyChartData(numWeeks) {
+  const weeks = [];
+  const now = new Date();
+
+  for (let i = numWeeks - 1; i >= 0; i--) {
+    const weekEnd = new Date(now);
+    weekEnd.setDate(now.getDate() - (i * 7));
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekEnd.getDate() - 6);
+
+    let weekTotal = 0;
+    let daysMetGoal = 0;
+
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + d);
+      const dateStr = getDateInAEST(date);
+      const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+      const minutes = data.minutes || 0;
+      weekTotal += minutes;
+      if (minutes >= state.dailyGoalMinutes) daysMetGoal++;
+    }
+
+    // Week label: "Jan 5" format
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const label = `${monthNames[weekStart.getMonth()]} ${weekStart.getDate()}`;
+
+    weeks.push({
+      value: weekTotal,
+      label: i === 0 ? 'This' : (i === 1 ? 'Last' : label),
+      goalMet: daysMetGoal >= 5 // Consider week successful if 5+ days met goal
+    });
+  }
+
+  return weeks;
+}
+
+function getMonthlyChartData(numMonths) {
+  const months = [];
+  const now = new Date();
+
+  for (let i = numMonths - 1; i >= 0; i--) {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+
+    let monthTotal = 0;
+    let daysMetGoal = 0;
+    let daysInMonth = monthEnd.getDate();
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
+      const dateStr = getDateInAEST(date);
+      const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+      const minutes = data.minutes || 0;
+      monthTotal += minutes;
+      if (minutes >= state.dailyGoalMinutes) daysMetGoal++;
+    }
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    months.push({
+      value: monthTotal,
+      label: monthNames[monthDate.getMonth()],
+      goalMet: daysMetGoal >= Math.floor(daysInMonth * 0.7) // 70% of days
+    });
+  }
+
+  return months;
+}
+
+function generateTrendLine() {
+  const canvas = document.getElementById('trendCanvas');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+
+  // Set canvas size
+  canvas.width = rect.width - 32; // Account for padding
+  canvas.height = 100;
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // Get last 30 days of data
+  const data = [];
+  const now = new Date();
+
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(now.getDate() - i);
+    const dateStr = getDateInAEST(date);
+    const dayData = state.history[dateStr] || { sessions: 0, minutes: 0 };
+    data.push(dayData.minutes || 0);
+  }
+
+  // Calculate 7-day moving average for smoother trend
+  const movingAvg = [];
+  for (let i = 0; i < data.length; i++) {
+    let sum = 0;
+    let count = 0;
+    for (let j = Math.max(0, i - 6); j <= i; j++) {
+      sum += data[j];
+      count++;
+    }
+    movingAvg.push(sum / count);
+  }
+
+  const maxValue = Math.max(...data, state.dailyGoalMinutes, 1);
+  const padding = 10;
+
+  // Clear canvas
+  ctx.clearRect(0, 0, width, height);
+
+  // Get theme colors
+  const style = getComputedStyle(document.documentElement);
+  const primaryColor = style.getPropertyValue('--color-primary').trim() || '#38bdf8';
+  const mutedColor = style.getPropertyValue('--color-text-muted').trim() || '#64748b';
+
+  // Draw goal line
+  const goalY = height - padding - ((state.dailyGoalMinutes / maxValue) * (height - padding * 2));
+  ctx.strokeStyle = mutedColor;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, goalY);
+  ctx.lineTo(width, goalY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw data points and line
+  ctx.strokeStyle = primaryColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+
+  const stepX = (width - padding * 2) / (data.length - 1);
+
+  data.forEach((value, i) => {
+    const x = padding + i * stepX;
+    const y = height - padding - ((value / maxValue) * (height - padding * 2));
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+
+  ctx.stroke();
+
+  // Draw moving average as filled area
+  ctx.fillStyle = primaryColor.replace(')', ', 0.1)').replace('rgb', 'rgba');
+  ctx.beginPath();
+  ctx.moveTo(padding, height - padding);
+
+  movingAvg.forEach((value, i) => {
+    const x = padding + i * stepX;
+    const y = height - padding - ((value / maxValue) * (height - padding * 2));
+    ctx.lineTo(x, y);
+  });
+
+  ctx.lineTo(width - padding, height - padding);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Heat map state
+let heatmapDate = new Date();
+
+function generateHeatMap() {
+  const grid = document.getElementById('heatmapGrid');
+  const monthLabel = document.getElementById('heatmapMonth');
+  if (!grid || !monthLabel) return;
+
+  grid.innerHTML = '';
+
+  const year = heatmapDate.getFullYear();
+  const month = heatmapDate.getMonth();
+
+  // Update month label
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  monthLabel.textContent = `${monthNames[month]} ${year}`;
+
+  // Get first day of month and number of days
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Find max minutes in this month for scaling
+  let maxMinutes = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = getDateInAEST(new Date(year, month, d));
+    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+    maxMinutes = Math.max(maxMinutes, data.minutes || 0);
+  }
+  maxMinutes = Math.max(maxMinutes, state.dailyGoalMinutes);
+
+  // Add empty cells for days before first of month
+  for (let i = 0; i < firstDay; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'heatmap-cell empty';
+    grid.appendChild(cell);
+  }
+
+  // Add cells for each day
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = getDateInAEST(new Date(year, month, d));
+    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+    const minutes = data.minutes || 0;
+
+    const cell = document.createElement('div');
+    cell.className = 'heatmap-cell';
+
+    // Calculate level (0-4)
+    let level = 0;
+    if (minutes > 0) {
+      const ratio = minutes / maxMinutes;
+      if (ratio >= 0.8) level = 4;
+      else if (ratio >= 0.6) level = 3;
+      else if (ratio >= 0.4) level = 2;
+      else if (ratio > 0) level = 1;
+    }
+
+    cell.setAttribute('data-level', level);
+    cell.title = `${monthNames[month]} ${d}: ${minutes} min`;
+
+    grid.appendChild(cell);
+  }
+}
+
+function navigateHeatmap(direction) {
+  heatmapDate.setMonth(heatmapDate.getMonth() + direction);
+  generateHeatMap();
 }
 
 function setStatsView(view) {
@@ -4013,6 +4310,21 @@ function initEventListeners() {
       setStatsView(btn.dataset.view);
     });
   });
+
+  // Chart tabs (daily/weekly/monthly)
+  document.querySelectorAll('.chart-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      generateChart(tab.dataset.chart);
+    });
+  });
+
+  // Heat map navigation
+  const heatmapPrev = document.getElementById('heatmapPrev');
+  const heatmapNext = document.getElementById('heatmapNext');
+  if (heatmapPrev) heatmapPrev.addEventListener('click', () => navigateHeatmap(-1));
+  if (heatmapNext) heatmapNext.addEventListener('click', () => navigateHeatmap(1));
 
   // Settings modal
   elements.settingsBtn.addEventListener('click', openSettingsModal);
