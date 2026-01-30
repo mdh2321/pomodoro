@@ -217,54 +217,109 @@
     </div>
   </div>
 
-  <!-- Statistics Modal -->
+  <!-- Analytics Modal -->
   <div class="modal-overlay" id="statsOverlay" aria-hidden="true">
-    <div class="modal modal--stats" role="dialog" aria-labelledby="statsTitle" aria-modal="true">
+    <div class="modal modal--analytics" role="dialog" aria-labelledby="statsTitle" aria-modal="true">
       <div class="modal-header">
-        <h2 class="modal-title" id="statsTitle">Statistics</h2>
-        <div class="stats-toggle">
-          <button class="stats-toggle-btn active" data-view="sessions" aria-pressed="true">Sessions</button>
-          <button class="stats-toggle-btn" data-view="minutes" aria-pressed="false">Minutes</button>
-        </div>
+        <h2 class="modal-title" id="statsTitle">Analytics</h2>
         <button class="modal-close" id="statsCloseBtn" aria-label="Close">×</button>
       </div>
       <div class="modal-content">
-        <!-- Summary Stats -->
-        <div class="stats-summary" id="statsSummary">
-          <div class="stat-card">
-            <span class="stat-value" id="statToday">0</span>
-            <span class="stat-label">Today</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-value" id="statWeek">0</span>
-            <span class="stat-label">This Week</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-value" id="statMonth">0</span>
-            <span class="stat-label">This Month</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-value" id="statTotal">0</span>
-            <span class="stat-label">All Time</span>
-          </div>
-        </div>
-        <!-- Streak Stats -->
-        <div class="stats-streaks">
-          <div class="streak-card">
-            <span class="streak-icon">🔥</span>
-            <span class="streak-value" id="currentStreak">0</span>
-            <span class="streak-label">Current Streak</span>
-          </div>
-          <div class="streak-card">
-            <span class="streak-icon">🏆</span>
-            <span class="streak-value" id="longestStreak">0</span>
-            <span class="streak-label">Longest Streak</span>
+        <!-- Summary Stats Row -->
+        <div class="analytics-section">
+          <div class="stats-summary" id="statsSummary">
+            <div class="stat-card">
+              <span class="stat-value" id="statToday">0</span>
+              <span class="stat-label">Today</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="statWeek">0</span>
+              <span class="stat-label">This Week</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="statMonth">0</span>
+              <span class="stat-label">This Month</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="statTotal">0</span>
+              <span class="stat-label">All Time</span>
+            </div>
           </div>
         </div>
-        <!-- Chart -->
-        <div class="stats-chart-container">
-          <h3 class="chart-title">Last 14 Days</h3>
-          <div class="stats-chart" id="statsChart"></div>
+
+        <!-- Insights Row -->
+        <div class="analytics-section">
+          <div class="analytics-insights">
+            <div class="insight-card">
+              <span class="insight-label">Best Day</span>
+              <span class="insight-value" id="bestDayOfWeek">-</span>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Daily Average</span>
+              <span class="insight-value" id="avgFocusPerDay">0 min</span>
+            </div>
+            <div class="insight-card insight-card--streak">
+              <span class="streak-icon">🔥</span>
+              <span class="insight-value" id="currentStreak">0</span>
+              <span class="insight-label">Day Streak</span>
+            </div>
+            <div class="insight-card insight-card--streak">
+              <span class="streak-icon">🏆</span>
+              <span class="insight-value" id="longestStreak">0</span>
+              <span class="insight-label">Best Streak</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="analytics-section">
+          <div class="chart-header">
+            <h3 class="chart-section-title">Focus Time</h3>
+            <div class="chart-tabs">
+              <button class="chart-tab active" data-chart="daily">Days</button>
+              <button class="chart-tab" data-chart="weekly">Weeks</button>
+              <button class="chart-tab" data-chart="monthly">Months</button>
+            </div>
+          </div>
+          <div class="chart-container">
+            <div class="stats-chart" id="statsChart"></div>
+            <div class="chart-labels" id="chartLabels"></div>
+          </div>
+        </div>
+
+        <!-- Trend Line Section -->
+        <div class="analytics-section">
+          <h3 class="chart-section-title">Trend (Last 30 Days)</h3>
+          <div class="trend-container">
+            <canvas id="trendCanvas" width="500" height="100"></canvas>
+          </div>
+        </div>
+
+        <!-- Heat Map Section -->
+        <div class="analytics-section">
+          <div class="heatmap-header">
+            <h3 class="chart-section-title">Activity</h3>
+            <div class="heatmap-nav">
+              <button class="heatmap-nav-btn" id="heatmapPrev" aria-label="Previous month">‹</button>
+              <span class="heatmap-month" id="heatmapMonth">January 2026</span>
+              <button class="heatmap-nav-btn" id="heatmapNext" aria-label="Next month">›</button>
+            </div>
+          </div>
+          <div class="heatmap-container">
+            <div class="heatmap-weekdays">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div class="heatmap-grid" id="heatmapGrid"></div>
+          </div>
+          <div class="heatmap-legend">
+            <span class="heatmap-legend-label">Less</span>
+            <span class="heatmap-legend-cell" data-level="0"></span>
+            <span class="heatmap-legend-cell" data-level="1"></span>
+            <span class="heatmap-legend-cell" data-level="2"></span>
+            <span class="heatmap-legend-cell" data-level="3"></span>
+            <span class="heatmap-legend-cell" data-level="4"></span>
+            <span class="heatmap-legend-label">More</span>
+          </div>
         </div>
       </div>
     </div>
