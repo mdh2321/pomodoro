@@ -116,6 +116,31 @@
   --glow-accent: 0 0 15px rgba(155, 77, 202, 0.4);
 }
 
+/* Lo-fi Café Theme Colors */
+[data-theme="lofi"] {
+  --color-primary: #c4956a;
+  --color-primary-dark: #a67c52;
+  --color-primary-light: #d4a574;
+
+  --color-work: #c4956a;
+  --color-break: #8fbc8f;
+  --color-break-dark: #6b9b6b;
+
+  --color-background: #f5efe6;
+  --color-surface: #faf8f3;
+  --color-surface-elevated: #ffffff;
+
+  --color-text-primary: #3d3229;
+  --color-text-secondary: #6b5d4d;
+  --color-text-muted: #9a8b7a;
+
+  --color-border: #e5ddd1;
+  --color-border-focus: #c4956a;
+
+  /* Warm glow effects */
+  --glow-warm: 0 0 15px rgba(196, 149, 106, 0.3);
+}
+
 /* Reset & Base Styles */
 *,
 *::before,
@@ -155,6 +180,19 @@ body {
   gap: var(--spacing-xl);
   position: relative;
   z-index: 1;
+}
+
+/* Lo-fi Café Background */
+[data-theme="lofi"] body {
+  background:
+    /* Warm ambient glow */
+    radial-gradient(ellipse 60% 40% at 70% 30%,
+      rgba(255, 200, 150, 0.15) 0%, transparent 50%),
+    /* Paper texture gradient */
+    linear-gradient(135deg,
+      #f5efe6 0%,
+      #faf6ef 50%,
+      #f0e8db 100%);
 }
 
 /* Synthwave Background */
@@ -331,6 +369,50 @@ body {
       transparent 2px,
       transparent 5px
     );
+}
+
+/* Lo-fi theme - show coffee cup icon */
+[data-theme="lofi"] .theme-icon--light,
+[data-theme="lofi"] .theme-icon--dark,
+[data-theme="lofi"] .theme-icon--synthwave {
+  display: none;
+}
+
+[data-theme="lofi"] .theme-icon--lofi {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-icon--lofi::before {
+  content: '';
+  width: 12px;
+  height: 10px;
+  background: currentColor;
+  border-radius: 0 0 6px 6px;
+  position: relative;
+}
+
+.theme-icon--lofi::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 6px;
+  border: 2px solid currentColor;
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+[data-theme="lofi"] .theme-toggle {
+  border-color: var(--color-primary);
+  background-color: var(--color-surface);
+}
+
+[data-theme="lofi"] .theme-toggle:hover {
+  box-shadow: var(--glow-warm);
 }
 
 [data-theme="synthwave"] .theme-toggle {
@@ -1227,8 +1309,64 @@ body {
     repeating-linear-gradient(0deg, currentColor 0px, currentColor 1px, transparent 1px, transparent 4px);
 }
 
+/* Café icon */
+.sound-option-icon--cafe::before {
+  content: '';
+  width: 10px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 0 0 5px 5px;
+}
+
+.sound-option-icon--cafe::after {
+  content: '';
+  position: absolute;
+  width: 3px;
+  height: 5px;
+  border: 1.5px solid currentColor;
+  border-left: none;
+  border-radius: 0 3px 3px 0;
+  right: 2px;
+}
+
+/* Jazz icon - music note */
+.sound-option-icon--jazz::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+}
+
+.sound-option-icon--jazz::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 10px;
+  background: currentColor;
+  left: 6px;
+  bottom: 5px;
+  border-radius: 1px;
+}
+
+/* Typing icon - keyboard */
+.sound-option-icon--typing::before {
+  content: '';
+  width: 14px;
+  height: 8px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+}
+
 /* Theme-conditional sound options */
 .sound-option--synth {
+  display: none;
+}
+
+.sound-option--lofi {
   display: none;
 }
 
@@ -1237,6 +1375,14 @@ body {
 }
 
 [data-theme="synthwave"] .sound-option--nature {
+  display: none;
+}
+
+[data-theme="lofi"] .sound-option--lofi {
+  display: flex;
+}
+
+[data-theme="lofi"] .sound-option--nature {
   display: none;
 }
 
@@ -1468,6 +1614,189 @@ body {
 /* Settings Modal */
 .modal--settings {
   max-width: 380px;
+}
+
+/* Summary Modal */
+.modal--summary {
+  max-width: 340px;
+  text-align: center;
+}
+
+.modal--summary .modal-header {
+  justify-content: center;
+  position: relative;
+}
+
+.modal--summary .modal-title {
+  flex: 1;
+}
+
+.modal--summary .modal-close {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.modal--summary .modal-content {
+  margin-bottom: var(--spacing-lg);
+}
+
+.modal--summary .modal-actions {
+  justify-content: center;
+}
+
+.summary-stats {
+  margin-bottom: var(--spacing-lg);
+}
+
+.summary-stat--primary {
+  margin-bottom: var(--spacing-md);
+}
+
+.summary-stat--primary .summary-stat-value {
+  font-size: 3rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  display: block;
+  line-height: 1;
+  margin-bottom: var(--spacing-xs);
+}
+
+.summary-stat--primary .summary-stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.summary-stat-row {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-xl);
+}
+
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.summary-stat-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.summary-stat-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.summary-streak {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.summary-streak-icon {
+  font-size: 1.5rem;
+}
+
+.summary-streak-text {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.summary-message {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Goal not met state */
+.summary-streak.goal-missed .summary-streak-icon::before {
+  content: '😴';
+}
+
+.summary-streak.goal-missed .summary-streak-text {
+  color: var(--color-text-muted);
+}
+
+/* Synthwave summary styling */
+[data-theme="synthwave"] .summary-stat--primary .summary-stat-value {
+  text-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
+}
+
+[data-theme="synthwave"] .summary-streak {
+  background: rgba(45, 27, 78, 0.6);
+}
+
+/* Lo-fi summary styling */
+[data-theme="lofi"] .summary-streak {
+  background: var(--color-background);
+}
+
+/* Notes Modal */
+.modal--notes {
+  max-width: 400px;
+}
+
+.modal--notes .modal-content {
+  margin-bottom: var(--spacing-md);
+}
+
+.notes-task-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.notes-textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: var(--spacing-md);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.notes-textarea:focus {
+  border-color: var(--color-primary);
+}
+
+.notes-textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Synthwave notes modal */
+[data-theme="synthwave"] .notes-textarea {
+  background: rgba(26, 10, 46, 0.8);
+  border-color: rgba(155, 77, 202, 0.5);
+}
+
+[data-theme="synthwave"] .notes-textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.3);
+}
+
+/* Lo-fi notes modal */
+[data-theme="lofi"] .notes-textarea {
+  background: var(--color-background);
+  border-color: var(--color-border);
 }
 
 .modal--settings .modal-header {
@@ -2419,12 +2748,19 @@ body.focus-mode .timer-container {
   min-width: 0;
 }
 
+.task-item-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
 .task-item-name {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
   line-height: 1.4;
   word-break: break-word;
+  flex: 1;
 }
 
 .task-item-name[contenteditable="true"] {
@@ -2511,6 +2847,28 @@ body.focus-mode .timer-container {
 
 .task-item-action.delete:hover {
   color: #ef4444;
+}
+
+.task-item-action.notes {
+  color: var(--color-text-muted);
+}
+
+.task-item-action.notes:hover {
+  color: var(--color-primary);
+}
+
+.task-item-action.notes.has-notes {
+  color: var(--color-primary);
+  opacity: 0.7;
+}
+
+/* Note indicator on task */
+.task-note-indicator {
+  width: 14px;
+  height: 14px;
+  color: var(--color-primary);
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 /* Settings Toggle Switch */
@@ -2655,4 +3013,195 @@ body.focus-mode .timer-container {
     width: 28px;
     height: 60px;
   }
+}
+
+/* ============================================
+   Lo-fi Café Theme Specific Styles
+   ============================================ */
+
+/* Warm cozy styling */
+[data-theme="lofi"] .timer-time {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+[data-theme="lofi"] .progress-ring__progress {
+  filter: drop-shadow(0 0 4px rgba(196, 149, 106, 0.3));
+}
+
+[data-theme="lofi"] .progress-ring__progress.break-mode {
+  filter: drop-shadow(0 0 4px rgba(143, 188, 143, 0.3));
+}
+
+/* Primary button styling */
+[data-theme="lofi"] .btn--primary {
+  background: linear-gradient(135deg, #c4956a, #a67c52);
+}
+
+[data-theme="lofi"] .btn--primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d4a574, #c4956a);
+  box-shadow: var(--glow-warm);
+}
+
+[data-theme="lofi"] .btn--primary.break-mode {
+  background: linear-gradient(135deg, #8fbc8f, #6b9b6b);
+}
+
+/* Secondary buttons */
+[data-theme="lofi"] .btn--secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+[data-theme="lofi"] .btn--secondary:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  box-shadow: var(--glow-warm);
+}
+
+/* Sound controls */
+[data-theme="lofi"] .sound-toggle {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+[data-theme="lofi"] .sound-toggle:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--glow-warm);
+}
+
+[data-theme="lofi"] .sound-toggle.active {
+  background: linear-gradient(135deg, #c4956a, #a67c52);
+  border-color: var(--color-primary);
+}
+
+[data-theme="lofi"] .sound-dropdown {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: 0 10px 40px rgba(61, 50, 41, 0.15);
+}
+
+[data-theme="lofi"] .sound-option:hover {
+  background: rgba(196, 149, 106, 0.1);
+}
+
+[data-theme="lofi"] .sound-option.active {
+  background: linear-gradient(135deg, #c4956a, #a67c52);
+  color: white;
+}
+
+/* Modal styling */
+[data-theme="lofi"] .modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 10px 40px rgba(61, 50, 41, 0.15);
+}
+
+/* Stats cards */
+[data-theme="lofi"] .stat-card {
+  background: var(--color-background);
+}
+
+[data-theme="lofi"] .streak-card {
+  background: linear-gradient(135deg, var(--color-surface), var(--color-background));
+  border-color: var(--color-border);
+}
+
+/* Goal progress */
+[data-theme="lofi"] .goal-progress-bar {
+  background: linear-gradient(90deg, #c4956a, #d4a574);
+}
+
+[data-theme="lofi"] .goal-progress.goal-complete .goal-progress-bar {
+  background: linear-gradient(90deg, #daa520, #f0c040);
+}
+
+[data-theme="lofi"] .goal-progress.goal-complete .goal-progress-bar-container {
+  border-color: #daa520;
+  box-shadow: 0 0 8px rgba(218, 165, 32, 0.3);
+}
+
+[data-theme="lofi"] .goal-progress.goal-complete .goal-progress-text {
+  color: #b8860b;
+}
+
+/* Task sidebar */
+[data-theme="lofi"] .sidebar-tab {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+[data-theme="lofi"] .sidebar-tab:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--glow-warm);
+}
+
+[data-theme="lofi"] .sidebar-panel {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+[data-theme="lofi"] .add-task-input,
+[data-theme="lofi"] .add-task-estimate {
+  background: var(--color-background);
+  border-color: var(--color-border);
+}
+
+[data-theme="lofi"] .add-task-input:focus,
+[data-theme="lofi"] .add-task-estimate:focus {
+  border-color: var(--color-primary);
+}
+
+[data-theme="lofi"] .add-task-btn {
+  background: linear-gradient(135deg, #c4956a, #a67c52);
+}
+
+[data-theme="lofi"] .task-item {
+  background: var(--color-background);
+  border-color: var(--color-border);
+}
+
+[data-theme="lofi"] .task-item:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(196, 149, 106, 0.15);
+}
+
+[data-theme="lofi"] .task-item.next-task {
+  background: rgba(196, 149, 106, 0.1);
+  border-color: var(--color-primary);
+}
+
+[data-theme="lofi"] .task-item.active-task {
+  background: rgba(196, 149, 106, 0.15);
+  box-shadow: var(--glow-warm);
+}
+
+[data-theme="lofi"] .task-item-checkbox:hover,
+[data-theme="lofi"] .task-item.completed .task-item-checkbox {
+  background: linear-gradient(135deg, #c4956a, #a67c52);
+  border-color: var(--color-primary);
+}
+
+/* Undo toast */
+[data-theme="lofi"] .undo-toast {
+  background: var(--color-text-primary);
+  color: var(--color-background);
+}
+
+/* Focus mode pulse for lo-fi theme */
+@keyframes focus-pulse-lofi {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(196, 149, 106, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 35px rgba(196, 149, 106, 0.6));
+  }
+}
+
+[data-theme="lofi"] body.focus-mode .timer-container {
+  animation: focus-pulse-lofi 4s ease-in-out infinite;
+}
+
+[data-theme="lofi"] body.focus-mode::before {
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(61, 50, 41, 0.3) 100%);
 }

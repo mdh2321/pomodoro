@@ -52,6 +52,19 @@
                 <span class="sound-option-icon sound-option-icon--grid"></span>
                 <span>Retrowave</span>
               </button>
+              <!-- Lo-fi Café sounds (lofi theme only) -->
+              <button class="sound-option sound-option--lofi" data-sound="cafeAmbience" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--cafe"></span>
+                <span>Café Ambience</span>
+              </button>
+              <button class="sound-option sound-option--lofi" data-sound="lofiJazz" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--jazz"></span>
+                <span>Soft Jazz</span>
+              </button>
+              <button class="sound-option sound-option--lofi" data-sound="lofiTyping" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--typing"></span>
+                <span>Typing & Rain</span>
+              </button>
             </div>
             <div class="sound-volume">
               <span class="volume-icon"></span>
@@ -63,6 +76,7 @@
           <span class="theme-icon theme-icon--light"></span>
           <span class="theme-icon theme-icon--dark"></span>
           <span class="theme-icon theme-icon--synthwave"></span>
+          <span class="theme-icon theme-icon--lofi"></span>
         </button>
       </div>
     </div>
@@ -303,6 +317,67 @@
             </select>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- End of Day Summary Modal -->
+  <div class="modal-overlay" id="summaryOverlay" aria-hidden="true">
+    <div class="modal modal--summary" role="dialog" aria-labelledby="summaryTitle" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="summaryTitle">Yesterday's Summary</h2>
+        <button class="modal-close" id="summaryCloseBtn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-content">
+        <div class="summary-stats">
+          <div class="summary-stat summary-stat--primary">
+            <span class="summary-stat-value" id="summaryMinutes">0</span>
+            <span class="summary-stat-label">minutes focused</span>
+          </div>
+          <div class="summary-stat-row">
+            <div class="summary-stat">
+              <span class="summary-stat-value" id="summarySessions">0</span>
+              <span class="summary-stat-label">sessions</span>
+            </div>
+            <div class="summary-stat">
+              <span class="summary-stat-value" id="summaryTasks">0</span>
+              <span class="summary-stat-label">tasks done</span>
+            </div>
+          </div>
+        </div>
+        <div class="summary-streak" id="summaryStreak">
+          <span class="summary-streak-icon">🔥</span>
+          <span class="summary-streak-text" id="summaryStreakText">0 day streak</span>
+        </div>
+        <div class="summary-message" id="summaryMessage">
+          Great work yesterday! Keep up the momentum.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn--primary" id="summaryDismissBtn">Let's Go</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task Notes Modal -->
+  <div class="modal-overlay" id="notesOverlay" aria-hidden="true">
+    <div class="modal modal--notes" role="dialog" aria-labelledby="notesTitle" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="notesTitle">Task Notes</h2>
+        <button class="modal-close" id="notesCloseBtn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-content">
+        <div class="notes-task-name" id="notesTaskName"></div>
+        <textarea
+          class="notes-textarea"
+          id="notesTextarea"
+          placeholder="Add notes for this task..."
+          rows="8"
+          aria-label="Task notes"
+        ></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn--primary" id="notesSaveBtn">Save</button>
       </div>
     </div>
   </div>
