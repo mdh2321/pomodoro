@@ -363,7 +363,7 @@
   <div class="modal-overlay" id="notesOverlay" aria-hidden="true">
     <div class="modal modal--notes" role="dialog" aria-labelledby="notesTitle" aria-modal="true">
       <div class="modal-header">
-        <h2 class="modal-title" id="notesTitle">Task Notes</h2>
+        <h2 class="modal-title" id="notesTitle">Notes</h2>
         <button class="modal-close" id="notesCloseBtn" aria-label="Close">×</button>
       </div>
       <div class="modal-content">
@@ -371,13 +371,14 @@
         <textarea
           class="notes-textarea"
           id="notesTextarea"
-          placeholder="Add notes for this task..."
+          placeholder="Add details, links, or thoughts about this task..."
           rows="8"
           aria-label="Task notes"
         ></textarea>
+        <div class="notes-hint">⌘/Ctrl + Enter to save</div>
       </div>
       <div class="modal-actions">
-        <button class="btn btn--primary" id="notesSaveBtn">Save</button>
+        <button class="btn btn--primary" id="notesSaveBtn">Save Notes</button>
       </div>
     </div>
   </div>

@@ -3268,10 +3268,10 @@ function renderTasks() {
 
     taskEl.innerHTML = `
       <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
-      <div class="task-item-content">
+      <div class="task-item-content" data-has-notes="${hasNotes}">
         <div class="task-item-name-row">
           <div class="task-item-name" contenteditable="false">${escapeHtml(task.name)}</div>
-          ${hasNotes ? '<span class="task-note-indicator" title="Has notes">📝</span>' : ''}
+          ${hasNotes ? '<span class="task-note-dot" title="Has notes"></span>' : ''}
         </div>
         <div class="task-item-time">
           <span class="task-item-time-actual">${actualTime}</span>
@@ -3283,7 +3283,6 @@ function renderTasks() {
         </div>
       </div>
       <div class="task-item-actions">
-        <button class="task-item-action notes ${hasNotes ? 'has-notes' : ''}" aria-label="Task notes">📝</button>
         <button class="task-item-action edit" aria-label="Edit task">✎</button>
         <button class="task-item-action delete" aria-label="Delete task">×</button>
       </div>
@@ -3334,8 +3333,13 @@ function renderTasks() {
       editTaskEstimate(task.id, newEstimate);
     });
 
-    const notesBtn = taskEl.querySelector('.task-item-action.notes');
-    notesBtn.addEventListener('click', () => {
+    // Click on task content to open notes (but not when editing name or using select)
+    const contentEl = taskEl.querySelector('.task-item-content');
+    contentEl.addEventListener('click', (e) => {
+      // Don't open notes if clicking on the select dropdown
+      if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
+      // Don't open notes if the name is being edited
+      if (nameEl.contentEditable === 'true') return;
       openNotesModal(task.id);
     });
 
@@ -3753,7 +3757,7 @@ function initEventListeners() {
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     // Don't trigger if typing in input or contenteditable
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
     switch (e.code) {
       case 'Space':
