@@ -1949,29 +1949,26 @@ body {
 
 .heatmap-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 12px);
-  gap: 2px;
-  margin-bottom: 2px;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-bottom: 3px;
   text-align: center;
-  justify-content: center;
 }
 
 .heatmap-weekdays span {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 
 .heatmap-grid {
   display: grid;
-  grid-template-columns: repeat(7, 12px);
-  gap: 2px;
-  justify-content: center;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
 }
 
 .heatmap-cell {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
+  aspect-ratio: 1;
+  border-radius: 3px;
   background: var(--color-surface);
 }
 
@@ -2002,21 +1999,21 @@ body {
 .heatmap-legend {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
+  justify-content: flex-end;
+  gap: 3px;
   margin-top: var(--spacing-sm);
 }
 
 .heatmap-legend-label {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  margin: 0 4px;
+  margin: 0 var(--spacing-xs);
 }
 
 .heatmap-legend-cell {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
 }
 
 .heatmap-legend-cell[data-level="0"] {
