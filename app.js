@@ -3232,10 +3232,9 @@ function generateChart(view) {
   const goalLine = document.getElementById('chartGoalLine');
   if (goalLine) {
     if (view === 'daily' && goalValue > 0) {
-      // Position goal line relative to chart height (120px chart + padding)
       const chartHeight = 120;
       const goalPercent = (goalValue / maxValue) * 100;
-      const bottomOffset = 24 + (goalPercent / 100) * chartHeight; // 24px for label area
+      const bottomOffset = 18 + (goalPercent / 100) * chartHeight;
       goalLine.style.bottom = bottomOffset + 'px';
       goalLine.classList.add('visible');
     } else {
@@ -3243,10 +3242,13 @@ function generateChart(view) {
     }
   }
 
-  // Create bars
+  // Create bars with proper structure for percentage heights
   data.forEach(item => {
     const bar = document.createElement('div');
     bar.className = 'chart-bar';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chart-bar-wrapper';
 
     const fill = document.createElement('div');
     fill.className = 'chart-bar-fill';
@@ -3258,21 +3260,23 @@ function generateChart(view) {
       fill.classList.add('empty');
     }
     const heightPercent = (item.value / maxValue) * 100;
-    fill.style.height = Math.max(heightPercent, 4) + '%';
-
-    const label = document.createElement('span');
-    label.className = 'chart-bar-label';
-    label.textContent = item.label;
+    fill.style.height = Math.max(heightPercent, 3) + '%';
 
     if (item.value > 0) {
       const value = document.createElement('span');
       value.className = 'chart-bar-value';
-      value.textContent = item.value >= 60 ? `${Math.round(item.value / 60)}h` : item.value;
-      bar.appendChild(value);
+      value.textContent = item.value >= 60 ? `${Math.round(item.value / 60)}h` : `${item.value}m`;
+      wrapper.appendChild(value);
     }
 
-    bar.appendChild(fill);
+    wrapper.appendChild(fill);
+    bar.appendChild(wrapper);
+
+    const label = document.createElement('span');
+    label.className = 'chart-bar-label';
+    label.textContent = item.label;
     bar.appendChild(label);
+
     chartContainer.appendChild(bar);
   });
 }
