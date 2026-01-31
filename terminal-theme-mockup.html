@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal Theme Mockup - Pomo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+      background: #0a0a0a;
+      color: #00ff00;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* CRT Scanline Effect */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15) 0px,
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* CRT Vignette */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(
+        ellipse at center,
+        transparent 50%,
+        rgba(0, 0, 0, 0.4) 100%
+      );
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    /* Screen glow effect */
+    .screen-glow {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(0, 255, 0, 0.03) 0%,
+        transparent 70%
+      );
+      pointer-events: none;
+    }
+
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 1rem;
+      opacity: 0.6;
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+    }
+
+    .header::before {
+      content: '> ';
+    }
+
+    /* Timer */
+    .timer-container {
+      position: relative;
+      width: 280px;
+      height: 280px;
+      margin: 0 auto 2rem;
+    }
+
+    .timer-ring {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid #003300;
+      position: relative;
+      box-shadow:
+        0 0 20px rgba(0, 255, 0, 0.1),
+        inset 0 0 30px rgba(0, 255, 0, 0.05);
+    }
+
+    .timer-ring svg {
+      position: absolute;
+      inset: 0;
+      transform: rotate(-90deg);
+    }
+
+    .timer-ring circle {
+      fill: none;
+      stroke-width: 3;
+    }
+
+    .timer-ring .bg {
+      stroke: #0a1f0a;
+    }
+
+    .timer-ring .progress {
+      stroke: #00ff00;
+      stroke-linecap: round;
+      stroke-dasharray: 565;
+      stroke-dashoffset: 141;
+      filter: drop-shadow(0 0 8px rgba(0, 255, 0, 0.6));
+    }
+
+    .timer-display {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .timer-time {
+      font-size: 4rem;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      text-shadow:
+        0 0 10px rgba(0, 255, 0, 0.8),
+        0 0 20px rgba(0, 255, 0, 0.5),
+        0 0 40px rgba(0, 255, 0, 0.3);
+      animation: flicker 4s infinite;
+    }
+
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      97% { opacity: 1; }
+      98% { opacity: 0.8; }
+      99% { opacity: 1; }
+    }
+
+    .timer-status {
+      font-size: 0.875rem;
+      color: #00aa00;
+      letter-spacing: 0.15em;
+      margin-top: 0.5rem;
+    }
+
+    .timer-status::before {
+      content: '[ ';
+    }
+
+    .timer-status::after {
+      content: ' ]';
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      font-family: inherit;
+      font-size: 0.875rem;
+      letter-spacing: 0.1em;
+      border: 1px solid #00ff00;
+      background: transparent;
+      color: #00ff00;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+    }
+
+    .btn:hover {
+      background: #00ff00;
+      color: #0a0a0a;
+      box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+    }
+
+    .btn--primary {
+      background: #00ff00;
+      color: #0a0a0a;
+      box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+    }
+
+    .btn--primary:hover {
+      background: #00cc00;
+      box-shadow: 0 0 25px rgba(0, 255, 0, 0.5);
+    }
+
+    /* Stats */
+    .stats {
+      font-size: 0.75rem;
+      color: #00aa00;
+      opacity: 0.8;
+    }
+
+    .stats::before {
+      content: '// ';
+      opacity: 0.5;
+    }
+
+    /* Cursor blink */
+    .cursor {
+      display: inline-block;
+      width: 0.6em;
+      height: 1em;
+      background: #00ff00;
+      margin-left: 0.2em;
+      animation: blink 1s step-end infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* Task preview */
+    .task-preview {
+      margin-top: 2rem;
+      padding: 1rem;
+      border: 1px solid #003300;
+      background: rgba(0, 255, 0, 0.02);
+      text-align: left;
+      max-width: 300px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .task-preview-header {
+      font-size: 0.7rem;
+      opacity: 0.5;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+
+    .task-item {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #002200;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.8rem;
+    }
+
+    .task-item:last-child {
+      border-bottom: none;
+    }
+
+    .task-checkbox {
+      width: 14px;
+      height: 14px;
+      border: 1px solid #00ff00;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+    }
+
+    .task-checkbox.done {
+      background: #00ff00;
+      color: #0a0a0a;
+    }
+
+    .task-name {
+      flex: 1;
+    }
+
+    .task-name.done {
+      text-decoration: line-through;
+      opacity: 0.5;
+    }
+
+    .task-time {
+      font-size: 0.7rem;
+      opacity: 0.6;
+    }
+
+    /* Alternative amber version toggle */
+    .theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      font-size: 0.7rem;
+      opacity: 0.6;
+      cursor: pointer;
+      z-index: 200;
+    }
+
+    .theme-toggle:hover {
+      opacity: 1;
+    }
+
+    /* Amber variant */
+    body.amber {
+      color: #ffb000;
+    }
+
+    body.amber .timer-ring {
+      border-color: #332200;
+      box-shadow:
+        0 0 20px rgba(255, 176, 0, 0.1),
+        inset 0 0 30px rgba(255, 176, 0, 0.05);
+    }
+
+    body.amber .timer-ring .bg {
+      stroke: #1f1a0a;
+    }
+
+    body.amber .timer-ring .progress {
+      stroke: #ffb000;
+      filter: drop-shadow(0 0 8px rgba(255, 176, 0, 0.6));
+    }
+
+    body.amber .timer-time {
+      text-shadow:
+        0 0 10px rgba(255, 176, 0, 0.8),
+        0 0 20px rgba(255, 176, 0, 0.5),
+        0 0 40px rgba(255, 176, 0, 0.3);
+    }
+
+    body.amber .timer-status {
+      color: #cc8800;
+    }
+
+    body.amber .btn {
+      border-color: #ffb000;
+      color: #ffb000;
+    }
+
+    body.amber .btn:hover {
+      background: #ffb000;
+      color: #0a0a0a;
+      box-shadow: 0 0 20px rgba(255, 176, 0, 0.4);
+    }
+
+    body.amber .btn--primary {
+      background: #ffb000;
+      color: #0a0a0a;
+      box-shadow: 0 0 10px rgba(255, 176, 0, 0.3);
+    }
+
+    body.amber .stats {
+      color: #cc8800;
+    }
+
+    body.amber .cursor {
+      background: #ffb000;
+    }
+
+    body.amber .task-preview {
+      border-color: #332200;
+      background: rgba(255, 176, 0, 0.02);
+    }
+
+    body.amber .task-item {
+      border-color: #221a00;
+    }
+
+    body.amber .task-checkbox {
+      border-color: #ffb000;
+    }
+
+    body.amber .task-checkbox.done {
+      background: #ffb000;
+    }
+
+    body.amber .screen-glow {
+      background: radial-gradient(
+        ellipse at center,
+        rgba(255, 176, 0, 0.03) 0%,
+        transparent 70%
+      );
+    }
+  </style>
+</head>
+<body>
+  <div class="screen-glow"></div>
+
+  <div class="theme-toggle" onclick="document.body.classList.toggle('amber')">
+    [ CLICK: TOGGLE GREEN/AMBER ]
+  </div>
+
+  <div class="container">
+    <div class="header">POMO v1.0 — FOCUS PROTOCOL ACTIVE<span class="cursor"></span></div>
+
+    <div class="timer-container">
+      <div class="timer-ring">
+        <svg viewBox="0 0 200 200">
+          <circle class="bg" cx="100" cy="100" r="90" />
+          <circle class="progress" cx="100" cy="100" r="90" />
+        </svg>
+        <div class="timer-display">
+          <div class="timer-time">18:42</div>
+          <div class="timer-status">WORK_SESSION</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn">PAUSE</button>
+      <button class="btn btn--primary">DONE</button>
+    </div>
+
+    <div class="stats">45 min focused today // streak: 5 days</div>
+
+    <div class="task-preview">
+      <div class="task-preview-header">> TASK_QUEUE</div>
+      <div class="task-item">
+        <div class="task-checkbox done">x</div>
+        <div class="task-name done">Review pull requests</div>
+        <div class="task-time">25m</div>
+      </div>
+      <div class="task-item">
+        <div class="task-checkbox"></div>
+        <div class="task-name">Build terminal theme</div>
+        <div class="task-time">18m/30m</div>
+      </div>
+      <div class="task-item">
+        <div class="task-checkbox"></div>
+        <div class="task-name">Write documentation</div>
+        <div class="task-time">0m/45m</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Optional: Add subtle screen flicker
+    setInterval(() => {
+      if (Math.random() > 0.97) {
+        document.body.style.opacity = '0.95';
+        setTimeout(() => {
+          document.body.style.opacity = '1';
+        }, 50);
+      }
+    }, 100);
+  </script>
+</body>
+</html>

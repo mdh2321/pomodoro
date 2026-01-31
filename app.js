@@ -39,18 +39,40 @@ const state = {
   // Theme: 'light' | 'dark' | 'synthwave'
   theme: 'light',
 
-  // Task intent
+  // Task intent (legacy - keeping for compatibility)
   currentTask: '',
 
+  // Tasks system
+  tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt }
+  activeTaskId: null, // ID of task being worked on during Pomo
+
+  // Task settings
+  showCompletedTasks: true, // Show struck-out completed tasks
+  taskCompletionBehavior: 'nextTask', // 'endSession' | 'nextTask'
+  keepIncompleteTasks: true, // Keep incomplete tasks on new day (vs clear all)
+  lastVisitDate: null, // For clearing done tasks on new day
+
+  // Sidebar state
+  sidebarOpen: false,
+
   // Ambient sounds
-  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'river' | 'synthDrive' | 'synthNeon' | 'synthGrid'
+  currentSound: 'off', // 'off' | 'rain' | 'fireplace' | 'forest' | 'synthDrive' | 'synthNeon' | 'synthGrid' | 'cafeAmbience' | 'lofiJazz' | 'lofiTyping' | 'terminalHum' | 'terminalKeys' | 'terminalData'
   volume: 50,
 
   // History tracking (all-time)
   history: {}, // { "2026-01-18": { sessions: 4, minutes: 100 }, ... }
 
   // Stats view preference
-  statsView: 'sessions' // 'sessions' | 'minutes'
+  statsView: 'sessions', // 'sessions' | 'minutes'
+
+  // Daily goal & streaks
+  dailyGoalMinutes: 90, // Target focused minutes per day
+  currentStreak: 0, // Consecutive days hitting goal
+  longestStreak: 0, // All-time best streak
+
+  // Summary tracking
+  summaryShownDate: null, // Date when summary was last shown (YYYY-MM-DD)
+  tasksCompletedYesterday: 0 // Track tasks completed for summary
 };
 
 // Audio context and nodes for ambient sounds
@@ -60,6 +82,9 @@ let ambientNodes = {
   gain: null,
   filter: null
 };
+
+// Cache for loaded audio file buffers
+const audioBufferCache = {};
 
 // ============================================
 // DOM Elements
@@ -89,15 +114,19 @@ const elements = {
   abandonBtn: document.getElementById('abandonBtn'),
   skipBtn: document.getElementById('skipBtn'),
 
-  // Session info
-  sessionCount: document.getElementById('sessionCount'),
-  totalTime: document.getElementById('totalTime'),
+  // Goal progress
+  goalProgress: document.getElementById('goalProgress'),
+  goalProgressBar: document.getElementById('goalProgressBar'),
+  goalProgressText: document.getElementById('goalProgressText'),
 
   // Theme toggle
   themeToggle: document.getElementById('themeToggle'),
 
   // Sound controls
-  soundBtns: document.querySelectorAll('.sound-btn'),
+  soundControl: document.getElementById('soundControl'),
+  soundToggle: document.getElementById('soundToggle'),
+  soundDropdown: document.getElementById('soundDropdown'),
+  soundOptions: document.querySelectorAll('.sound-option'),
   volumeSlider: document.getElementById('volumeSlider'),
 
   // Stats
@@ -108,14 +137,55 @@ const elements = {
   statsSummary: document.getElementById('statsSummary'),
   statsToggleBtns: document.querySelectorAll('.stats-toggle-btn'),
 
-  // Task intent
-  taskTrigger: document.getElementById('taskTrigger'),
-  taskModalOverlay: document.getElementById('taskModalOverlay'),
-  taskInput: document.getElementById('taskInput'),
-  taskDisplay: document.getElementById('taskDisplay'),
-  taskText: document.getElementById('taskText'),
-  taskCompleteBtn: document.getElementById('taskCompleteBtn'),
-  taskClearBtn: document.getElementById('taskClearBtn')
+  // Task sidebar
+  taskSidebar: document.getElementById('taskSidebar'),
+  sidebarTab: document.getElementById('sidebarTab'),
+  sidebarPanel: document.getElementById('sidebarPanel'),
+  sidebarClose: document.getElementById('sidebarClose'),
+  addTaskInput: document.getElementById('addTaskInput'),
+  addTaskEstimate: document.getElementById('addTaskEstimate'),
+  taskList: document.getElementById('taskList'),
+
+  // Task settings
+  showCompletedToggle: document.getElementById('showCompletedToggle'),
+  taskCompletionSelect: document.getElementById('taskCompletionSelect'),
+  keepIncompleteTasksToggle: document.getElementById('keepIncompleteTasksToggle'),
+
+  // Undo toast
+  undoToast: document.getElementById('undoToast'),
+  undoBtn: document.getElementById('undoBtn'),
+
+  // Notes modal
+  notesOverlay: document.getElementById('notesOverlay'),
+  notesCloseBtn: document.getElementById('notesCloseBtn'),
+  notesTaskName: document.getElementById('notesTaskName'),
+  notesTextarea: document.getElementById('notesTextarea'),
+  notesSaveBtn: document.getElementById('notesSaveBtn'),
+
+  // Summary modal
+  summaryOverlay: document.getElementById('summaryOverlay'),
+  summaryCloseBtn: document.getElementById('summaryCloseBtn'),
+  summaryDismissBtn: document.getElementById('summaryDismissBtn'),
+  summaryMinutes: document.getElementById('summaryMinutes'),
+  summarySessions: document.getElementById('summarySessions'),
+  summaryTasks: document.getElementById('summaryTasks'),
+  summaryStreak: document.getElementById('summaryStreak'),
+  summaryStreakText: document.getElementById('summaryStreakText'),
+  summaryMessage: document.getElementById('summaryMessage'),
+
+  // Settings modal
+  settingsBtn: document.getElementById('settingsBtn'),
+  settingsOverlay: document.getElementById('settingsOverlay'),
+  settingsCloseBtn: document.getElementById('settingsCloseBtn'),
+  dailyGoalSelect: document.getElementById('dailyGoalSelect'),
+
+  // Daily progress (task sidebar)
+  dailyProgressBar: document.getElementById('dailyProgressBar'),
+  dailyProgressText: document.getElementById('dailyProgressText'),
+
+  // Streak stats
+  currentStreakDisplay: document.getElementById('currentStreak'),
+  longestStreakDisplay: document.getElementById('longestStreak')
 };
 
 // ============================================
@@ -160,10 +230,7 @@ function loadFromStorage() {
         document.documentElement.setAttribute('data-theme', 'dark');
       }
 
-      // Restore sound preferences
-      if (data.currentSound) {
-        state.currentSound = data.currentSound;
-      }
+      // Restore volume preference only (sound resets each session)
       if (typeof data.volume === 'number') {
         state.volume = data.volume;
         elements.volumeSlider.value = data.volume;
@@ -174,7 +241,7 @@ function loadFromStorage() {
         state.history = data.history;
       }
 
-      // Restore current task
+      // Restore current task (legacy)
       if (data.currentTask) {
         state.currentTask = data.currentTask;
       }
@@ -182,6 +249,41 @@ function loadFromStorage() {
       // Restore stats view preference
       if (data.statsView) {
         state.statsView = data.statsView;
+      }
+
+      // Restore tasks
+      if (data.tasks && Array.isArray(data.tasks)) {
+        state.tasks = data.tasks;
+      }
+
+      // Restore task settings
+      if (typeof data.showCompletedTasks === 'boolean') {
+        state.showCompletedTasks = data.showCompletedTasks;
+      }
+      if (data.taskCompletionBehavior) {
+        state.taskCompletionBehavior = data.taskCompletionBehavior;
+      }
+      if (typeof data.keepIncompleteTasks === 'boolean') {
+        state.keepIncompleteTasks = data.keepIncompleteTasks;
+      }
+      if (data.lastVisitDate) {
+        state.lastVisitDate = data.lastVisitDate;
+      }
+
+      // Restore daily goal & streaks
+      if (typeof data.dailyGoalMinutes === 'number') {
+        state.dailyGoalMinutes = data.dailyGoalMinutes;
+      }
+      if (typeof data.currentStreak === 'number') {
+        state.currentStreak = data.currentStreak;
+      }
+      if (typeof data.longestStreak === 'number') {
+        state.longestStreak = data.longestStreak;
+      }
+
+      // Restore summary shown date
+      if (data.summaryShownDate) {
+        state.summaryShownDate = data.summaryShownDate;
       }
     }
   } catch (e) {
@@ -197,11 +299,23 @@ function saveToStorage() {
       sessionCount: state.sessionCount,
       totalFocusedMinutes: state.totalFocusedMinutes,
       theme: state.theme,
-      currentSound: state.currentSound,
+      // Note: currentSound is NOT persisted - resets each session
       volume: state.volume,
       history: state.history,
       currentTask: state.currentTask,
       statsView: state.statsView,
+      // Tasks
+      tasks: state.tasks,
+      showCompletedTasks: state.showCompletedTasks,
+      taskCompletionBehavior: state.taskCompletionBehavior,
+      keepIncompleteTasks: state.keepIncompleteTasks,
+      lastVisitDate: state.lastVisitDate,
+      // Daily goal & streaks
+      dailyGoalMinutes: state.dailyGoalMinutes,
+      currentStreak: state.currentStreak,
+      longestStreak: state.longestStreak,
+      // Summary
+      summaryShownDate: state.summaryShownDate,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -211,7 +325,12 @@ function saveToStorage() {
 }
 
 function getTodayDate() {
-  return new Date().toISOString().split('T')[0];
+  return getDateInAEST(new Date());
+}
+
+// Get date string (YYYY-MM-DD) in AEST/AEDT timezone
+function getDateInAEST(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
 }
 
 // ============================================
@@ -222,15 +341,26 @@ function startTimer() {
   if (state.status === 'running') return;
 
   state.status = 'running';
-  updateUI();
 
-  // Start ambient sound if in work mode
-  if (state.mode === 'work' && state.currentSound !== 'off') {
-    playAmbientSound(state.currentSound);
+  // Set active task for this Pomo session
+  setActiveTaskForPomo();
+
+  // Reset sound to off at session start (don't persist between sessions)
+  if (state.currentSound !== 'off') {
+    state.currentSound = 'off';
+    updateSoundUI();
   }
+
+  // Show sound control during active sessions
+  updateSoundControlVisibility();
+
+  updateUI();
 
   state.intervalId = setInterval(() => {
     state.remainingSeconds--;
+
+    // Track time on active task
+    trackTaskTime();
 
     if (state.remainingSeconds <= 0) {
       completeTimer();
@@ -249,6 +379,7 @@ function pauseTimer() {
   state.intervalId = null;
   state.status = 'paused';
   stopAmbientSound();
+  updateSoundControlVisibility();
   updateUI();
 }
 
@@ -260,19 +391,24 @@ function resetTimer() {
   state.remainingSeconds = state.totalSeconds;
   state.status = 'idle';
 
+  stopAmbientSound();
+  updateSoundControlVisibility();
   updateUI();
 }
 
 function skipTimer() {
-  // Skip is only for break mode
-  if (state.mode !== 'break') return;
-  if (state.status !== 'paused' && state.status !== 'running') return;
+  // Skip break - when in break mode (any status) or when about to start break (work completed)
+  const isBreakMode = state.mode === 'break' && (state.status === 'paused' || state.status === 'running' || state.status === 'idle');
+  const isAboutToBreak = state.mode === 'work' && state.status === 'completed';
+
+  if (!isBreakMode && !isAboutToBreak) return;
 
   clearInterval(state.intervalId);
   state.intervalId = null;
 
-  // Stop ambient sounds
+  // Stop ambient sounds and hide control
   stopAmbientSound();
+  updateSoundControlVisibility();
 
   // Switch to work mode without counting
   state.mode = 'work';
@@ -286,7 +422,30 @@ function skipTimer() {
 function continueTimer() {
   // Resume from paused state
   if (state.status !== 'paused') return;
-  startTimer();
+
+  state.status = 'running';
+  updateSoundControlVisibility();
+  updateUI();
+
+  // Resume ambient sound if one was selected
+  if (state.currentSound !== 'off') {
+    playAmbientSound(state.currentSound);
+  }
+
+  state.intervalId = setInterval(() => {
+    state.remainingSeconds--;
+
+    // Track time on active task
+    trackTaskTime();
+
+    if (state.remainingSeconds <= 0) {
+      completeTimer();
+    } else {
+      updateTimerDisplay();
+      updateProgressRing();
+      updateBrowserTab();
+    }
+  }, 1000);
 }
 
 function doneTimer() {
@@ -307,16 +466,19 @@ function doneTimer() {
     // Record in history - minutes only, NOT as a completed session
     const today = getTodayDate();
     if (!state.history[today]) {
-      state.history[today] = { sessions: 0, minutes: 0 };
+      state.history[today] = { sessions: 0, minutes: 0, dailyGoal: state.dailyGoalMinutes };
     }
+    // Update dailyGoal to current value (tracks most recent goal for the day)
+    state.history[today].dailyGoal = state.dailyGoalMinutes;
     // Note: sessions NOT incremented for "Done" - only minutes
     state.history[today].minutes += partialMinutes;
 
     saveToStorage();
   }
 
-  // Stop ambient sounds
+  // Stop ambient sounds and hide control
   stopAmbientSound();
+  updateSoundControlVisibility();
 
   // Transition to break mode
   state.mode = 'break';
@@ -334,8 +496,9 @@ function abandonTimer() {
   clearInterval(state.intervalId);
   state.intervalId = null;
 
-  // Stop ambient sounds
+  // Stop ambient sounds and hide control
   stopAmbientSound();
+  updateSoundControlVisibility();
 
   // Full reset to work mode idle - NO stats recorded
   state.mode = 'work';
@@ -352,8 +515,9 @@ function completeTimer() {
   state.remainingSeconds = 0;
   state.status = 'completed';
 
-  // Stop ambient sounds
+  // Stop ambient sounds and hide control
   stopAmbientSound();
+  updateSoundControlVisibility();
 
   // Track completed work session
   if (state.mode === 'work') {
@@ -364,8 +528,10 @@ function completeTimer() {
     // Record in history
     const today = getTodayDate();
     if (!state.history[today]) {
-      state.history[today] = { sessions: 0, minutes: 0 };
+      state.history[today] = { sessions: 0, minutes: 0, dailyGoal: state.dailyGoalMinutes };
     }
+    // Update dailyGoal to current value (tracks most recent goal for the day)
+    state.history[today].dailyGoal = state.dailyGoalMinutes;
     state.history[today].sessions++;
     state.history[today].minutes += minutes;
 
@@ -477,6 +643,23 @@ function updateUI() {
   updateModeStyles();
   updateStepperVisibility();
   updateStepperButtons();
+  updateFocusMode();
+  updateTaskDraggable();
+}
+
+// Update draggable state of tasks based on timer status
+function updateTaskDraggable() {
+  const canDrag = state.status !== 'running';
+  document.querySelectorAll('.task-item').forEach(el => {
+    const isCompleted = el.classList.contains('completed');
+    el.draggable = canDrag && !isCompleted;
+  });
+}
+
+function updateFocusMode() {
+  // Focus mode is active when running a work session (not paused, not break)
+  const isFocused = state.status === 'running' && state.mode === 'work';
+  document.body.classList.toggle('focus-mode', isFocused);
 }
 
 function updateTimerDisplay() {
@@ -537,6 +720,11 @@ function updateControlButtons() {
     elements.startBtn.textContent = 'Start';
     elements.startBtn.classList.toggle('break-mode', mode === 'break');
 
+    // Show skip button when about to start break (after clicking Done)
+    if (mode === 'break') {
+      elements.skipBtn.hidden = false;
+    }
+
   } else if (status === 'running') {
     // Only Pause visible
     elements.pauseBtn.hidden = false;
@@ -560,12 +748,38 @@ function updateControlButtons() {
     elements.startBtn.hidden = false;
     elements.startBtn.textContent = mode === 'work' ? 'Start Break' : 'Start Work';
     elements.startBtn.classList.toggle('break-mode', mode === 'work');
+
+    // Show skip button when about to start break (just finished work)
+    if (mode === 'work') {
+      elements.skipBtn.hidden = false;
+    }
   }
 }
 
 function updateSessionInfo() {
-  elements.sessionCount.textContent = `Session #${state.sessionCount}`;
-  elements.totalTime.textContent = `${state.totalFocusedMinutes} min focused today`;
+  updateGoalProgress();
+}
+
+function updateGoalProgress() {
+  const progress = state.totalFocusedMinutes;
+  const goal = state.dailyGoalMinutes;
+  const percentage = Math.min(100, Math.round((progress / goal) * 100));
+  const isComplete = progress >= goal;
+
+  // Update progress bar
+  if (elements.goalProgressBar) {
+    elements.goalProgressBar.style.width = `${percentage}%`;
+  }
+
+  // Update text
+  if (elements.goalProgressText) {
+    elements.goalProgressText.textContent = `${progress} / ${goal} min`;
+  }
+
+  // Toggle completed state for gold styling
+  if (elements.goalProgress) {
+    elements.goalProgress.classList.toggle('goal-complete', isComplete);
+  }
 }
 
 function updateBrowserTab() {
@@ -675,6 +889,53 @@ function createNotification() {
 }
 
 // ============================================
+// Sound Control UI
+// ============================================
+
+function updateSoundControlVisibility() {
+  // Show sound control only during active sessions (running or paused)
+  const isActiveSession = state.status === 'running' || state.status === 'paused';
+  elements.soundControl.hidden = !isActiveSession;
+
+  // Close dropdown when hiding
+  if (!isActiveSession) {
+    closeSoundDropdown();
+  }
+}
+
+function toggleSoundDropdown() {
+  const isOpen = !elements.soundDropdown.hidden;
+  if (isOpen) {
+    closeSoundDropdown();
+  } else {
+    openSoundDropdown();
+  }
+}
+
+function openSoundDropdown() {
+  elements.soundDropdown.hidden = false;
+  elements.soundToggle.setAttribute('aria-expanded', 'true');
+}
+
+function closeSoundDropdown() {
+  elements.soundDropdown.hidden = true;
+  elements.soundToggle.setAttribute('aria-expanded', 'false');
+}
+
+function updateSoundUI() {
+  // Update sound option buttons
+  elements.soundOptions.forEach(btn => {
+    const isActive = btn.dataset.sound === state.currentSound;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  // Update toggle button to show if sound is playing
+  const isPlaying = state.currentSound !== 'off';
+  elements.soundToggle.classList.toggle('active', isPlaying);
+}
+
+// ============================================
 // Ambient Sounds (High Quality)
 // ============================================
 
@@ -719,8 +980,55 @@ function stopAmbientSound() {
   ambientNodes = { source: null, gain: null, filter: null, sources: [], nodes: [], interval: null, extraInterval: null, thunderTimeout: null };
 }
 
+// Load audio file from /audio/ folder
+async function loadAudioFile(filename) {
+  const ctx = initAudioContext();
+
+  // Check cache first
+  if (audioBufferCache[filename]) {
+    return audioBufferCache[filename];
+  }
+
+  try {
+    const response = await fetch(`audio/${filename}`);
+    if (!response.ok) {
+      throw new Error(`Failed to load ${filename}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    audioBufferCache[filename] = audioBuffer;
+    return audioBuffer;
+  } catch (error) {
+    console.log(`Audio file ${filename} not available, using synthesis fallback`);
+    return null;
+  }
+}
+
+// Play a loaded audio buffer in a seamless loop
+function playLoadedAudio(buffer, volumeScale = 0.5) {
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = state.volume / 100 * volumeScale;
+
+  source.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  source.start();
+
+  ambientNodes.source = source;
+  ambientNodes.gain = gainNode;
+  ambientNodes.sources = [source];
+  ambientNodes.nodes = [gainNode];
+}
+
 // Create noise buffer with specified characteristics
-function createNoiseBuffer(ctx, type, duration = 4) {
+// Using longer duration (10+ seconds) for more natural variation
+function createNoiseBuffer(ctx, type, duration = 10) {
   const bufferSize = ctx.sampleRate * duration;
   const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate); // Stereo
   const dataL = buffer.getChannelData(0);
@@ -732,22 +1040,33 @@ function createNoiseBuffer(ctx, type, duration = 4) {
       dataR[i] = Math.random() * 2 - 1;
     }
   } else if (type === 'pink') {
-    // Pink noise using Paul Kellet's refined method
-    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    // Pink noise using Paul Kellet's refined method with independent stereo channels
+    let b0L = 0, b1L = 0, b2L = 0, b3L = 0, b4L = 0, b5L = 0, b6L = 0;
+    let b0R = 0, b1R = 0, b2R = 0, b3R = 0, b4R = 0, b5R = 0, b6R = 0;
     for (let i = 0; i < bufferSize; i++) {
-      const white = Math.random() * 2 - 1;
-      b0 = 0.99886 * b0 + white * 0.0555179;
-      b1 = 0.99332 * b1 + white * 0.0750759;
-      b2 = 0.96900 * b2 + white * 0.1538520;
-      b3 = 0.86650 * b3 + white * 0.3104856;
-      b4 = 0.55000 * b4 + white * 0.5329522;
-      b5 = -0.7616 * b5 - white * 0.0168980;
-      const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
-      b6 = white * 0.115926;
-      dataL[i] = pink;
-      // Slightly different for stereo width
-      const white2 = Math.random() * 2 - 1;
-      dataR[i] = pink * 0.7 + white2 * 0.3;
+      // Left channel
+      const whiteL = Math.random() * 2 - 1;
+      b0L = 0.99886 * b0L + whiteL * 0.0555179;
+      b1L = 0.99332 * b1L + whiteL * 0.0750759;
+      b2L = 0.96900 * b2L + whiteL * 0.1538520;
+      b3L = 0.86650 * b3L + whiteL * 0.3104856;
+      b4L = 0.55000 * b4L + whiteL * 0.5329522;
+      b5L = -0.7616 * b5L - whiteL * 0.0168980;
+      const pinkL = (b0L + b1L + b2L + b3L + b4L + b5L + b6L + whiteL * 0.5362) * 0.11;
+      b6L = whiteL * 0.115926;
+      dataL[i] = pinkL;
+
+      // Right channel (independent)
+      const whiteR = Math.random() * 2 - 1;
+      b0R = 0.99886 * b0R + whiteR * 0.0555179;
+      b1R = 0.99332 * b1R + whiteR * 0.0750759;
+      b2R = 0.96900 * b2R + whiteR * 0.1538520;
+      b3R = 0.86650 * b3R + whiteR * 0.3104856;
+      b4R = 0.55000 * b4R + whiteR * 0.5329522;
+      b5R = -0.7616 * b5R - whiteR * 0.0168980;
+      const pinkR = (b0R + b1R + b2R + b3R + b4R + b5R + b6R + whiteR * 0.5362) * 0.11;
+      b6R = whiteR * 0.115926;
+      dataR[i] = pinkR;
     }
   } else if (type === 'brown') {
     let lastL = 0, lastR = 0;
@@ -764,8 +1083,48 @@ function createNoiseBuffer(ctx, type, duration = 4) {
   return buffer;
 }
 
-// Rain on tent - light, muffled, with occasional thunder
-function playRainOnTent() {
+// Create a textured noise buffer with natural variation (for rain, fire crackle, etc.)
+function createTexturedNoiseBuffer(ctx, duration = 15) {
+  const bufferSize = ctx.sampleRate * duration;
+  const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate);
+  const dataL = buffer.getChannelData(0);
+  const dataR = buffer.getChannelData(1);
+
+  // Create brown noise as base
+  let lastL = 0, lastR = 0;
+
+  // Add slow amplitude modulation for natural variation
+  for (let i = 0; i < bufferSize; i++) {
+    const t = i / ctx.sampleRate;
+
+    // Multiple slow modulations at different rates
+    const mod1 = 0.7 + 0.3 * Math.sin(t * 0.1 * Math.PI);
+    const mod2 = 0.8 + 0.2 * Math.sin(t * 0.23 * Math.PI + 1.2);
+    const mod3 = 0.85 + 0.15 * Math.sin(t * 0.07 * Math.PI + 2.5);
+    const modulation = mod1 * mod2 * mod3;
+
+    const whiteL = Math.random() * 2 - 1;
+    const whiteR = Math.random() * 2 - 1;
+    lastL = (lastL + 0.02 * whiteL) / 1.02;
+    lastR = (lastR + 0.02 * whiteR) / 1.02;
+
+    dataL[i] = lastL * 3.5 * modulation;
+    dataR[i] = lastR * 3.5 * modulation;
+  }
+
+  return buffer;
+}
+
+// Rain on tent - Uses audio file if available, falls back to particle synthesis
+async function playRainOnTent() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('rain.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 4.0);
+    return;
+  }
+
+  // Fallback to particle-based synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
@@ -776,103 +1135,123 @@ function playRainOnTent() {
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Light rain patter - muffled (as if inside tent)
-  const patterBuffer = createNoiseBuffer(ctx, 'pink', 4);
-  const patterSource = ctx.createBufferSource();
-  patterSource.buffer = patterBuffer;
-  patterSource.loop = true;
+  // Create a short impulse buffer for droplets (shared)
+  const impulseLength = 0.05; // 50ms
+  const impulseBuffer = ctx.createBuffer(2, ctx.sampleRate * impulseLength, ctx.sampleRate);
+  for (let channel = 0; channel < 2; channel++) {
+    const data = impulseBuffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i++) {
+      // Exponentially decaying noise burst
+      const decay = Math.exp(-i / (ctx.sampleRate * 0.008));
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+  }
 
-  const patterFilter = ctx.createBiquadFilter();
-  patterFilter.type = 'lowpass';
-  patterFilter.frequency.value = 400; // More muffled
-  patterFilter.Q.value = 0.3;
+  // Function to play a single raindrop
+  function playDrop() {
+    if (!ambientNodes.gain) return;
 
-  const patterGain = ctx.createGain();
-  patterGain.gain.value = 0.35;
+    const dropSource = ctx.createBufferSource();
+    dropSource.buffer = impulseBuffer;
 
-  patterSource.connect(patterFilter);
-  patterFilter.connect(patterGain);
-  patterGain.connect(masterGain);
-  patterSource.start();
+    // Randomize playback rate for pitch variation (tent material resonance)
+    dropSource.playbackRate.value = 0.5 + Math.random() * 1.5;
 
-  ambientNodes.sources.push(patterSource);
-  ambientNodes.nodes.push(patterFilter, patterGain);
+    // Filter to shape the drop sound
+    const dropFilter = ctx.createBiquadFilter();
+    dropFilter.type = 'bandpass';
+    dropFilter.frequency.value = 800 + Math.random() * 2000;
+    dropFilter.Q.value = 1 + Math.random() * 2;
 
-  // Layer 2: Soft tent fabric resonance
-  const tentBuffer = createNoiseBuffer(ctx, 'brown', 4);
-  const tentSource = ctx.createBufferSource();
-  tentSource.buffer = tentBuffer;
-  tentSource.loop = true;
+    // Random volume and panning
+    const dropGain = ctx.createGain();
+    const intensity = 0.03 + Math.random() * 0.07;
+    dropGain.gain.value = intensity;
 
-  const tentFilter = ctx.createBiquadFilter();
-  tentFilter.type = 'bandpass';
-  tentFilter.frequency.value = 200; // Lower, more muffled
-  tentFilter.Q.value = 0.8;
+    // Stereo panning for spatial effect
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 1.5;
 
-  const tentGain = ctx.createGain();
-  tentGain.gain.value = 0.2;
+    dropSource.connect(dropFilter);
+    dropFilter.connect(dropGain);
+    dropGain.connect(panner);
+    panner.connect(masterGain);
 
-  tentSource.connect(tentFilter);
-  tentFilter.connect(tentGain);
-  tentGain.connect(masterGain);
-  tentSource.start();
+    dropSource.start();
+  }
 
-  ambientNodes.sources.push(tentSource);
-  ambientNodes.nodes.push(tentFilter, tentGain);
+  // Rain intensity controller - spawn many drops
+  let dropsPerSecond = 80; // Moderate rain
 
-  // Layer 3: Very subtle high detail (distant droplets on tent)
-  const dropBuffer = createNoiseBuffer(ctx, 'white', 4);
-  const dropSource = ctx.createBufferSource();
-  dropSource.buffer = dropBuffer;
-  dropSource.loop = true;
+  function rainLoop() {
+    if (!ambientNodes.gain) return;
 
-  const dropFilter = ctx.createBiquadFilter();
-  dropFilter.type = 'bandpass';
-  dropFilter.frequency.value = 1200;
-  dropFilter.Q.value = 0.5;
+    // Spawn a batch of drops
+    const batchSize = Math.floor(dropsPerSecond / 20); // 50ms batches
+    for (let i = 0; i < batchSize; i++) {
+      setTimeout(() => {
+        if (ambientNodes.gain) playDrop();
+      }, Math.random() * 50);
+    }
 
-  const dropGain = ctx.createGain();
-  dropGain.gain.value = 0.03; // Very subtle
+    // Vary intensity slowly
+    dropsPerSecond = 60 + Math.sin(Date.now() / 10000) * 30 + Math.random() * 20;
 
-  dropSource.connect(dropFilter);
-  dropFilter.connect(dropGain);
-  dropGain.connect(masterGain);
-  dropSource.start();
+    ambientNodes.interval = setTimeout(rainLoop, 50);
+  }
+  rainLoop();
 
-  ambientNodes.sources.push(dropSource);
-  ambientNodes.nodes.push(dropFilter, dropGain);
+  // Very subtle low-frequency tent resonance (minimal)
+  const resonanceBuffer = createNoiseBuffer(ctx, 'brown', 10);
+  const resonanceSource = ctx.createBufferSource();
+  resonanceSource.buffer = resonanceBuffer;
+  resonanceSource.loop = true;
 
-  // Occasional distant thunder
+  const resonanceFilter = ctx.createBiquadFilter();
+  resonanceFilter.type = 'lowpass';
+  resonanceFilter.frequency.value = 80;
+
+  const resonanceGain = ctx.createGain();
+  resonanceGain.gain.value = 0.08; // Very quiet, just adds body
+
+  resonanceSource.connect(resonanceFilter);
+  resonanceFilter.connect(resonanceGain);
+  resonanceGain.connect(masterGain);
+  resonanceSource.start();
+
+  ambientNodes.sources.push(resonanceSource);
+  ambientNodes.nodes.push(resonanceFilter, resonanceGain);
+
+  // Occasional thunder
   function playThunder() {
     if (!ambientNodes.gain) return;
 
     const thunderGain = ctx.createGain();
-    const intensity = 0.15 + Math.random() * 0.2;
+    const intensity = 0.25;
+    const duration = 4 + Math.random() * 3;
+
     thunderGain.gain.setValueAtTime(0, ctx.currentTime);
-    thunderGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.3);
-    thunderGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2 + Math.random() * 2);
+    thunderGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.5);
+    thunderGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     thunderGain.connect(masterGain);
 
-    // Deep rumble using brown noise
-    const thunderBuffer = createNoiseBuffer(ctx, 'brown', 4);
+    const thunderBuffer = createNoiseBuffer(ctx, 'brown', 5);
     const thunderSource = ctx.createBufferSource();
     thunderSource.buffer = thunderBuffer;
 
     const thunderFilter = ctx.createBiquadFilter();
     thunderFilter.type = 'lowpass';
-    thunderFilter.frequency.value = 100 + Math.random() * 50;
-    thunderFilter.Q.value = 0.5;
+    thunderFilter.frequency.value = 60;
 
     thunderSource.connect(thunderFilter);
     thunderFilter.connect(thunderGain);
     thunderSource.start();
-    thunderSource.stop(ctx.currentTime + 4);
+    thunderSource.stop(ctx.currentTime + duration + 1);
   }
 
-  // Random thunder every 20-60 seconds
   function scheduleThunder() {
     if (!ambientNodes.gain) return;
-    const delay = 20000 + Math.random() * 40000;
+    const delay = 45000 + Math.random() * 60000;
     ambientNodes.thunderTimeout = setTimeout(() => {
       playThunder();
       scheduleThunder();
@@ -881,321 +1260,336 @@ function playRainOnTent() {
   scheduleThunder();
 }
 
-// Peaceful crackling fireplace
-function playFireplace() {
+// Fireplace - Uses audio file if available, falls back to particle synthesis
+async function playFireplace() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('fireplace.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.6);
+    return;
+  }
+
+  // Fallback to particle-based synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
   const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.45;
+  masterGain.gain.value = state.volume / 100 * 0.6;
   masterGain.connect(ctx.destination);
   ambientNodes.gain = masterGain;
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Layer 1: Soft warm base (gentle brown noise)
-  const baseBuffer = createNoiseBuffer(ctx, 'brown', 4);
-  const baseSource = ctx.createBufferSource();
-  baseSource.buffer = baseBuffer;
-  baseSource.loop = true;
+  // Create crackle impulse buffer (shared) - short sharp transient
+  const crackleLength = 0.03; // 30ms
+  const crackleBuffer = ctx.createBuffer(2, ctx.sampleRate * crackleLength, ctx.sampleRate);
+  for (let channel = 0; channel < 2; channel++) {
+    const data = crackleBuffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i++) {
+      // Sharp attack, fast decay
+      const decay = Math.exp(-i / (ctx.sampleRate * 0.004));
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+  }
 
-  const baseFilter = ctx.createBiquadFilter();
-  baseFilter.type = 'lowpass';
-  baseFilter.frequency.value = 300; // Softer, warmer
-  baseFilter.Q.value = 0.5;
-
-  const baseGain = ctx.createGain();
-  baseGain.gain.value = 0.4;
-
-  baseSource.connect(baseFilter);
-  baseFilter.connect(baseGain);
-  baseGain.connect(masterGain);
-  baseSource.start();
-
-  ambientNodes.sources.push(baseSource);
-  ambientNodes.nodes.push(baseFilter, baseGain);
-
-  // Layer 2: Gentle mid warmth
-  const midBuffer = createNoiseBuffer(ctx, 'pink', 4);
-  const midSource = ctx.createBufferSource();
-  midSource.buffer = midBuffer;
-  midSource.loop = true;
-
-  const midFilter = ctx.createBiquadFilter();
-  midFilter.type = 'bandpass';
-  midFilter.frequency.value = 600;
-  midFilter.Q.value = 0.6;
-
-  const midGain = ctx.createGain();
-  midGain.gain.value = 0.1;
-
-  midSource.connect(midFilter);
-  midFilter.connect(midGain);
-  midGain.connect(masterGain);
-  midSource.start();
-
-  ambientNodes.sources.push(midSource);
-  ambientNodes.nodes.push(midFilter, midGain);
-
-  // Gentle crackle pops - quieter and more varied
+  // Play individual crackle
   function playCrackle() {
     if (!ambientNodes.gain) return;
 
-    const crackleGain = ctx.createGain();
-    const intensity = 0.05 + Math.random() * 0.12; // Quieter
-    crackleGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
-    crackleGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03 + Math.random() * 0.08);
-    crackleGain.connect(masterGain);
+    const source = ctx.createBufferSource();
+    source.buffer = crackleBuffer;
+    source.playbackRate.value = 0.8 + Math.random() * 1.2;
 
-    // Use noise burst for more natural crackle
-    const crackleBuffer = createNoiseBuffer(ctx, 'white', 0.2);
-    const crackleSource = ctx.createBufferSource();
-    crackleSource.buffer = crackleBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 1000 + Math.random() * 3000;
+    filter.Q.value = 2 + Math.random() * 4;
 
-    const crackleFilter = ctx.createBiquadFilter();
-    crackleFilter.type = 'bandpass';
-    crackleFilter.frequency.value = 1500 + Math.random() * 2000;
-    crackleFilter.Q.value = 3 + Math.random() * 5;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.08 + Math.random() * 0.12;
 
-    crackleSource.connect(crackleFilter);
-    crackleFilter.connect(crackleGain);
-    crackleSource.start();
-    crackleSource.stop(ctx.currentTime + 0.1);
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 0.8;
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(panner);
+    panner.connect(masterGain);
+    source.start();
   }
 
-  // Soft pop sounds
-  function playSoftPop() {
+  // Play a deeper pop sound
+  function playPop() {
     if (!ambientNodes.gain) return;
 
-    const popGain = ctx.createGain();
-    const intensity = 0.03 + Math.random() * 0.06;
-    popGain.gain.setValueAtTime(intensity * (state.volume / 100), ctx.currentTime);
-    popGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    popGain.connect(masterGain);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.15 + Math.random() * 0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    gain.connect(masterGain);
 
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(200 + Math.random() * 100, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.1);
+    const freq = 80 + Math.random() * 60;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(20, ctx.currentTime + 0.15);
 
-    osc.connect(popGain);
+    osc.connect(gain);
     osc.start();
-    osc.stop(ctx.currentTime + 0.15);
+    osc.stop(ctx.currentTime + 0.2);
   }
 
-  // More frequent but gentler crackles
-  ambientNodes.interval = setInterval(() => {
-    const rand = Math.random();
-    if (rand > 0.6) {
-      playCrackle();
-    } else if (rand > 0.85) {
-      playSoftPop();
-    }
-  }, 150 + Math.random() * 300);
-}
-
-// Slow peaceful river
-function playRiver() {
-  const ctx = initAudioContext();
-  stopAmbientSound();
-
-  const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.45;
-  masterGain.connect(ctx.destination);
-  ambientNodes.gain = masterGain;
-  ambientNodes.sources = [];
-  ambientNodes.nodes = [];
-
-  // Layer 1: Deep slow current (brown noise, very low and smooth)
-  const deepBuffer = createNoiseBuffer(ctx, 'brown', 4);
-  const deepSource = ctx.createBufferSource();
-  deepSource.buffer = deepBuffer;
-  deepSource.loop = true;
-
-  const deepFilter = ctx.createBiquadFilter();
-  deepFilter.type = 'lowpass';
-  deepFilter.frequency.value = 150; // Very deep
-  deepFilter.Q.value = 0.3;
-
-  const deepGain = ctx.createGain();
-  deepGain.gain.value = 0.35;
-
-  deepSource.connect(deepFilter);
-  deepFilter.connect(deepGain);
-  deepGain.connect(masterGain);
-  deepSource.start();
-
-  ambientNodes.sources.push(deepSource);
-  ambientNodes.nodes.push(deepFilter, deepGain);
-
-  // Layer 2: Gentle main flow (pink noise with very slow modulation)
-  const flowBuffer = createNoiseBuffer(ctx, 'pink', 4);
-  const flowSource = ctx.createBufferSource();
-  flowSource.buffer = flowBuffer;
-  flowSource.loop = true;
-
-  const flowFilter = ctx.createBiquadFilter();
-  flowFilter.type = 'bandpass';
-  flowFilter.frequency.value = 400; // Lower frequency for slower feel
-  flowFilter.Q.value = 0.3;
-
-  // Very slow, subtle modulation
-  const lfo = ctx.createOscillator();
-  lfo.type = 'sine';
-  lfo.frequency.value = 0.08; // Very slow modulation
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.value = 50; // Subtle variation
-  lfo.connect(lfoGain);
-  lfoGain.connect(flowFilter.frequency);
-  lfo.start();
-
-  const flowGain = ctx.createGain();
-  flowGain.gain.value = 0.3;
-
-  flowSource.connect(flowFilter);
-  flowFilter.connect(flowGain);
-  flowGain.connect(masterGain);
-  flowSource.start();
-
-  ambientNodes.sources.push(flowSource, lfo);
-  ambientNodes.nodes.push(flowFilter, lfoGain, flowGain);
-
-  // Layer 3: Very subtle high shimmer (distant water sparkle)
-  const shimmerBuffer = createNoiseBuffer(ctx, 'white', 4);
-  const shimmerSource = ctx.createBufferSource();
-  shimmerSource.buffer = shimmerBuffer;
-  shimmerSource.loop = true;
-
-  const shimmerFilter = ctx.createBiquadFilter();
-  shimmerFilter.type = 'bandpass';
-  shimmerFilter.frequency.value = 2000;
-  shimmerFilter.Q.value = 1;
-
-  const shimmerGain = ctx.createGain();
-  shimmerGain.gain.value = 0.015; // Very quiet
-
-  shimmerSource.connect(shimmerFilter);
-  shimmerFilter.connect(shimmerGain);
-  shimmerGain.connect(masterGain);
-  shimmerSource.start();
-
-  ambientNodes.sources.push(shimmerSource);
-  ambientNodes.nodes.push(shimmerFilter, shimmerGain);
-}
-
-// Synthwave Track 1: Drive - Energetic, pulsing, driving feel
-function playSynthDrive() {
-  const ctx = initAudioContext();
-  stopAmbientSound();
-
-  const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.35;
-  masterGain.connect(ctx.destination);
-  ambientNodes.gain = masterGain;
-  ambientNodes.sources = [];
-  ambientNodes.nodes = [];
-
-  // Driving bass - pulsing saw wave
-  const bassOsc = ctx.createOscillator();
-  bassOsc.type = 'sawtooth';
-  bassOsc.frequency.value = 55; // A1
-
-  const bassFilter = ctx.createBiquadFilter();
-  bassFilter.type = 'lowpass';
-  bassFilter.frequency.value = 400;
-  bassFilter.Q.value = 2;
-
-  // Rhythmic pulse on the bass (eighth notes feel)
-  const bassLfo = ctx.createOscillator();
-  bassLfo.type = 'square';
-  bassLfo.frequency.value = 2; // Pulsing rhythm
-  const bassLfoGain = ctx.createGain();
-  bassLfoGain.gain.value = 0.15;
-  bassLfo.connect(bassLfoGain);
-  bassLfoGain.connect(masterGain);
-
-  const bassGain = ctx.createGain();
-  bassGain.gain.value = 0.25;
-  bassLfo.start();
-
-  bassOsc.connect(bassFilter);
-  bassFilter.connect(bassGain);
-  bassGain.connect(masterGain);
-  bassOsc.start();
-
-  ambientNodes.sources.push(bassOsc, bassLfo);
-  ambientNodes.nodes.push(bassFilter, bassLfoGain, bassGain);
-
-  // Arpeggio layer - cycling through notes
-  const arpNotes = [220, 277.18, 329.63, 440]; // A3, C#4, E4, A4
-  let arpIndex = 0;
-
-  const arpOsc = ctx.createOscillator();
-  arpOsc.type = 'sawtooth';
-  arpOsc.frequency.value = arpNotes[0];
-
-  const arpFilter = ctx.createBiquadFilter();
-  arpFilter.type = 'lowpass';
-  arpFilter.frequency.value = 2000;
-  arpFilter.Q.value = 3;
-
-  // Filter sweep LFO
-  const arpFilterLfo = ctx.createOscillator();
-  arpFilterLfo.type = 'sine';
-  arpFilterLfo.frequency.value = 0.15;
-  const arpFilterLfoGain = ctx.createGain();
-  arpFilterLfoGain.gain.value = 1000;
-  arpFilterLfo.connect(arpFilterLfoGain);
-  arpFilterLfoGain.connect(arpFilter.frequency);
-  arpFilterLfo.start();
-
-  const arpGain = ctx.createGain();
-  arpGain.gain.value = 0.12;
-
-  arpOsc.connect(arpFilter);
-  arpFilter.connect(arpGain);
-  arpGain.connect(masterGain);
-  arpOsc.start();
-
-  // Cycle through arp notes
-  ambientNodes.interval = setInterval(() => {
+  // Play a snap/click
+  function playSnap() {
     if (!ambientNodes.gain) return;
-    arpIndex = (arpIndex + 1) % arpNotes.length;
-    arpOsc.frequency.setTargetAtTime(arpNotes[arpIndex], ctx.currentTime, 0.02);
-  }, 150);
 
-  ambientNodes.sources.push(arpOsc, arpFilterLfo);
-  ambientNodes.nodes.push(arpFilter, arpFilterLfoGain, arpGain);
+    const source = ctx.createBufferSource();
+    source.buffer = crackleBuffer;
+    source.playbackRate.value = 1.5 + Math.random() * 1.0;
 
-  // Pad layer - warm sustained chords
-  const padFreqs = [110, 138.59, 165]; // A2, C#3, E3 (A major)
-  padFreqs.forEach((freq, i) => {
-    const padOsc = ctx.createOscillator();
-    padOsc.type = 'sine';
-    padOsc.frequency.value = freq;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 2000 + Math.random() * 2000;
 
-    // Slight detuning for warmth
-    const detune = (i - 1) * 5;
-    padOsc.detune.value = detune;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.1 + Math.random() * 0.1;
 
-    const padGain = ctx.createGain();
-    padGain.gain.value = 0.06;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(masterGain);
+    source.start();
+  }
 
-    padOsc.connect(padGain);
-    padGain.connect(masterGain);
-    padOsc.start();
+  // Continuous crackle loop - many events per second
+  let cracklesPerSecond = 15;
 
-    ambientNodes.sources.push(padOsc);
-    ambientNodes.nodes.push(padGain);
-  });
+  function crackleLoop() {
+    if (!ambientNodes.gain) return;
 
-  // Sub bass for depth
+    // Spawn crackles
+    const batchSize = Math.floor(cracklesPerSecond / 10);
+    for (let i = 0; i < batchSize; i++) {
+      setTimeout(() => {
+        if (!ambientNodes.gain) return;
+        playCrackle();
+        // Occasional pop or snap
+        if (Math.random() > 0.92) playPop();
+        if (Math.random() > 0.95) playSnap();
+      }, Math.random() * 100);
+    }
+
+    // Vary intensity
+    cracklesPerSecond = 10 + Math.sin(Date.now() / 8000) * 8 + Math.random() * 5;
+
+    ambientNodes.interval = setTimeout(crackleLoop, 100);
+  }
+  crackleLoop();
+
+  // Very subtle low rumble for fire "body" (minimal!)
+  const rumbleBuffer = createNoiseBuffer(ctx, 'brown', 10);
+  const rumbleSource = ctx.createBufferSource();
+  rumbleSource.buffer = rumbleBuffer;
+  rumbleSource.loop = true;
+
+  const rumbleFilter = ctx.createBiquadFilter();
+  rumbleFilter.type = 'lowpass';
+  rumbleFilter.frequency.value = 100;
+
+  const rumbleGain = ctx.createGain();
+  rumbleGain.gain.value = 0.06; // Very quiet background
+
+  rumbleSource.connect(rumbleFilter);
+  rumbleFilter.connect(rumbleGain);
+  rumbleGain.connect(masterGain);
+  rumbleSource.start();
+
+  ambientNodes.sources.push(rumbleSource);
+  ambientNodes.nodes.push(rumbleFilter, rumbleGain);
+}
+
+// Forest - Uses audio file if available, falls back to bird synthesis
+async function playForest() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('forest.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.5);
+    return;
+  }
+
+  // Fallback to synthesis
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.5;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Very subtle wind/ambience (quiet background only)
+  const windBuffer = createNoiseBuffer(ctx, 'pink', 15);
+  const windSource = ctx.createBufferSource();
+  windSource.buffer = windBuffer;
+  windSource.loop = true;
+
+  const windFilter = ctx.createBiquadFilter();
+  windFilter.type = 'lowpass';
+  windFilter.frequency.value = 400;
+  windFilter.Q.value = 0.3;
+
+  // Gentle wind modulation
+  const windLfo = ctx.createOscillator();
+  windLfo.type = 'sine';
+  windLfo.frequency.value = 0.05;
+  const windLfoGain = ctx.createGain();
+  windLfoGain.gain.value = 150;
+  windLfo.connect(windLfoGain);
+  windLfoGain.connect(windFilter.frequency);
+  windLfo.start();
+
+  const windGain = ctx.createGain();
+  windGain.gain.value = 0.06; // Very quiet - just atmosphere
+
+  windSource.connect(windFilter);
+  windFilter.connect(windGain);
+  windGain.connect(masterGain);
+  windSource.start();
+
+  ambientNodes.sources.push(windSource, windLfo);
+  ambientNodes.nodes.push(windFilter, windLfoGain, windGain);
+
+  // Birds - the main feature! Multiple bird types
+
+  // Small songbird chirp
+  function playSongbird() {
+    if (!ambientNodes.gain) return;
+
+    const gain = ctx.createGain();
+    const intensity = 0.12 + Math.random() * 0.1;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+
+    const baseFreq = 2000 + Math.random() * 1500;
+    const duration = 0.08 + Math.random() * 0.12;
+
+    // Varied patterns
+    const pattern = Math.random();
+    if (pattern > 0.7) {
+      // Two-tone chirp
+      osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+      osc.frequency.setValueAtTime(baseFreq * 1.3, ctx.currentTime + duration * 0.5);
+    } else if (pattern > 0.4) {
+      // Rising whistle
+      osc.frequency.setValueAtTime(baseFreq * 0.8, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(baseFreq * 1.2, ctx.currentTime + duration);
+    } else {
+      // Falling chirp
+      osc.frequency.setValueAtTime(baseFreq * 1.1, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(baseFreq * 0.7, ctx.currentTime + duration);
+    }
+
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(intensity, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 1.6;
+
+    osc.connect(gain);
+    gain.connect(panner);
+    panner.connect(masterGain);
+    osc.start();
+    osc.stop(ctx.currentTime + duration + 0.05);
+  }
+
+  // Deeper woodland bird (like a dove or thrush)
+  function playWoodlandBird() {
+    if (!ambientNodes.gain) return;
+
+    const gain = ctx.createGain();
+    const intensity = 0.15 + Math.random() * 0.1;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+
+    const baseFreq = 800 + Math.random() * 600;
+    const duration = 0.15 + Math.random() * 0.2;
+
+    // Cooing pattern
+    osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, ctx.currentTime + duration * 0.3);
+    osc.frequency.linearRampToValueAtTime(baseFreq * 1.05, ctx.currentTime + duration * 0.6);
+    osc.frequency.linearRampToValueAtTime(baseFreq * 0.85, ctx.currentTime + duration);
+
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(intensity, ctx.currentTime + 0.03);
+    gain.gain.setValueAtTime(intensity * 0.8, ctx.currentTime + duration * 0.5);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 1.2;
+
+    osc.connect(gain);
+    gain.connect(panner);
+    panner.connect(masterGain);
+    osc.start();
+    osc.stop(ctx.currentTime + duration + 0.05);
+  }
+
+  // Schedule birds - frequent and varied
+  function scheduleBirds() {
+    if (!ambientNodes.gain) return;
+
+    // Random bird type
+    const birdType = Math.random();
+    if (birdType > 0.4) {
+      // Songbird (more common)
+      const count = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          if (ambientNodes.gain) playSongbird();
+        }, i * (80 + Math.random() * 150));
+      }
+    } else {
+      // Woodland bird (less common)
+      playWoodlandBird();
+    }
+
+    // Birds call every 1-4 seconds (frequent!)
+    const nextDelay = 1000 + Math.random() * 3000;
+    ambientNodes.thunderTimeout = setTimeout(scheduleBirds, nextDelay);
+  }
+
+  // Start birds quickly
+  ambientNodes.thunderTimeout = setTimeout(scheduleBirds, 500);
+}
+
+// Synthwave Track 1: Neon Drive - Uses audio file if available
+async function playSynthDrive() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('synthwave1.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  // Fallback to synthesis
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.32;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Deep sub bass - foundation
   const subOsc = ctx.createOscillator();
   subOsc.type = 'sine';
-  subOsc.frequency.value = 27.5; // A0
+  subOsc.frequency.value = 55; // A1
 
   const subGain = ctx.createGain();
-  subGain.gain.value = 0.18;
+  subGain.gain.value = 0.2;
 
   subOsc.connect(subGain);
   subGain.connect(masterGain);
@@ -1203,39 +1597,110 @@ function playSynthDrive() {
 
   ambientNodes.sources.push(subOsc);
   ambientNodes.nodes.push(subGain);
-}
 
-// Synthwave Track 2: Neon - Dreamy, atmospheric, lush
-function playSynthNeon() {
-  const ctx = initAudioContext();
-  stopAmbientSound();
+  // Pulsing bass with filter envelope
+  const bassOsc = ctx.createOscillator();
+  bassOsc.type = 'sawtooth';
+  bassOsc.frequency.value = 110; // A2
 
-  const masterGain = ctx.createGain();
-  masterGain.gain.value = state.volume / 100 * 0.35;
-  masterGain.connect(ctx.destination);
-  ambientNodes.gain = masterGain;
-  ambientNodes.sources = [];
-  ambientNodes.nodes = [];
+  const bassFilter = ctx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 300;
+  bassFilter.Q.value = 4;
 
-  // Lush pad - layered triangle waves with slow modulation
-  const padFreqs = [130.81, 164.81, 196, 261.63]; // C3, E3, G3, C4 (C major)
-  padFreqs.forEach((freq, i) => {
+  // Rhythmic filter pulse
+  const bassFilterLfo = ctx.createOscillator();
+  bassFilterLfo.type = 'sawtooth';
+  bassFilterLfo.frequency.value = 2; // Pumping rhythm
+  const bassFilterLfoGain = ctx.createGain();
+  bassFilterLfoGain.gain.value = 400;
+  bassFilterLfo.connect(bassFilterLfoGain);
+  bassFilterLfoGain.connect(bassFilter.frequency);
+  bassFilterLfo.start();
+
+  const bassGain = ctx.createGain();
+  bassGain.gain.value = 0.15;
+
+  bassOsc.connect(bassFilter);
+  bassFilter.connect(bassGain);
+  bassGain.connect(masterGain);
+  bassOsc.start();
+
+  ambientNodes.sources.push(bassOsc, bassFilterLfo);
+  ambientNodes.nodes.push(bassFilter, bassFilterLfoGain, bassGain);
+
+  // Arpeggiator - classic synthwave feel
+  const arpNotes = [440, 554.37, 659.25, 880, 659.25, 554.37]; // A4, C#5, E5, A5, E5, C#5
+  let arpIndex = 0;
+
+  const arpOsc = ctx.createOscillator();
+  arpOsc.type = 'sawtooth';
+  arpOsc.frequency.value = arpNotes[0];
+
+  const arpOsc2 = ctx.createOscillator();
+  arpOsc2.type = 'sawtooth';
+  arpOsc2.frequency.value = arpNotes[0];
+  arpOsc2.detune.value = 7; // Slight detune for fatness
+
+  const arpFilter = ctx.createBiquadFilter();
+  arpFilter.type = 'lowpass';
+  arpFilter.frequency.value = 3000;
+  arpFilter.Q.value = 2;
+
+  // Slow filter sweep
+  const arpSweepLfo = ctx.createOscillator();
+  arpSweepLfo.type = 'sine';
+  arpSweepLfo.frequency.value = 0.08;
+  const arpSweepGain = ctx.createGain();
+  arpSweepGain.gain.value = 1500;
+  arpSweepLfo.connect(arpSweepGain);
+  arpSweepGain.connect(arpFilter.frequency);
+  arpSweepLfo.start();
+
+  const arpGain = ctx.createGain();
+  arpGain.gain.value = 0.08;
+
+  const arpMerge = ctx.createGain();
+  arpOsc.connect(arpMerge);
+  arpOsc2.connect(arpMerge);
+  arpMerge.connect(arpFilter);
+  arpFilter.connect(arpGain);
+  arpGain.connect(masterGain);
+  arpOsc.start();
+  arpOsc2.start();
+
+  // Arpeggio sequencer
+  ambientNodes.interval = setInterval(() => {
+    if (!ambientNodes.gain) return;
+    arpIndex = (arpIndex + 1) % arpNotes.length;
+    const freq = arpNotes[arpIndex];
+    arpOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+    arpOsc2.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+  }, 125);
+
+  ambientNodes.sources.push(arpOsc, arpOsc2, arpSweepLfo);
+  ambientNodes.nodes.push(arpFilter, arpSweepGain, arpGain, arpMerge);
+
+  // Warm pad layer - A major chord
+  const padNotes = [220, 277.18, 329.63, 440]; // A3, C#4, E4, A4
+  padNotes.forEach((freq, i) => {
     const padOsc = ctx.createOscillator();
     padOsc.type = 'triangle';
     padOsc.frequency.value = freq;
+    padOsc.detune.value = (i - 1.5) * 4;
 
-    // Slow vibrato
+    // Subtle vibrato
     const vibLfo = ctx.createOscillator();
     vibLfo.type = 'sine';
-    vibLfo.frequency.value = 0.3 + i * 0.1;
+    vibLfo.frequency.value = 4 + i * 0.5;
     const vibGain = ctx.createGain();
-    vibGain.gain.value = freq * 0.01;
+    vibGain.gain.value = freq * 0.003;
     vibLfo.connect(vibGain);
     vibGain.connect(padOsc.frequency);
     vibLfo.start();
 
     const padGain = ctx.createGain();
-    padGain.gain.value = 0.08;
+    padGain.gain.value = 0.04;
 
     padOsc.connect(padGain);
     padGain.connect(masterGain);
@@ -1245,20 +1710,19 @@ function playSynthNeon() {
     ambientNodes.nodes.push(vibGain, padGain);
   });
 
-  // Shimmering high layer
+  // Shimmer layer - high octave
   const shimmerOsc = ctx.createOscillator();
   shimmerOsc.type = 'sine';
-  shimmerOsc.frequency.value = 523.25; // C5
+  shimmerOsc.frequency.value = 1760; // A6
 
-  // Tremolo effect
   const shimmerLfo = ctx.createOscillator();
   shimmerLfo.type = 'sine';
-  shimmerLfo.frequency.value = 6;
+  shimmerLfo.frequency.value = 0.2;
   const shimmerLfoGain = ctx.createGain();
-  shimmerLfoGain.gain.value = 0.04;
+  shimmerLfoGain.gain.value = 0.02;
 
   const shimmerGain = ctx.createGain();
-  shimmerGain.gain.value = 0.04;
+  shimmerGain.gain.value = 0.02;
 
   shimmerLfo.connect(shimmerLfoGain);
   shimmerLfoGain.connect(shimmerGain.gain);
@@ -1270,62 +1734,581 @@ function playSynthNeon() {
 
   ambientNodes.sources.push(shimmerOsc, shimmerLfo);
   ambientNodes.nodes.push(shimmerLfoGain, shimmerGain);
+}
 
-  // Deep bass drone
-  const bassOsc = ctx.createOscillator();
-  bassOsc.type = 'sine';
-  bassOsc.frequency.value = 65.41; // C2
+// Synthwave Track 2: Midnight - Uses audio file if available
+async function playSynthNeon() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('synthwave2.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
 
-  const bassFilter = ctx.createBiquadFilter();
-  bassFilter.type = 'lowpass';
-  bassFilter.frequency.value = 200;
+  // Fallback to synthesis
+  const ctx = initAudioContext();
+  stopAmbientSound();
 
-  const bassGain = ctx.createGain();
-  bassGain.gain.value = 0.2;
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.32;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
 
-  bassOsc.connect(bassFilter);
-  bassFilter.connect(bassGain);
-  bassGain.connect(masterGain);
-  bassOsc.start();
+  // Deep sub bass
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.value = 65.41; // C2
 
-  ambientNodes.sources.push(bassOsc);
-  ambientNodes.nodes.push(bassFilter, bassGain);
+  // Subtle sub movement
+  const subLfo = ctx.createOscillator();
+  subLfo.type = 'sine';
+  subLfo.frequency.value = 0.05;
+  const subLfoGain = ctx.createGain();
+  subLfoGain.gain.value = 3;
+  subLfo.connect(subLfoGain);
+  subLfoGain.connect(subOsc.frequency);
+  subLfo.start();
 
-  // Slow evolving filter sweep on noise for texture
-  const noiseBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const subGain = ctx.createGain();
+  subGain.gain.value = 0.18;
+
+  subOsc.connect(subGain);
+  subGain.connect(masterGain);
+  subOsc.start();
+
+  ambientNodes.sources.push(subOsc, subLfo);
+  ambientNodes.nodes.push(subLfoGain, subGain);
+
+  // Lush evolving pad - C minor 7 for that moody feel
+  const padNotes = [130.81, 155.56, 196, 233.08]; // C3, Eb3, G3, Bb3
+  padNotes.forEach((freq, i) => {
+    // Main oscillator
+    const padOsc = ctx.createOscillator();
+    padOsc.type = i % 2 === 0 ? 'triangle' : 'sine';
+    padOsc.frequency.value = freq;
+    padOsc.detune.value = (i - 1.5) * 6;
+
+    // Detuned layer
+    const padOsc2 = ctx.createOscillator();
+    padOsc2.type = 'triangle';
+    padOsc2.frequency.value = freq;
+    padOsc2.detune.value = (i - 1.5) * 6 + 8;
+
+    // Slow vibrato
+    const vibLfo = ctx.createOscillator();
+    vibLfo.type = 'sine';
+    vibLfo.frequency.value = 0.15 + i * 0.05;
+    const vibGain = ctx.createGain();
+    vibGain.gain.value = freq * 0.008;
+    vibLfo.connect(vibGain);
+    vibGain.connect(padOsc.frequency);
+    vibGain.connect(padOsc2.frequency);
+    vibLfo.start();
+
+    const padFilter = ctx.createBiquadFilter();
+    padFilter.type = 'lowpass';
+    padFilter.frequency.value = 1500;
+    padFilter.Q.value = 0.5;
+
+    // Slow filter movement
+    const filterLfo = ctx.createOscillator();
+    filterLfo.type = 'sine';
+    filterLfo.frequency.value = 0.03 + i * 0.01;
+    const filterLfoGain = ctx.createGain();
+    filterLfoGain.gain.value = 500;
+    filterLfo.connect(filterLfoGain);
+    filterLfoGain.connect(padFilter.frequency);
+    filterLfo.start();
+
+    const padGain = ctx.createGain();
+    padGain.gain.value = 0.045;
+
+    const padMerge = ctx.createGain();
+    padOsc.connect(padMerge);
+    padOsc2.connect(padMerge);
+    padMerge.connect(padFilter);
+    padFilter.connect(padGain);
+    padGain.connect(masterGain);
+    padOsc.start();
+    padOsc2.start();
+
+    ambientNodes.sources.push(padOsc, padOsc2, vibLfo, filterLfo);
+    ambientNodes.nodes.push(vibGain, padFilter, filterLfoGain, padGain, padMerge);
+  });
+
+  // High shimmer arpeggio
+  const shimmerNotes = [523.25, 622.25, 783.99, 932.33]; // C5, Eb5, G5, Bb5
+  let shimmerIndex = 0;
+
+  const shimmerOsc = ctx.createOscillator();
+  shimmerOsc.type = 'sine';
+  shimmerOsc.frequency.value = shimmerNotes[0];
+
+  const shimmerFilter = ctx.createBiquadFilter();
+  shimmerFilter.type = 'lowpass';
+  shimmerFilter.frequency.value = 4000;
+
+  const shimmerGain = ctx.createGain();
+  shimmerGain.gain.value = 0.025;
+
+  shimmerOsc.connect(shimmerFilter);
+  shimmerFilter.connect(shimmerGain);
+  shimmerGain.connect(masterGain);
+  shimmerOsc.start();
+
+  // Slow shimmer arpeggio
+  ambientNodes.interval = setInterval(() => {
+    if (!ambientNodes.gain) return;
+    shimmerIndex = (shimmerIndex + 1) % shimmerNotes.length;
+    shimmerOsc.frequency.setTargetAtTime(shimmerNotes[shimmerIndex], ctx.currentTime, 0.1);
+  }, 800);
+
+  ambientNodes.sources.push(shimmerOsc);
+  ambientNodes.nodes.push(shimmerFilter, shimmerGain);
+
+  // Atmospheric texture
+  const noiseBuffer = createNoiseBuffer(ctx, 'pink', 15);
   const noiseSource = ctx.createBufferSource();
   noiseSource.buffer = noiseBuffer;
   noiseSource.loop = true;
 
   const noiseFilter = ctx.createBiquadFilter();
   noiseFilter.type = 'bandpass';
-  noiseFilter.frequency.value = 800;
-  noiseFilter.Q.value = 2;
+  noiseFilter.frequency.value = 1200;
+  noiseFilter.Q.value = 1.5;
 
-  // Slow sweep
-  const noiseLfo = ctx.createOscillator();
-  noiseLfo.type = 'sine';
-  noiseLfo.frequency.value = 0.05;
-  const noiseLfoGain = ctx.createGain();
-  noiseLfoGain.gain.value = 400;
-  noiseLfo.connect(noiseLfoGain);
-  noiseLfoGain.connect(noiseFilter.frequency);
-  noiseLfo.start();
+  // Evolving sweep
+  const noiseSweepLfo = ctx.createOscillator();
+  noiseSweepLfo.type = 'sine';
+  noiseSweepLfo.frequency.value = 0.02;
+  const noiseSweepGain = ctx.createGain();
+  noiseSweepGain.gain.value = 800;
+  noiseSweepLfo.connect(noiseSweepGain);
+  noiseSweepGain.connect(noiseFilter.frequency);
+  noiseSweepLfo.start();
 
   const noiseGain = ctx.createGain();
-  noiseGain.gain.value = 0.03;
+  noiseGain.gain.value = 0.025;
 
   noiseSource.connect(noiseFilter);
   noiseFilter.connect(noiseGain);
   noiseGain.connect(masterGain);
   noiseSource.start();
 
-  ambientNodes.sources.push(noiseSource, noiseLfo);
-  ambientNodes.nodes.push(noiseFilter, noiseLfoGain, noiseGain);
+  ambientNodes.sources.push(noiseSource, noiseSweepLfo);
+  ambientNodes.nodes.push(noiseFilter, noiseSweepGain, noiseGain);
+
+  // Occasional "sparkle" high notes
+  function playSparkle() {
+    if (!ambientNodes.gain) return;
+
+    const sparkleOsc = ctx.createOscillator();
+    sparkleOsc.type = 'sine';
+    const freq = shimmerNotes[Math.floor(Math.random() * shimmerNotes.length)] * 2;
+    sparkleOsc.frequency.value = freq;
+
+    const sparkleGain = ctx.createGain();
+    const intensity = 0.015 + Math.random() * 0.015;
+    sparkleGain.gain.setValueAtTime(0, ctx.currentTime);
+    sparkleGain.gain.linearRampToValueAtTime(intensity * (state.volume / 100), ctx.currentTime + 0.05);
+    sparkleGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+
+    sparkleOsc.connect(sparkleGain);
+    sparkleGain.connect(masterGain);
+    sparkleOsc.start();
+    sparkleOsc.stop(ctx.currentTime + 1);
+  }
+
+  function scheduleSparkles() {
+    if (!ambientNodes.gain) return;
+    playSparkle();
+    const nextDelay = 2000 + Math.random() * 4000;
+    ambientNodes.extraInterval = setTimeout(scheduleSparkles, nextDelay);
+  }
+  setTimeout(scheduleSparkles, 3000);
 }
 
-// Synthwave Track 3: Grid - Retro, sequenced, classic 80s
-function playSynthGrid() {
+// Synthwave Track 3: Retrowave - Uses audio file if available
+async function playSynthGrid() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('synthwave3.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  // Fallback to synthesis
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.32;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Deep sub bass
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.value = 73.42; // D2
+
+  const subGain = ctx.createGain();
+  subGain.gain.value = 0.18;
+
+  subOsc.connect(subGain);
+  subGain.connect(masterGain);
+  subOsc.start();
+
+  ambientNodes.sources.push(subOsc);
+  ambientNodes.nodes.push(subGain);
+
+  // Classic sequenced bass - D minor progression
+  const bassNotes = [73.42, 73.42, 87.31, 82.41, 73.42, 73.42, 98, 87.31]; // D2, D2, F2, E2, D2, D2, G2, F2
+  let bassIndex = 0;
+
+  const bassOsc = ctx.createOscillator();
+  bassOsc.type = 'sawtooth';
+  bassOsc.frequency.value = bassNotes[0];
+
+  const bassOsc2 = ctx.createOscillator();
+  bassOsc2.type = 'square';
+  bassOsc2.frequency.value = bassNotes[0];
+
+  const bassFilter = ctx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 400;
+  bassFilter.Q.value = 3;
+
+  // Pumping filter envelope
+  const bassEnvLfo = ctx.createOscillator();
+  bassEnvLfo.type = 'sawtooth';
+  bassEnvLfo.frequency.value = 4; // 16th note feel at 120 BPM
+  const bassEnvGain = ctx.createGain();
+  bassEnvGain.gain.value = 350;
+  bassEnvLfo.connect(bassEnvGain);
+  bassEnvGain.connect(bassFilter.frequency);
+  bassEnvLfo.start();
+
+  const bassGain = ctx.createGain();
+  bassGain.gain.value = 0.12;
+
+  const bassMerge = ctx.createGain();
+  bassMerge.gain.value = 0.7;
+  bassOsc.connect(bassMerge);
+  bassOsc2.connect(bassMerge);
+  bassMerge.connect(bassFilter);
+  bassFilter.connect(bassGain);
+  bassGain.connect(masterGain);
+  bassOsc.start();
+  bassOsc2.start();
+
+  // Bass sequence
+  ambientNodes.interval = setInterval(() => {
+    if (!ambientNodes.gain) return;
+    bassIndex = (bassIndex + 1) % bassNotes.length;
+    const freq = bassNotes[bassIndex];
+    bassOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+    bassOsc2.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+    subOsc.frequency.setTargetAtTime(freq / 2, ctx.currentTime, 0.02);
+  }, 250);
+
+  ambientNodes.sources.push(bassOsc, bassOsc2, bassEnvLfo);
+  ambientNodes.nodes.push(bassFilter, bassEnvGain, bassGain, bassMerge);
+
+  // Fast arpeggiator - D minor
+  const arpNotes = [587.33, 698.46, 880, 1174.66, 880, 698.46]; // D5, F5, A5, D6, A5, F5
+  let arpIndex = 0;
+
+  const arpOsc = ctx.createOscillator();
+  arpOsc.type = 'sawtooth';
+  arpOsc.frequency.value = arpNotes[0];
+
+  const arpOsc2 = ctx.createOscillator();
+  arpOsc2.type = 'sawtooth';
+  arpOsc2.frequency.value = arpNotes[0];
+  arpOsc2.detune.value = 10;
+
+  const arpFilter = ctx.createBiquadFilter();
+  arpFilter.type = 'lowpass';
+  arpFilter.frequency.value = 4000;
+  arpFilter.Q.value = 1.5;
+
+  // Filter sweep
+  const arpSweepLfo = ctx.createOscillator();
+  arpSweepLfo.type = 'sine';
+  arpSweepLfo.frequency.value = 0.1;
+  const arpSweepGain = ctx.createGain();
+  arpSweepGain.gain.value = 2000;
+  arpSweepLfo.connect(arpSweepGain);
+  arpSweepGain.connect(arpFilter.frequency);
+  arpSweepLfo.start();
+
+  const arpGain = ctx.createGain();
+  arpGain.gain.value = 0.06;
+
+  const arpMerge = ctx.createGain();
+  arpOsc.connect(arpMerge);
+  arpOsc2.connect(arpMerge);
+  arpMerge.connect(arpFilter);
+  arpFilter.connect(arpGain);
+  arpGain.connect(masterGain);
+  arpOsc.start();
+  arpOsc2.start();
+
+  // Fast arpeggio (16th notes)
+  const arpInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(arpInterval);
+      return;
+    }
+    arpIndex = (arpIndex + 1) % arpNotes.length;
+    const freq = arpNotes[arpIndex];
+    arpOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.005);
+    arpOsc2.frequency.setTargetAtTime(freq, ctx.currentTime, 0.005);
+  }, 125);
+
+  ambientNodes.extraInterval = arpInterval;
+
+  ambientNodes.sources.push(arpOsc, arpOsc2, arpSweepLfo);
+  ambientNodes.nodes.push(arpFilter, arpSweepGain, arpGain, arpMerge);
+
+  // Warm pad - D minor chord
+  const padNotes = [293.66, 349.23, 440]; // D4, F4, A4
+  padNotes.forEach((freq, i) => {
+    const padOsc = ctx.createOscillator();
+    padOsc.type = 'triangle';
+    padOsc.frequency.value = freq;
+    padOsc.detune.value = (i - 1) * 5;
+
+    // Gentle vibrato
+    const vibLfo = ctx.createOscillator();
+    vibLfo.type = 'sine';
+    vibLfo.frequency.value = 4.5 + i * 0.3;
+    const vibGain = ctx.createGain();
+    vibGain.gain.value = freq * 0.004;
+    vibLfo.connect(vibGain);
+    vibGain.connect(padOsc.frequency);
+    vibLfo.start();
+
+    const padGain = ctx.createGain();
+    padGain.gain.value = 0.04;
+
+    padOsc.connect(padGain);
+    padGain.connect(masterGain);
+    padOsc.start();
+
+    ambientNodes.sources.push(padOsc, vibLfo);
+    ambientNodes.nodes.push(vibGain, padGain);
+  });
+
+  // Snare-like accent on beat 2 and 4 feel
+  function playAccent() {
+    if (!ambientNodes.gain) return;
+
+    const accentGain = ctx.createGain();
+    accentGain.gain.setValueAtTime(0.04 * (state.volume / 100), ctx.currentTime);
+    accentGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    accentGain.connect(masterGain);
+
+    const noiseBuffer = createNoiseBuffer(ctx, 'white', 0.2);
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = 2000;
+
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(accentGain);
+    noiseSource.start();
+    noiseSource.stop(ctx.currentTime + 0.1);
+  }
+
+  // Accent on beats
+  let accentCount = 0;
+  const accentInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(accentInterval);
+      return;
+    }
+    accentCount++;
+    if (accentCount % 4 === 2 || accentCount % 4 === 0) {
+      playAccent();
+    }
+  }, 250);
+
+  ambientNodes.thunderTimeout = accentInterval;
+}
+
+// ============================================
+// Lo-fi Café Ambient Sounds
+// ============================================
+
+// Café Ambience - Coffee shop atmosphere with chatter and espresso machine
+async function playCafeAmbience() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('cafe.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.4);
+    return;
+  }
+
+  // Fallback to synthesis
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.4;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Background murmur (brown noise filtered)
+  const murmurBuffer = createNoiseBuffer(ctx, 'brown', 4);
+  const murmurSource = ctx.createBufferSource();
+  murmurSource.buffer = murmurBuffer;
+  murmurSource.loop = true;
+
+  const murmurFilter = ctx.createBiquadFilter();
+  murmurFilter.type = 'bandpass';
+  murmurFilter.frequency.value = 400;
+  murmurFilter.Q.value = 0.8;
+
+  const murmurGain = ctx.createGain();
+  murmurGain.gain.value = 0.25;
+
+  // Slow modulation on murmur volume
+  const murmurLfo = ctx.createOscillator();
+  murmurLfo.type = 'sine';
+  murmurLfo.frequency.value = 0.15;
+  const murmurLfoGain = ctx.createGain();
+  murmurLfoGain.gain.value = 0.08;
+  murmurLfo.connect(murmurLfoGain);
+  murmurLfoGain.connect(murmurGain.gain);
+  murmurLfo.start();
+
+  murmurSource.connect(murmurFilter);
+  murmurFilter.connect(murmurGain);
+  murmurGain.connect(masterGain);
+  murmurSource.start();
+
+  ambientNodes.sources.push(murmurSource, murmurLfo);
+  ambientNodes.nodes.push(murmurFilter, murmurGain, murmurLfoGain);
+
+  // Higher pitched chatter layer
+  const chatterBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const chatterSource = ctx.createBufferSource();
+  chatterSource.buffer = chatterBuffer;
+  chatterSource.loop = true;
+
+  const chatterFilter = ctx.createBiquadFilter();
+  chatterFilter.type = 'bandpass';
+  chatterFilter.frequency.value = 800;
+  chatterFilter.Q.value = 1.2;
+
+  const chatterGain = ctx.createGain();
+  chatterGain.gain.value = 0.1;
+
+  // Different modulation for variety
+  const chatterLfo = ctx.createOscillator();
+  chatterLfo.type = 'sine';
+  chatterLfo.frequency.value = 0.08;
+  const chatterLfoGain = ctx.createGain();
+  chatterLfoGain.gain.value = 0.05;
+  chatterLfo.connect(chatterLfoGain);
+  chatterLfoGain.connect(chatterGain.gain);
+  chatterLfo.start();
+
+  chatterSource.connect(chatterFilter);
+  chatterFilter.connect(chatterGain);
+  chatterGain.connect(masterGain);
+  chatterSource.start();
+
+  ambientNodes.sources.push(chatterSource, chatterLfo);
+  ambientNodes.nodes.push(chatterFilter, chatterGain, chatterLfoGain);
+
+  // Occasional cup/dish clink
+  function playClink() {
+    if (!ambientNodes.gain) return;
+
+    const clinkGain = ctx.createGain();
+    clinkGain.gain.setValueAtTime(0.08 * (state.volume / 100), ctx.currentTime);
+    clinkGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    clinkGain.connect(masterGain);
+
+    // Multiple oscillators for metallic sound
+    const freqs = [2200 + Math.random() * 800, 3400 + Math.random() * 600, 4800 + Math.random() * 400];
+    freqs.forEach(freq => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+
+      const oscGain = ctx.createGain();
+      oscGain.gain.value = 0.3;
+
+      osc.connect(oscGain);
+      oscGain.connect(clinkGain);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    });
+  }
+
+  // Espresso machine steam hiss
+  function playEspressoHiss() {
+    if (!ambientNodes.gain) return;
+
+    const hissBuffer = createNoiseBuffer(ctx, 'white', 2);
+    const hissSource = ctx.createBufferSource();
+    hissSource.buffer = hissBuffer;
+
+    const hissFilter = ctx.createBiquadFilter();
+    hissFilter.type = 'highpass';
+    hissFilter.frequency.value = 3000;
+
+    const hissGain = ctx.createGain();
+    hissGain.gain.setValueAtTime(0.001, ctx.currentTime);
+    hissGain.gain.exponentialRampToValueAtTime(0.15 * (state.volume / 100), ctx.currentTime + 0.2);
+    hissGain.gain.setValueAtTime(0.15 * (state.volume / 100), ctx.currentTime + 1.5);
+    hissGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2);
+
+    hissSource.connect(hissFilter);
+    hissFilter.connect(hissGain);
+    hissGain.connect(masterGain);
+    hissSource.start();
+    hissSource.stop(ctx.currentTime + 2.5);
+  }
+
+  // Schedule random café sounds
+  const cafeInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(cafeInterval);
+      return;
+    }
+    const rand = Math.random();
+    if (rand < 0.15) {
+      playClink();
+    } else if (rand < 0.2) {
+      playEspressoHiss();
+    }
+  }, 3000);
+
+  ambientNodes.interval = cafeInterval;
+}
+
+// Soft Jazz - Mellow piano and soft bass
+async function playLofiJazz() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('jazz.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  // Fallback to synthesis
   const ctx = initAudioContext();
   stopAmbientSound();
 
@@ -1336,28 +2319,55 @@ function playSynthGrid() {
   ambientNodes.sources = [];
   ambientNodes.nodes = [];
 
-  // Classic sequenced bass pattern (D minor)
-  const bassNotes = [73.42, 73.42, 87.31, 98]; // D2, D2, F2, G2
+  // Warm pad - jazz voicings (Dm7)
+  const padNotes = [146.83, 174.61, 220, 261.63]; // D3, F3, A3, C4
+  padNotes.forEach((freq, i) => {
+    const padOsc = ctx.createOscillator();
+    padOsc.type = 'sine';
+    padOsc.frequency.value = freq;
+
+    const padOsc2 = ctx.createOscillator();
+    padOsc2.type = 'triangle';
+    padOsc2.frequency.value = freq;
+    padOsc2.detune.value = 3;
+
+    // Gentle vibrato
+    const vibLfo = ctx.createOscillator();
+    vibLfo.type = 'sine';
+    vibLfo.frequency.value = 4 + i * 0.2;
+    const vibGain = ctx.createGain();
+    vibGain.gain.value = freq * 0.002;
+    vibLfo.connect(vibGain);
+    vibGain.connect(padOsc.frequency);
+    vibLfo.start();
+
+    const padGain = ctx.createGain();
+    padGain.gain.value = 0.06;
+
+    const merge = ctx.createGain();
+    merge.gain.value = 0.5;
+    padOsc.connect(merge);
+    padOsc2.connect(merge);
+    merge.connect(padGain);
+    padGain.connect(masterGain);
+    padOsc.start();
+    padOsc2.start();
+
+    ambientNodes.sources.push(padOsc, padOsc2, vibLfo);
+    ambientNodes.nodes.push(vibGain, padGain, merge);
+  });
+
+  // Walking bass pattern
+  const bassNotes = [73.42, 82.41, 87.31, 98]; // D2, E2, F2, G2
   let bassIndex = 0;
 
   const bassOsc = ctx.createOscillator();
-  bassOsc.type = 'square';
+  bassOsc.type = 'sine';
   bassOsc.frequency.value = bassNotes[0];
 
   const bassFilter = ctx.createBiquadFilter();
   bassFilter.type = 'lowpass';
-  bassFilter.frequency.value = 600;
-  bassFilter.Q.value = 4;
-
-  // Filter envelope simulation with LFO
-  const bassEnvLfo = ctx.createOscillator();
-  bassEnvLfo.type = 'sawtooth';
-  bassEnvLfo.frequency.value = 2;
-  const bassEnvGain = ctx.createGain();
-  bassEnvGain.gain.value = 300;
-  bassEnvLfo.connect(bassEnvGain);
-  bassEnvGain.connect(bassFilter.frequency);
-  bassEnvLfo.start();
+  bassFilter.frequency.value = 300;
 
   const bassGain = ctx.createGain();
   bassGain.gain.value = 0.15;
@@ -1367,103 +2377,523 @@ function playSynthGrid() {
   bassGain.connect(masterGain);
   bassOsc.start();
 
-  // Sequence the bass
-  ambientNodes.interval = setInterval(() => {
-    if (!ambientNodes.gain) return;
-    bassIndex = (bassIndex + 1) % bassNotes.length;
-    bassOsc.frequency.setTargetAtTime(bassNotes[bassIndex], ctx.currentTime, 0.01);
-  }, 250);
+  ambientNodes.sources.push(bassOsc);
+  ambientNodes.nodes.push(bassFilter, bassGain);
 
-  ambientNodes.sources.push(bassOsc, bassEnvLfo);
-  ambientNodes.nodes.push(bassFilter, bassEnvGain, bassGain);
-
-  // Arpeggiated lead (D minor: D, F, A, D)
-  const leadNotes = [293.66, 349.23, 440, 587.33]; // D4, F4, A4, D5
-  let leadIndex = 0;
-
-  const leadOsc = ctx.createOscillator();
-  leadOsc.type = 'sawtooth';
-  leadOsc.frequency.value = leadNotes[0];
-
-  const leadFilter = ctx.createBiquadFilter();
-  leadFilter.type = 'lowpass';
-  leadFilter.frequency.value = 3000;
-  leadFilter.Q.value = 2;
-
-  const leadGain = ctx.createGain();
-  leadGain.gain.value = 0.08;
-
-  leadOsc.connect(leadFilter);
-  leadFilter.connect(leadGain);
-  leadGain.connect(masterGain);
-  leadOsc.start();
-
-  // Faster arpeggio for lead
-  const leadInterval = setInterval(() => {
+  // Walking bass rhythm
+  const bassInterval = setInterval(() => {
     if (!ambientNodes.gain) {
-      clearInterval(leadInterval);
+      clearInterval(bassInterval);
       return;
     }
-    leadIndex = (leadIndex + 1) % leadNotes.length;
-    leadOsc.frequency.setTargetAtTime(leadNotes[leadIndex], ctx.currentTime, 0.01);
-  }, 125);
+    bassIndex = (bassIndex + 1) % bassNotes.length;
+    bassOsc.frequency.setTargetAtTime(bassNotes[bassIndex], ctx.currentTime, 0.05);
+  }, 600);
 
-  ambientNodes.sources.push(leadOsc);
-  ambientNodes.nodes.push(leadFilter, leadGain);
+  ambientNodes.interval = bassInterval;
 
-  // Pad for fullness
-  const padFreqs = [146.83, 174.61, 220]; // D3, F3, A3
-  padFreqs.forEach((freq) => {
-    const padOsc = ctx.createOscillator();
-    padOsc.type = 'triangle';
-    padOsc.frequency.value = freq;
+  // Occasional piano note
+  function playPianoNote() {
+    if (!ambientNodes.gain) return;
 
-    const padGain = ctx.createGain();
-    padGain.gain.value = 0.05;
+    const pianoNotes = [293.66, 329.63, 349.23, 392, 440, 523.25]; // D4, E4, F4, G4, A4, C5
+    const noteFreq = pianoNotes[Math.floor(Math.random() * pianoNotes.length)];
 
-    padOsc.connect(padGain);
-    padGain.connect(masterGain);
-    padOsc.start();
+    const noteGain = ctx.createGain();
+    noteGain.gain.setValueAtTime(0.12 * (state.volume / 100), ctx.currentTime);
+    noteGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2);
+    noteGain.connect(masterGain);
 
-    ambientNodes.sources.push(padOsc);
-    ambientNodes.nodes.push(padGain);
-  });
+    // Simple piano-like tone (sine + harmonics)
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.value = noteFreq;
 
-  // Sub bass
-  const subOsc = ctx.createOscillator();
-  subOsc.type = 'sine';
-  subOsc.frequency.value = 36.71; // D1
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = noteFreq * 2;
 
-  const subGain = ctx.createGain();
-  subGain.gain.value = 0.15;
+    const osc3 = ctx.createOscillator();
+    osc3.type = 'sine';
+    osc3.frequency.value = noteFreq * 3;
 
-  subOsc.connect(subGain);
-  subGain.connect(masterGain);
-  subOsc.start();
+    const gain2 = ctx.createGain();
+    gain2.gain.value = 0.3;
+    const gain3 = ctx.createGain();
+    gain3.gain.value = 0.1;
 
-  ambientNodes.sources.push(subOsc);
-  ambientNodes.nodes.push(subGain);
+    osc1.connect(noteGain);
+    osc2.connect(gain2);
+    gain2.connect(noteGain);
+    osc3.connect(gain3);
+    gain3.connect(noteGain);
 
-  // Store extra interval for cleanup
-  const originalStop = stopAmbientSound;
-  ambientNodes.extraInterval = leadInterval;
+    osc1.start();
+    osc2.start();
+    osc3.start();
+    osc1.stop(ctx.currentTime + 2.5);
+    osc2.stop(ctx.currentTime + 2.5);
+    osc3.stop(ctx.currentTime + 2.5);
+  }
+
+  // Play piano notes occasionally
+  const pianoInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(pianoInterval);
+      return;
+    }
+    if (Math.random() < 0.3) {
+      playPianoNote();
+    }
+  }, 2000);
+
+  ambientNodes.extraInterval = pianoInterval;
+}
+
+// Typing & Rain - Keyboard typing sounds with light rain
+async function playLofiTyping() {
+  // Try to load audio file first
+  const audioBuffer = await loadAudioFile('typing.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.4);
+    return;
+  }
+
+  // Fallback to synthesis
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.4;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Light rain background
+  const rainBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const rainSource = ctx.createBufferSource();
+  rainSource.buffer = rainBuffer;
+  rainSource.loop = true;
+
+  const rainFilter = ctx.createBiquadFilter();
+  rainFilter.type = 'lowpass';
+  rainFilter.frequency.value = 2500;
+
+  const rainFilter2 = ctx.createBiquadFilter();
+  rainFilter2.type = 'highpass';
+  rainFilter2.frequency.value = 200;
+
+  const rainGain = ctx.createGain();
+  rainGain.gain.value = 0.2;
+
+  rainSource.connect(rainFilter);
+  rainFilter.connect(rainFilter2);
+  rainFilter2.connect(rainGain);
+  rainGain.connect(masterGain);
+  rainSource.start();
+
+  ambientNodes.sources.push(rainSource);
+  ambientNodes.nodes.push(rainFilter, rainFilter2, rainGain);
+
+  // Keyboard click sound
+  function playKeyClick() {
+    if (!ambientNodes.gain) return;
+
+    const clickGain = ctx.createGain();
+    const volume = (0.05 + Math.random() * 0.05) * (state.volume / 100);
+    clickGain.gain.setValueAtTime(volume, ctx.currentTime);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    clickGain.connect(masterGain);
+
+    // Click is noise burst + tone
+    const clickBuffer = createNoiseBuffer(ctx, 'white', 0.1);
+    const clickSource = ctx.createBufferSource();
+    clickSource.buffer = clickBuffer;
+
+    const clickFilter = ctx.createBiquadFilter();
+    clickFilter.type = 'bandpass';
+    clickFilter.frequency.value = 1500 + Math.random() * 1000;
+    clickFilter.Q.value = 2;
+
+    clickSource.connect(clickFilter);
+    clickFilter.connect(clickGain);
+    clickSource.start();
+    clickSource.stop(ctx.currentTime + 0.08);
+
+    // Subtle thock
+    const thockOsc = ctx.createOscillator();
+    thockOsc.type = 'sine';
+    thockOsc.frequency.value = 150 + Math.random() * 50;
+
+    const thockGain = ctx.createGain();
+    thockGain.gain.setValueAtTime(volume * 0.5, ctx.currentTime);
+    thockGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+
+    thockOsc.connect(thockGain);
+    thockGain.connect(masterGain);
+    thockOsc.start();
+    thockOsc.stop(ctx.currentTime + 0.06);
+  }
+
+  // Typing rhythm - variable speed typing
+  let typingActive = true;
+  let pauseUntil = 0;
+
+  const typingInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(typingInterval);
+      return;
+    }
+
+    const now = Date.now();
+    if (now < pauseUntil) return;
+
+    // Random pause between typing bursts
+    if (Math.random() < 0.05) {
+      pauseUntil = now + 1000 + Math.random() * 2000;
+      return;
+    }
+
+    playKeyClick();
+  }, 80 + Math.random() * 100);
+
+  ambientNodes.interval = typingInterval;
+
+  // Occasional space bar (slightly different sound)
+  const spaceInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(spaceInterval);
+      return;
+    }
+
+    if (Math.random() < 0.2) {
+      // Space bar sound - lower, longer
+      const spaceGain = ctx.createGain();
+      spaceGain.gain.setValueAtTime(0.08 * (state.volume / 100), ctx.currentTime);
+      spaceGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      spaceGain.connect(masterGain);
+
+      const spaceOsc = ctx.createOscillator();
+      spaceOsc.type = 'sine';
+      spaceOsc.frequency.value = 100;
+      spaceOsc.connect(spaceGain);
+      spaceOsc.start();
+      spaceOsc.stop(ctx.currentTime + 0.15);
+    }
+  }, 500);
+
+  ambientNodes.extraInterval = spaceInterval;
+}
+
+// ============================================
+// Terminal Ambient Sounds
+// ============================================
+
+// System Hum - Low electronic drone
+async function playTerminalHum() {
+  const audioBuffer = await loadAudioFile('terminal-hum.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.35;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Base hum (60Hz electrical)
+  const humOsc = ctx.createOscillator();
+  humOsc.type = 'sine';
+  humOsc.frequency.value = 60;
+
+  const humGain = ctx.createGain();
+  humGain.gain.value = 0.15;
+
+  humOsc.connect(humGain);
+  humGain.connect(masterGain);
+  humOsc.start();
+
+  ambientNodes.sources.push(humOsc);
+  ambientNodes.nodes.push(humGain);
+
+  // Harmonic at 120Hz
+  const harmOsc = ctx.createOscillator();
+  harmOsc.type = 'sine';
+  harmOsc.frequency.value = 120;
+
+  const harmGain = ctx.createGain();
+  harmGain.gain.value = 0.08;
+
+  harmOsc.connect(harmGain);
+  harmGain.connect(masterGain);
+  harmOsc.start();
+
+  ambientNodes.sources.push(harmOsc);
+  ambientNodes.nodes.push(harmGain);
+
+  // High frequency CRT whine
+  const whineOsc = ctx.createOscillator();
+  whineOsc.type = 'sine';
+  whineOsc.frequency.value = 15750; // CRT horizontal scan frequency
+
+  const whineGain = ctx.createGain();
+  whineGain.gain.value = 0.02;
+
+  // Subtle modulation
+  const whineLfo = ctx.createOscillator();
+  whineLfo.type = 'sine';
+  whineLfo.frequency.value = 0.5;
+  const whineLfoGain = ctx.createGain();
+  whineLfoGain.gain.value = 0.01;
+  whineLfo.connect(whineLfoGain);
+  whineLfoGain.connect(whineGain.gain);
+  whineLfo.start();
+
+  whineOsc.connect(whineGain);
+  whineGain.connect(masterGain);
+  whineOsc.start();
+
+  ambientNodes.sources.push(whineOsc, whineLfo);
+  ambientNodes.nodes.push(whineGain, whineLfoGain);
+
+  // Subtle noise floor
+  const noiseBuffer = createNoiseBuffer(ctx, 'pink', 4);
+  const noiseSource = ctx.createBufferSource();
+  noiseSource.buffer = noiseBuffer;
+  noiseSource.loop = true;
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'lowpass';
+  noiseFilter.frequency.value = 500;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = 0.05;
+
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(masterGain);
+  noiseSource.start();
+
+  ambientNodes.sources.push(noiseSource);
+  ambientNodes.nodes.push(noiseFilter, noiseGain);
+}
+
+// Mechanical Keyboard - Typing sounds
+async function playTerminalKeys() {
+  const audioBuffer = await loadAudioFile('terminal-keys.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.4);
+    return;
+  }
+
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.4;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Background hum
+  const humOsc = ctx.createOscillator();
+  humOsc.type = 'sine';
+  humOsc.frequency.value = 60;
+
+  const humGain = ctx.createGain();
+  humGain.gain.value = 0.03;
+
+  humOsc.connect(humGain);
+  humGain.connect(masterGain);
+  humOsc.start();
+
+  ambientNodes.sources.push(humOsc);
+  ambientNodes.nodes.push(humGain);
+
+  // Mechanical key click
+  function playMechKey() {
+    if (!ambientNodes.gain) return;
+
+    const clickGain = ctx.createGain();
+    const vol = (0.08 + Math.random() * 0.06) * (state.volume / 100);
+    clickGain.gain.setValueAtTime(vol, ctx.currentTime);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    clickGain.connect(masterGain);
+
+    // Click down
+    const clickOsc = ctx.createOscillator();
+    clickOsc.type = 'square';
+    clickOsc.frequency.value = 800 + Math.random() * 400;
+
+    const clickFilter = ctx.createBiquadFilter();
+    clickFilter.type = 'bandpass';
+    clickFilter.frequency.value = 2000;
+    clickFilter.Q.value = 1;
+
+    clickOsc.connect(clickFilter);
+    clickFilter.connect(clickGain);
+    clickOsc.start();
+    clickOsc.stop(ctx.currentTime + 0.02);
+
+    // Thock sound
+    const thockOsc = ctx.createOscillator();
+    thockOsc.type = 'sine';
+    thockOsc.frequency.value = 200 + Math.random() * 100;
+
+    const thockGain = ctx.createGain();
+    thockGain.gain.setValueAtTime(vol * 0.7, ctx.currentTime);
+    thockGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+
+    thockOsc.connect(thockGain);
+    thockGain.connect(masterGain);
+    thockOsc.start();
+    thockOsc.stop(ctx.currentTime + 0.1);
+  }
+
+  // Typing rhythm
+  let pauseUntil = 0;
+  const typingInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(typingInterval);
+      return;
+    }
+
+    const now = Date.now();
+    if (now < pauseUntil) return;
+
+    if (Math.random() < 0.03) {
+      pauseUntil = now + 500 + Math.random() * 1500;
+      return;
+    }
+
+    playMechKey();
+  }, 60 + Math.random() * 80);
+
+  ambientNodes.interval = typingInterval;
+}
+
+// Data Stream - Digital processing sounds
+async function playTerminalData() {
+  const audioBuffer = await loadAudioFile('terminal-data.mp3');
+  if (audioBuffer) {
+    playLoadedAudio(audioBuffer, 0.35);
+    return;
+  }
+
+  const ctx = initAudioContext();
+  stopAmbientSound();
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.volume / 100 * 0.35;
+  masterGain.connect(ctx.destination);
+  ambientNodes.gain = masterGain;
+  ambientNodes.sources = [];
+  ambientNodes.nodes = [];
+
+  // Base digital noise
+  const noiseBuffer = createNoiseBuffer(ctx, 'white', 4);
+  const noiseSource = ctx.createBufferSource();
+  noiseSource.buffer = noiseBuffer;
+  noiseSource.loop = true;
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 2000;
+  noiseFilter.Q.value = 2;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = 0.03;
+
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(masterGain);
+  noiseSource.start();
+
+  ambientNodes.sources.push(noiseSource);
+  ambientNodes.nodes.push(noiseFilter, noiseGain);
+
+  // Low digital drone
+  const droneOsc = ctx.createOscillator();
+  droneOsc.type = 'sawtooth';
+  droneOsc.frequency.value = 55;
+
+  const droneFilter = ctx.createBiquadFilter();
+  droneFilter.type = 'lowpass';
+  droneFilter.frequency.value = 200;
+
+  const droneGain = ctx.createGain();
+  droneGain.gain.value = 0.08;
+
+  droneOsc.connect(droneFilter);
+  droneFilter.connect(droneGain);
+  droneGain.connect(masterGain);
+  droneOsc.start();
+
+  ambientNodes.sources.push(droneOsc);
+  ambientNodes.nodes.push(droneFilter, droneGain);
+
+  // Data blips
+  function playBlip() {
+    if (!ambientNodes.gain) return;
+
+    const blipGain = ctx.createGain();
+    blipGain.gain.setValueAtTime(0.06 * (state.volume / 100), ctx.currentTime);
+    blipGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    blipGain.connect(masterGain);
+
+    const blipOsc = ctx.createOscillator();
+    blipOsc.type = 'sine';
+    blipOsc.frequency.value = 400 + Math.random() * 1200;
+    blipOsc.connect(blipGain);
+    blipOsc.start();
+    blipOsc.stop(ctx.currentTime + 0.05 + Math.random() * 0.05);
+  }
+
+  // Occasional data burst
+  function playBurst() {
+    if (!ambientNodes.gain) return;
+
+    for (let i = 0; i < 3 + Math.floor(Math.random() * 4); i++) {
+      setTimeout(() => playBlip(), i * 50);
+    }
+  }
+
+  const dataInterval = setInterval(() => {
+    if (!ambientNodes.gain) {
+      clearInterval(dataInterval);
+      return;
+    }
+
+    if (Math.random() < 0.3) {
+      playBlip();
+    }
+    if (Math.random() < 0.1) {
+      playBurst();
+    }
+  }, 300);
+
+  ambientNodes.interval = dataInterval;
 }
 
 function playAmbientSound(soundType) {
   state.currentSound = soundType;
 
   // Update UI
-  elements.soundBtns.forEach(btn => {
-    const isActive = btn.dataset.sound === soundType;
-    btn.classList.toggle('active', isActive);
-    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-  });
+  updateSoundUI();
 
   // Stop current sound
   stopAmbientSound();
 
-  // Only play during work mode or if timer is idle
-  const shouldPlay = state.mode === 'work' || state.status === 'idle';
+  // Only play during active session (running)
+  const shouldPlay = state.status === 'running';
 
   if (soundType !== 'off' && shouldPlay) {
     switch (soundType) {
@@ -1473,8 +2903,8 @@ function playAmbientSound(soundType) {
       case 'fireplace':
         playFireplace();
         break;
-      case 'river':
-        playRiver();
+      case 'forest':
+        playForest();
         break;
       case 'synthDrive':
         playSynthDrive();
@@ -1485,10 +2915,29 @@ function playAmbientSound(soundType) {
       case 'synthGrid':
         playSynthGrid();
         break;
+      case 'cafeAmbience':
+        playCafeAmbience();
+        break;
+      case 'lofiJazz':
+        playLofiJazz();
+        break;
+      case 'lofiTyping':
+        playLofiTyping();
+        break;
+      case 'terminalHum':
+        playTerminalHum();
+        break;
+      case 'terminalKeys':
+        playTerminalKeys();
+        break;
+      case 'terminalData':
+        playTerminalData();
+        break;
     }
   }
 
-  saveToStorage();
+  // Don't persist sound selection between sessions
+  // saveToStorage();
 }
 
 function updateVolume(value) {
@@ -1497,12 +2946,18 @@ function updateVolume(value) {
   if (ambientNodes.gain) {
     // Scale based on sound type
     let scale = 0.5;
-    if (state.currentSound === 'rain') scale = 0.6;
-    if (state.currentSound === 'fireplace') scale = 0.5;
-    if (state.currentSound === 'river') scale = 0.5;
+    if (state.currentSound === 'rain') scale = 0.5;
+    if (state.currentSound === 'fireplace') scale = 0.45;
+    if (state.currentSound === 'forest') scale = 0.5;
     if (state.currentSound === 'synthDrive') scale = 0.35;
     if (state.currentSound === 'synthNeon') scale = 0.35;
     if (state.currentSound === 'synthGrid') scale = 0.35;
+    if (state.currentSound === 'cafeAmbience') scale = 0.4;
+    if (state.currentSound === 'lofiJazz') scale = 0.35;
+    if (state.currentSound === 'lofiTyping') scale = 0.4;
+    if (state.currentSound === 'terminalHum') scale = 0.35;
+    if (state.currentSound === 'terminalKeys') scale = 0.4;
+    if (state.currentSound === 'terminalData') scale = 0.35;
 
     ambientNodes.gain.gain.value = value / 100 * scale;
   }
@@ -1511,8 +2966,8 @@ function updateVolume(value) {
 }
 
 function updateAmbientSoundForMode() {
-  // Pause sounds during breaks, resume during work
-  if (state.mode === 'break' || state.status === 'completed') {
+  // Stop sounds when timer completes, keep playing during work and break
+  if (state.status === 'completed') {
     stopAmbientSound();
   } else if (state.currentSound !== 'off' && state.status === 'running') {
     playAmbientSound(state.currentSound);
@@ -1534,6 +2989,143 @@ function closeStatsModal() {
   elements.statsOverlay.setAttribute('aria-hidden', 'true');
 }
 
+// ============================================
+// Settings Modal
+// ============================================
+
+function openSettingsModal() {
+  elements.settingsOverlay.classList.add('active');
+  elements.settingsOverlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeSettingsModal() {
+  elements.settingsOverlay.classList.remove('active');
+  elements.settingsOverlay.setAttribute('aria-hidden', 'true');
+}
+
+// ============================================
+// Notes Modal
+// ============================================
+
+function openNotesModal(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  editingNotesTaskId = taskId;
+  elements.notesTaskName.textContent = task.name;
+  elements.notesTextarea.value = task.notes || '';
+  elements.notesOverlay.classList.add('active');
+  elements.notesOverlay.setAttribute('aria-hidden', 'false');
+  elements.notesTextarea.focus();
+}
+
+function closeNotesModal() {
+  elements.notesOverlay.classList.remove('active');
+  elements.notesOverlay.setAttribute('aria-hidden', 'true');
+  editingNotesTaskId = null;
+}
+
+function saveTaskNotes() {
+  if (!editingNotesTaskId) return;
+
+  const task = state.tasks.find(t => t.id === editingNotesTaskId);
+  if (!task) return;
+
+  const notes = elements.notesTextarea.value.trim();
+  task.notes = notes;
+  saveToStorage();
+  renderTasks();
+  closeNotesModal();
+}
+
+// ============================================
+// End of Day Summary Modal
+// ============================================
+
+function getYesterdayDate() {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return getDateInAEST(yesterday);
+}
+
+function shouldShowSummary() {
+  const today = getTodayDate();
+  const yesterday = getYesterdayDate();
+
+  // Don't show if already shown today
+  if (state.summaryShownDate === today) {
+    return false;
+  }
+
+  // Check if there's data from yesterday
+  const yesterdayData = state.history[yesterday];
+  if (!yesterdayData || (yesterdayData.minutes === 0 && yesterdayData.sessions === 0)) {
+    return false;
+  }
+
+  return true;
+}
+
+function openSummaryModal() {
+  const yesterday = getYesterdayDate();
+  const yesterdayData = state.history[yesterday] || { sessions: 0, minutes: 0 };
+
+  // Update summary display
+  elements.summaryMinutes.textContent = yesterdayData.minutes || 0;
+  elements.summarySessions.textContent = yesterdayData.sessions || 0;
+
+  // Count tasks completed yesterday (we'll estimate based on sessions if not tracked)
+  // For now, show sessions as a proxy (in future could track task completions per day)
+  elements.summaryTasks.textContent = yesterdayData.sessions || 0;
+
+  // Update streak display
+  const metGoal = (yesterdayData.minutes || 0) >= state.dailyGoalMinutes;
+  if (metGoal) {
+    elements.summaryStreak.classList.remove('goal-missed');
+    elements.summaryStreakText.textContent = `${state.currentStreak} day streak`;
+    elements.summaryMessage.textContent = getMotivationalMessage(true, state.currentStreak);
+  } else {
+    elements.summaryStreak.classList.add('goal-missed');
+    elements.summaryStreakText.textContent = 'Streak reset';
+    elements.summaryMessage.textContent = getMotivationalMessage(false, 0);
+  }
+
+  elements.summaryOverlay.classList.add('active');
+  elements.summaryOverlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeSummaryModal() {
+  elements.summaryOverlay.classList.remove('active');
+  elements.summaryOverlay.setAttribute('aria-hidden', 'true');
+
+  // Mark summary as shown for today
+  state.summaryShownDate = getTodayDate();
+  saveToStorage();
+}
+
+function getMotivationalMessage(metGoal, streak) {
+  if (metGoal) {
+    if (streak >= 7) {
+      return "Amazing dedication! You're on fire! 🔥";
+    } else if (streak >= 3) {
+      return "Great consistency! Keep the momentum going.";
+    } else {
+      return "Solid work yesterday! Let's do it again.";
+    }
+  } else {
+    return "Every day is a fresh start. Let's make today count!";
+  }
+}
+
+function checkAndShowSummary() {
+  if (shouldShowSummary()) {
+    // Small delay to let the app load first
+    setTimeout(() => {
+      openSummaryModal();
+    }, 500);
+  }
+}
+
 function updateStatsDisplay() {
   // Calculate summary stats
   const today = getTodayDate();
@@ -1549,89 +3141,140 @@ function updateStatsDisplay() {
   let monthStats = { sessions: 0, minutes: 0 };
   let totalStats = { sessions: 0, minutes: 0 };
 
+  // Day of week totals for best day calculation (Mon-Fri only, indices 1-5)
+  const dayOfWeekTotals = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
+  const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0];
+  let totalDays = 0;
+
   for (const [dateStr, data] of Object.entries(state.history)) {
     const date = new Date(dateStr);
+    const dayOfWeek = date.getDay();
+    const minutes = data.minutes || 0;
+
+    // Skip weekends for average and best day calculations
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
     totalStats.sessions += data.sessions;
-    totalStats.minutes += data.minutes || 0;
+    totalStats.minutes += minutes;
+
+    if (minutes > 0 && !isWeekend) {
+      dayOfWeekTotals[dayOfWeek] += minutes;
+      dayOfWeekCounts[dayOfWeek]++;
+      totalDays++;
+    }
 
     if (date >= weekStart) {
       weekStats.sessions += data.sessions;
-      weekStats.minutes += data.minutes || 0;
+      weekStats.minutes += minutes;
     }
     if (date >= monthStart) {
       monthStats.sessions += data.sessions;
-      monthStats.minutes += data.minutes || 0;
+      monthStats.minutes += minutes;
     }
   }
 
-  // Display based on current view mode
-  const isMinutes = state.statsView === 'minutes';
+  // Display stats (always show minutes now)
+  document.getElementById('statToday').textContent = formatMinutesShort(todayData.minutes || 0);
+  document.getElementById('statWeek').textContent = formatMinutesShort(weekStats.minutes);
+  document.getElementById('statMonth').textContent = formatMinutesShort(monthStats.minutes);
+  document.getElementById('statTotal').textContent = formatMinutesShort(totalStats.minutes);
 
-  document.getElementById('statToday').textContent =
-    isMinutes ? todayData.minutes || 0 : todayData.sessions;
-  document.getElementById('statWeek').textContent =
-    isMinutes ? weekStats.minutes : weekStats.sessions;
-  document.getElementById('statMonth').textContent =
-    isMinutes ? monthStats.minutes : monthStats.sessions;
-  document.getElementById('statTotal').textContent =
-    isMinutes ? totalStats.minutes : totalStats.sessions;
+  // Calculate best day of week (Mon-Fri only)
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  let bestDay = '-';
+  let bestDayAvg = 0;
+  // Only check Mon (1) through Fri (5)
+  for (let i = 1; i <= 5; i++) {
+    if (dayOfWeekCounts[i] > 0) {
+      const avg = dayOfWeekTotals[i] / dayOfWeekCounts[i];
+      if (avg > bestDayAvg) {
+        bestDayAvg = avg;
+        bestDay = dayNames[i];
+      }
+    }
+  }
+  document.getElementById('bestDayOfWeek').textContent = bestDay;
 
-  // Update toggle button states
-  elements.statsToggleBtns.forEach(btn => {
-    const isActive = btn.dataset.view === state.statsView;
-    btn.classList.toggle('active', isActive);
-    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-  });
+  // Calculate average focus time per day
+  const avgPerDay = totalDays > 0 ? Math.round(totalStats.minutes / totalDays) : 0;
+  document.getElementById('avgFocusPerDay').textContent = formatMinutesShort(avgPerDay);
 
-  // Generate chart
-  generateChart();
+  // Update streak displays
+  if (elements.currentStreakDisplay) {
+    elements.currentStreakDisplay.textContent = state.currentStreak;
+  }
+  if (elements.longestStreakDisplay) {
+    elements.longestStreakDisplay.textContent = state.longestStreak;
+  }
+
+  // Generate charts
+  generateChart('daily');
+  generateTrendLine();
+  generateHeatMap();
 }
 
-function generateChart() {
+// Format minutes for display (e.g., 90 -> "1h 30m", 45 -> "45m")
+function formatMinutesShort(minutes) {
+  if (minutes === 0) return '0';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+// Current chart view state
+let currentChartView = 'daily';
+
+function generateChart(view) {
+  currentChartView = view;
   const chartContainer = elements.statsChart;
   chartContainer.innerHTML = '';
 
-  const isMinutes = state.statsView === 'minutes';
+  // Update tab states
+  document.querySelectorAll('.chart-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.chart === view);
+  });
 
-  // Get last 14 days
-  const days = [];
-  const now = new Date();
+  let data = [];
 
-  for (let i = 13; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(now.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
-
-    days.push({
-      date: date,
-      dateStr: dateStr,
-      value: isMinutes ? (data.minutes || 0) : data.sessions,
-      label: date.getDate().toString()
-    });
+  if (view === 'daily') {
+    data = getDailyChartData(14);
+  } else if (view === 'weekly') {
+    data = getWeeklyChartData(12);
+  } else if (view === 'monthly') {
+    data = getMonthlyChartData(12);
   }
 
   // Find max value for scaling
-  const maxValue = Math.max(...days.map(d => d.value), 1);
+  const maxValue = Math.max(...data.map(d => d.value), 1);
 
   // Create bars
-  days.forEach(day => {
+  data.forEach(item => {
     const bar = document.createElement('div');
     bar.className = 'chart-bar';
+    if (item.goalMet) {
+      bar.classList.add('goal-met');
+    }
 
     const fill = document.createElement('div');
-    fill.className = 'chart-bar-fill' + (day.value === 0 ? ' empty' : '');
-    const heightPercent = (day.value / maxValue) * 100;
-    fill.style.height = Math.max(heightPercent, 4) + 'px';
+    fill.className = 'chart-bar-fill';
+    if (item.goalMet) {
+      fill.classList.add('goal-met');
+    }
+    if (item.value === 0) {
+      fill.classList.add('empty');
+    }
+    const heightPercent = (item.value / maxValue) * 100;
+    fill.style.height = Math.max(heightPercent, 4) + '%';
 
     const label = document.createElement('span');
     label.className = 'chart-bar-label';
-    label.textContent = day.label;
+    label.textContent = item.label;
 
-    if (day.value > 0) {
+    if (item.value > 0) {
       const value = document.createElement('span');
       value.className = 'chart-bar-value';
-      value.textContent = day.value;
+      value.textContent = item.value >= 60 ? `${Math.round(item.value / 60)}h` : item.value;
       bar.appendChild(value);
     }
 
@@ -1641,6 +3284,313 @@ function generateChart() {
   });
 }
 
+function getDailyChartData(numDays) {
+  const days = [];
+  const now = new Date();
+  let collected = 0;
+  let daysBack = 0;
+
+  // Collect numDays weekdays (Mon-Fri), skipping Sat/Sun
+  while (collected < numDays) {
+    const date = new Date(now);
+    date.setDate(now.getDate() - daysBack);
+    const dayOfWeek = date.getDay();
+
+    // Skip Saturday (6) and Sunday (0)
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      const dateStr = getDateInAEST(date);
+      const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+      const minutes = data.minutes || 0;
+      const goalForDay = data.dailyGoal || state.dailyGoalMinutes;
+
+      days.unshift({
+        date: date,
+        dateStr: dateStr,
+        value: minutes,
+        label: date.getDate().toString(),
+        goalMet: minutes >= goalForDay
+      });
+      collected++;
+    }
+    daysBack++;
+  }
+
+  return days;
+}
+
+function getWeeklyChartData(numWeeks) {
+  const weeks = [];
+  const now = new Date();
+
+  for (let i = numWeeks - 1; i >= 0; i--) {
+    const weekEnd = new Date(now);
+    weekEnd.setDate(now.getDate() - (i * 7));
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekEnd.getDate() - 6);
+
+    let weekTotal = 0;
+    let daysMetGoal = 0;
+    let weekdayCount = 0;
+
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + d);
+      const dayOfWeek = date.getDay();
+
+      // Skip Saturday (6) and Sunday (0)
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+      weekdayCount++;
+      const dateStr = getDateInAEST(date);
+      const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+      const minutes = data.minutes || 0;
+      const goalForDay = data.dailyGoal || state.dailyGoalMinutes;
+      weekTotal += minutes;
+      if (minutes >= goalForDay) daysMetGoal++;
+    }
+
+    // Week label: "Jan 5" format
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const label = `${monthNames[weekStart.getMonth()]} ${weekStart.getDate()}`;
+
+    weeks.push({
+      value: weekTotal,
+      label: i === 0 ? 'This' : (i === 1 ? 'Last' : label),
+      goalMet: daysMetGoal >= 4 // Consider week successful if 4+ weekdays met goal (out of 5)
+    });
+  }
+
+  return weeks;
+}
+
+function getMonthlyChartData(numMonths) {
+  const months = [];
+  const now = new Date();
+
+  for (let i = numMonths - 1; i >= 0; i--) {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+
+    let monthTotal = 0;
+    let daysMetGoal = 0;
+    let daysInMonth = monthEnd.getDate();
+    let weekdayCount = 0;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
+      const dayOfWeek = date.getDay();
+
+      // Skip Saturday (6) and Sunday (0)
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+      weekdayCount++;
+      const dateStr = getDateInAEST(date);
+      const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+      const minutes = data.minutes || 0;
+      const goalForDay = data.dailyGoal || state.dailyGoalMinutes;
+      monthTotal += minutes;
+      if (minutes >= goalForDay) daysMetGoal++;
+    }
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    months.push({
+      value: monthTotal,
+      label: monthNames[monthDate.getMonth()],
+      goalMet: daysMetGoal >= Math.floor(weekdayCount * 0.7) // 70% of weekdays
+    });
+  }
+
+  return months;
+}
+
+function generateTrendLine() {
+  const canvas = document.getElementById('trendCanvas');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+
+  // Set canvas size
+  canvas.width = rect.width - 32; // Account for padding
+  canvas.height = 100;
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // Get last 30 days of data with goals
+  const data = [];
+  const goals = [];
+  const now = new Date();
+
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(now.getDate() - i);
+    const dateStr = getDateInAEST(date);
+    const dayData = state.history[dateStr] || { sessions: 0, minutes: 0 };
+    data.push(dayData.minutes || 0);
+    // Use stored goal for that day, or current goal as fallback
+    goals.push(dayData.dailyGoal || state.dailyGoalMinutes);
+  }
+
+  // Calculate 7-day moving average for smoother trend
+  const movingAvg = [];
+  for (let i = 0; i < data.length; i++) {
+    let sum = 0;
+    let count = 0;
+    for (let j = Math.max(0, i - 6); j <= i; j++) {
+      sum += data[j];
+      count++;
+    }
+    movingAvg.push(sum / count);
+  }
+
+  // Max value considers both data and all goal values
+  const maxValue = Math.max(...data, ...goals, 1);
+  const padding = 10;
+
+  // Clear canvas
+  ctx.clearRect(0, 0, width, height);
+
+  // Get theme colors
+  const style = getComputedStyle(document.documentElement);
+  const primaryColor = style.getPropertyValue('--color-primary').trim() || '#38bdf8';
+  const mutedColor = style.getPropertyValue('--color-text-muted').trim() || '#64748b';
+
+  const stepX = (width - padding * 2) / (data.length - 1);
+
+  // Draw dynamic goal line (stepped line that changes per day)
+  ctx.strokeStyle = mutedColor;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+
+  goals.forEach((goal, i) => {
+    const x = padding + i * stepX;
+    const nextX = i < goals.length - 1 ? padding + (i + 1) * stepX : width - padding;
+    const goalY = height - padding - ((goal / maxValue) * (height - padding * 2));
+
+    if (i === 0) {
+      ctx.moveTo(x, goalY);
+    } else {
+      // Draw horizontal line to current x, then step to new goal level if changed
+      const prevGoal = goals[i - 1];
+      const prevGoalY = height - padding - ((prevGoal / maxValue) * (height - padding * 2));
+      ctx.lineTo(x, prevGoalY);
+      if (goal !== prevGoal) {
+        ctx.lineTo(x, goalY);
+      }
+    }
+    // Draw horizontal line to next point
+    ctx.lineTo(nextX, goalY);
+  });
+
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw data points and line
+  ctx.strokeStyle = primaryColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+
+  data.forEach((value, i) => {
+    const x = padding + i * stepX;
+    const y = height - padding - ((value / maxValue) * (height - padding * 2));
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+
+  ctx.stroke();
+
+  // Draw moving average as filled area
+  ctx.fillStyle = primaryColor.replace(')', ', 0.1)').replace('rgb', 'rgba');
+  ctx.beginPath();
+  ctx.moveTo(padding, height - padding);
+
+  movingAvg.forEach((value, i) => {
+    const x = padding + i * stepX;
+    const y = height - padding - ((value / maxValue) * (height - padding * 2));
+    ctx.lineTo(x, y);
+  });
+
+  ctx.lineTo(width - padding, height - padding);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Heat map state
+let heatmapDate = new Date();
+
+function generateHeatMap() {
+  const grid = document.getElementById('heatmapGrid');
+  const monthLabel = document.getElementById('heatmapMonth');
+  if (!grid || !monthLabel) return;
+
+  grid.innerHTML = '';
+
+  const year = heatmapDate.getFullYear();
+  const month = heatmapDate.getMonth();
+
+  // Update month label
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  monthLabel.textContent = `${monthNames[month]} ${year}`;
+
+  // Get first day of month and number of days
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Find max minutes in this month for scaling
+  let maxMinutes = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = getDateInAEST(new Date(year, month, d));
+    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+    maxMinutes = Math.max(maxMinutes, data.minutes || 0);
+  }
+  maxMinutes = Math.max(maxMinutes, state.dailyGoalMinutes);
+
+  // Add empty cells for days before first of month
+  for (let i = 0; i < firstDay; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'heatmap-cell empty';
+    grid.appendChild(cell);
+  }
+
+  // Add cells for each day
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = getDateInAEST(new Date(year, month, d));
+    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+    const minutes = data.minutes || 0;
+
+    const cell = document.createElement('div');
+    cell.className = 'heatmap-cell';
+
+    // Calculate level (0-4)
+    let level = 0;
+    if (minutes > 0) {
+      const ratio = minutes / maxMinutes;
+      if (ratio >= 0.8) level = 4;
+      else if (ratio >= 0.6) level = 3;
+      else if (ratio >= 0.4) level = 2;
+      else if (ratio > 0) level = 1;
+    }
+
+    cell.setAttribute('data-level', level);
+    cell.title = `${monthNames[month]} ${d}: ${minutes} min`;
+
+    grid.appendChild(cell);
+  }
+}
+
+function navigateHeatmap(direction) {
+  heatmapDate.setMonth(heatmapDate.getMonth() + direction);
+  generateHeatMap();
+}
+
 function setStatsView(view) {
   state.statsView = view;
   updateStatsDisplay();
@@ -1648,100 +3598,10 @@ function setStatsView(view) {
 }
 
 // ============================================
-// Task Intent
-// ============================================
-
-function openTaskModal() {
-  elements.taskModalOverlay.hidden = false;
-  elements.taskModalOverlay.setAttribute('aria-hidden', 'false');
-  elements.taskInput.value = '';
-  elements.taskInput.focus();
-}
-
-function closeTaskModal() {
-  elements.taskModalOverlay.hidden = true;
-  elements.taskModalOverlay.setAttribute('aria-hidden', 'true');
-}
-
-function setTask(text) {
-  const trimmed = text.trim().slice(0, 70);
-  if (!trimmed) return;
-
-  state.currentTask = trimmed;
-  elements.taskText.textContent = trimmed;
-  elements.taskInput.value = '';
-  elements.taskTrigger.hidden = true;
-  elements.taskDisplay.hidden = false;
-  closeTaskModal();
-  saveToStorage();
-}
-
-function clearTask() {
-  state.currentTask = '';
-  elements.taskInput.value = '';
-  elements.taskTrigger.hidden = false;
-  elements.taskDisplay.hidden = true;
-  saveToStorage();
-}
-
-function completeTask() {
-  playCompleteSound();
-
-  // Animate the card and checkbox
-  elements.taskDisplay.classList.add('completing');
-  elements.taskCompleteBtn.classList.add('checked');
-
-  setTimeout(() => {
-    elements.taskDisplay.classList.remove('completing');
-    elements.taskCompleteBtn.classList.remove('checked');
-    clearTask();
-  }, 500);
-}
-
-function playCompleteSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-    // Pleasant two-tone chime
-    const playTone = (freq, delay, duration) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      const startTime = ctx.currentTime + delay;
-      gain.gain.setValueAtTime(0.25, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-
-      osc.start(startTime);
-      osc.stop(startTime + duration);
-    };
-
-    playTone(880, 0, 0.12);       // A5
-    playTone(1318.5, 0.08, 0.18); // E6
-  } catch (e) {
-    console.warn('Could not play complete sound:', e);
-  }
-}
-
-function updateTaskUI() {
-  if (state.currentTask) {
-    elements.taskText.textContent = state.currentTask;
-    elements.taskTrigger.hidden = true;
-    elements.taskDisplay.hidden = false;
-  } else {
-    elements.taskTrigger.hidden = false;
-    elements.taskDisplay.hidden = true;
-  }
-}
-
-// ============================================
 // Theme Management
 // ============================================
 
-const THEMES = ['light', 'dark', 'synthwave'];
+const THEMES = ['light', 'dark', 'synthwave', 'lofi', 'terminal'];
 
 function cycleTheme() {
   const currentIndex = THEMES.indexOf(state.theme);
@@ -1762,6 +3622,710 @@ function requestNotificationPermission() {
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
   }
+}
+
+// ============================================
+// Task Sidebar
+// ============================================
+
+// Generate unique ID for tasks
+function generateTaskId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// Open sidebar
+function openSidebar() {
+  state.sidebarOpen = true;
+  elements.taskSidebar.classList.add('open');
+}
+
+// Close sidebar
+function closeSidebar() {
+  state.sidebarOpen = false;
+  elements.taskSidebar.classList.remove('open');
+}
+
+// Toggle sidebar
+function toggleSidebar() {
+  if (state.sidebarOpen) {
+    closeSidebar();
+  } else {
+    openSidebar();
+  }
+}
+
+// Add a new task
+function addTask(name, estimatedMinutes = null) {
+  if (!name.trim()) return;
+
+  const task = {
+    id: generateTaskId(),
+    name: name.trim(),
+    estimatedMinutes: estimatedMinutes,
+    actualSeconds: 0,
+    completed: false,
+    createdAt: Date.now()
+  };
+
+  state.tasks.push(task);
+  saveToStorage();
+  renderTasks();
+}
+
+// Complete a task
+function completeTaskById(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  task.completed = true;
+
+  // Play ding sound
+  playCompletionDing();
+
+  // If this was the active task during a Pomo
+  if (state.activeTaskId === taskId && state.status === 'running') {
+    if (state.taskCompletionBehavior === 'endSession') {
+      // End the session
+      doneTimer();
+    } else {
+      // Move to next task
+      const nextTask = getNextIncompleteTask();
+      if (nextTask) {
+        state.activeTaskId = nextTask.id;
+      } else {
+        state.activeTaskId = null;
+      }
+    }
+  }
+
+  saveToStorage();
+  renderTasks();
+}
+
+// Uncomplete a task
+function uncompleteTaskById(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  task.completed = false;
+  saveToStorage();
+  renderTasks();
+}
+
+// Undo delete state
+let deletedTaskBackup = null;
+let editingNotesTaskId = null; // Task ID currently being edited in notes modal
+let undoTimeout = null;
+
+// Delete a task
+function deleteTask(taskId) {
+  const taskIndex = state.tasks.findIndex(t => t.id === taskId);
+  if (taskIndex === -1) return;
+
+  // Store backup for undo
+  deletedTaskBackup = {
+    task: { ...state.tasks[taskIndex] },
+    index: taskIndex
+  };
+
+  state.tasks = state.tasks.filter(t => t.id !== taskId);
+  if (state.activeTaskId === taskId) {
+    state.activeTaskId = null;
+  }
+  saveToStorage();
+  renderTasks();
+
+  // Show undo toast
+  showUndoToast();
+}
+
+// Show undo toast
+function showUndoToast() {
+  // Clear any existing timeout
+  if (undoTimeout) {
+    clearTimeout(undoTimeout);
+  }
+
+  const toast = elements.undoToast;
+  toast.hidden = false;
+  // Force reflow for animation
+  toast.offsetHeight;
+  toast.classList.add('visible');
+
+  // Auto-hide after 5 seconds
+  undoTimeout = setTimeout(() => {
+    hideUndoToast();
+    deletedTaskBackup = null;
+  }, 5000);
+}
+
+// Hide undo toast
+function hideUndoToast() {
+  const toast = elements.undoToast;
+  toast.classList.remove('visible');
+  setTimeout(() => {
+    toast.hidden = true;
+  }, 300);
+}
+
+// Undo delete
+function undoDelete() {
+  if (!deletedTaskBackup) return;
+
+  // Restore task at original position
+  state.tasks.splice(deletedTaskBackup.index, 0, deletedTaskBackup.task);
+  saveToStorage();
+  renderTasks();
+
+  // Clear backup and hide toast
+  deletedTaskBackup = null;
+  if (undoTimeout) {
+    clearTimeout(undoTimeout);
+    undoTimeout = null;
+  }
+  hideUndoToast();
+}
+
+// Edit task name
+function editTaskName(taskId, newName) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task || !newName.trim()) return;
+
+  task.name = newName.trim();
+  saveToStorage();
+}
+
+// Get the next incomplete task (first in list)
+function getNextIncompleteTask() {
+  return state.tasks.find(t => !t.completed);
+}
+
+// Reorder tasks (for drag and drop)
+function reorderTasks(fromIndex, toIndex) {
+  // Don't allow reordering during a Pomo session
+  if (state.status === 'running') return;
+
+  const task = state.tasks.splice(fromIndex, 1)[0];
+  state.tasks.splice(toIndex, 0, task);
+  saveToStorage();
+  renderTasks();
+}
+
+// Clear tasks for new day (respects keepIncompleteTasks setting)
+function clearTasksForNewDay() {
+  if (state.keepIncompleteTasks) {
+    // Only clear completed tasks
+    state.tasks = state.tasks.filter(t => !t.completed);
+  } else {
+    // Clear all tasks
+    state.tasks = [];
+  }
+  // Reset actual time on remaining tasks for the new day
+  state.tasks.forEach(t => {
+    t.actualSeconds = 0;
+  });
+  saveToStorage();
+  renderTasks();
+}
+
+// Check if it's a new day and clear tasks
+function checkNewDay() {
+  const today = getTodayDate();
+  if (state.lastVisitDate && state.lastVisitDate !== today) {
+    // Update streak based on yesterday's performance
+    updateStreakForNewDay(state.lastVisitDate);
+    // Clear tasks for new day
+    clearTasksForNewDay();
+  }
+  state.lastVisitDate = today;
+  saveToStorage();
+}
+
+// Update streak when a new day starts
+// Streaks only count weekdays (Mon-Fri), weekends are skipped
+function updateStreakForNewDay(lastDate) {
+  const today = new Date();
+  const todayDayOfWeek = today.getDay();
+
+  // If today is a weekend, don't update streak
+  if (todayDayOfWeek === 0 || todayDayOfWeek === 6) {
+    return;
+  }
+
+  // Find the previous weekday (could be yesterday, or Friday if today is Monday)
+  let prevWeekday = new Date(today);
+  prevWeekday.setDate(today.getDate() - 1);
+
+  // Skip back over weekends to find the last weekday
+  while (prevWeekday.getDay() === 0 || prevWeekday.getDay() === 6) {
+    prevWeekday.setDate(prevWeekday.getDate() - 1);
+  }
+
+  const prevWeekdayStr = getDateInAEST(prevWeekday);
+
+  // Get the minutes focused on the previous weekday
+  const prevDayData = state.history[prevWeekdayStr];
+  const prevDayMinutes = prevDayData?.minutes || 0;
+  const goalForDay = prevDayData?.dailyGoal || state.dailyGoalMinutes;
+
+  if (lastDate === prevWeekdayStr) {
+    // Last visit was the previous weekday - check if goal was met
+    if (prevDayMinutes >= goalForDay) {
+      state.currentStreak++;
+      if (state.currentStreak > state.longestStreak) {
+        state.longestStreak = state.currentStreak;
+      }
+    } else {
+      // Goal not met, reset streak
+      state.currentStreak = 0;
+    }
+  } else {
+    // Check if we missed weekdays (not just weekends)
+    const lastDateObj = new Date(lastDate);
+    const lastDayOfWeek = lastDateObj.getDay();
+
+    // If last date was also a weekend, find the weekday before it
+    let checkDate = new Date(lastDateObj);
+    while (checkDate.getDay() === 0 || checkDate.getDay() === 6) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    // If we only missed weekends between last weekday and today, streak continues
+    if (getDateInAEST(checkDate) === prevWeekdayStr) {
+      // Check if goal was met on that day
+      if (prevDayMinutes >= goalForDay) {
+        state.currentStreak++;
+        if (state.currentStreak > state.longestStreak) {
+          state.longestStreak = state.currentStreak;
+        }
+      } else {
+        state.currentStreak = 0;
+      }
+    } else {
+      // Missed one or more weekdays, reset streak
+      state.currentStreak = 0;
+    }
+  }
+}
+
+// Format time for display (seconds to "Xm" or "Xh Ym")
+function formatTimeSpent(seconds) {
+  if (seconds < 60) return '< 1m';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
+// Render tasks in the sidebar
+function renderTasks() {
+  const taskList = elements.taskList;
+  taskList.innerHTML = '';
+
+  // Update progress bar
+  updateDailyProgress();
+
+  const nextTask = getNextIncompleteTask();
+  let visibleTasks = [...state.tasks];
+
+  // Filter out completed tasks if setting is off
+  if (!state.showCompletedTasks) {
+    visibleTasks = visibleTasks.filter(t => !t.completed);
+  } else {
+    // Sort completed tasks to bottom
+    visibleTasks.sort((a, b) => {
+      if (a.completed && !b.completed) return 1;
+      if (!a.completed && b.completed) return -1;
+      return 0;
+    });
+  }
+
+  visibleTasks.forEach((task, index) => {
+    const isNext = task.id === nextTask?.id && !task.completed;
+    const isActive = task.id === state.activeTaskId && state.status === 'running';
+
+    const taskEl = document.createElement('div');
+    taskEl.className = 'task-item';
+    taskEl.dataset.taskId = task.id;
+    taskEl.dataset.index = state.tasks.findIndex(t => t.id === task.id);
+    taskEl.draggable = state.status !== 'running' && !task.completed;
+
+    if (task.completed) taskEl.classList.add('completed');
+    if (isNext) taskEl.classList.add('next-task');
+    if (isActive) taskEl.classList.add('active-task');
+
+    // Time display - always show
+    const actualTime = task.actualSeconds > 0 ? formatTimeSpent(task.actualSeconds) : '0m';
+    const estTime = task.estimatedMinutes ? `${task.estimatedMinutes}m` : '-';
+
+    // Build estimate options
+    const estimateOptions = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 90, 120];
+    const optionsHtml = estimateOptions.map(m =>
+      `<option value="${m}" ${task.estimatedMinutes === m ? 'selected' : ''}>${m}m</option>`
+    ).join('');
+
+    // Note indicator
+    const hasNotes = task.notes && task.notes.trim().length > 0;
+
+    taskEl.innerHTML = `
+      <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
+      <div class="task-item-content" data-has-notes="${hasNotes}">
+        <div class="task-item-name-row">
+          <div class="task-item-name" contenteditable="false">${escapeHtml(task.name)}</div>
+          ${hasNotes ? '<span class="task-note-dot" title="Has notes"></span>' : ''}
+        </div>
+        <div class="task-item-time">
+          <span class="task-item-time-actual">${actualTime}</span>
+          <span class="task-item-time-separator">/</span>
+          <select class="task-item-estimate-select" aria-label="Estimated time">
+            <option value="" ${!task.estimatedMinutes ? 'selected' : ''}>Est: -</option>
+            ${optionsHtml}
+          </select>
+        </div>
+      </div>
+      <div class="task-item-actions">
+        <button class="task-item-action edit" aria-label="Edit task">✎</button>
+        <button class="task-item-action delete" aria-label="Delete task">×</button>
+      </div>
+    `;
+
+    // Event listeners
+    const checkbox = taskEl.querySelector('.task-item-checkbox');
+    checkbox.addEventListener('click', () => {
+      if (task.completed) {
+        uncompleteTaskById(task.id);
+      } else {
+        completeTaskById(task.id);
+      }
+    });
+
+    const nameEl = taskEl.querySelector('.task-item-name');
+    const editBtn = taskEl.querySelector('.task-item-action.edit');
+    editBtn.addEventListener('click', () => {
+      nameEl.contentEditable = 'true';
+      nameEl.focus();
+      // Select all text
+      const range = document.createRange();
+      range.selectNodeContents(nameEl);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
+
+    nameEl.addEventListener('blur', () => {
+      nameEl.contentEditable = 'false';
+      editTaskName(task.id, nameEl.textContent);
+    });
+
+    nameEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        nameEl.blur();
+      } else if (e.key === 'Escape') {
+        nameEl.textContent = task.name;
+        nameEl.blur();
+      }
+    });
+
+    // Estimate select
+    const estimateSelect = taskEl.querySelector('.task-item-estimate-select');
+    estimateSelect.addEventListener('change', (e) => {
+      const newEstimate = e.target.value ? parseInt(e.target.value) : null;
+      editTaskEstimate(task.id, newEstimate);
+    });
+
+    // Click on task content to open notes (but not when editing name or using select)
+    const contentEl = taskEl.querySelector('.task-item-content');
+    contentEl.addEventListener('click', (e) => {
+      // Don't open notes if clicking on the select dropdown
+      if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
+      // Don't open notes if the name is being edited
+      if (nameEl.contentEditable === 'true') return;
+      openNotesModal(task.id);
+    });
+
+    const deleteBtn = taskEl.querySelector('.task-item-action.delete');
+    deleteBtn.addEventListener('click', () => {
+      deleteTask(task.id);
+    });
+
+    // Drag and drop (only for incomplete tasks)
+    if (!task.completed) {
+      taskEl.addEventListener('dragstart', handleDragStart);
+      taskEl.addEventListener('dragend', handleDragEnd);
+      taskEl.addEventListener('dragover', handleDragOver);
+      taskEl.addEventListener('drop', handleDrop);
+      taskEl.addEventListener('dragleave', handleDragLeave);
+    }
+
+    taskList.appendChild(taskEl);
+  });
+}
+
+// Edit task estimated time
+function editTaskEstimate(taskId, estimatedMinutes) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  task.estimatedMinutes = estimatedMinutes;
+  saveToStorage();
+  updateDailyProgress();
+}
+
+// Calculate and update daily progress bar
+function updateDailyProgress() {
+  const progressBar = document.getElementById('dailyProgressBar');
+  const progressText = document.getElementById('dailyProgressText');
+  if (!progressBar || !progressText) return;
+
+  const incompleteTasks = state.tasks.filter(t => !t.completed);
+  const completedTasks = state.tasks.filter(t => t.completed);
+
+  // Total estimated for all tasks with estimates
+  const totalEstimatedMinutes = state.tasks
+    .filter(t => t.estimatedMinutes)
+    .reduce((sum, t) => sum + t.estimatedMinutes, 0);
+
+  // Completed time: use estimated time for completed tasks (completing = full credit)
+  // This avoids gaps where actual < estimated
+  const completedMinutes = completedTasks.reduce((sum, t) => {
+    // Use estimated time if available, otherwise use actual time
+    if (t.estimatedMinutes) {
+      return sum + t.estimatedMinutes;
+    }
+    // Fall back to actual time for tasks without estimates
+    return sum + Math.round(t.actualSeconds / 60);
+  }, 0);
+
+  // Calculate percentage
+  let percentage = 0;
+  if (totalEstimatedMinutes > 0) {
+    percentage = Math.min(100, Math.round((completedMinutes / totalEstimatedMinutes) * 100));
+  }
+
+  progressBar.style.width = `${percentage}%`;
+
+  // Format text like Sunsama: "Xh Ym / Xh Ym"
+  const formatDuration = (minutes) => {
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  };
+
+  const completedStr = formatDuration(completedMinutes);
+  const totalStr = totalEstimatedMinutes > 0 ? formatDuration(totalEstimatedMinutes) : '-';
+  progressText.textContent = `${completedStr} / ${totalStr}`;
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Drag and drop handlers
+let draggedTaskId = null;
+
+function handleDragStart(e) {
+  if (state.status === 'running') {
+    e.preventDefault();
+    return;
+  }
+  const taskItem = e.target.closest('.task-item');
+  if (!taskItem) return;
+
+  draggedTaskId = taskItem.dataset.taskId;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', draggedTaskId);
+}
+
+function handleDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
+  draggedTaskId = null;
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+
+  const taskItem = e.target.closest('.task-item');
+  if (!taskItem) return;
+
+  // Remove drag-over from all items first
+  document.querySelectorAll('.task-item.drag-over').forEach(el => {
+    if (el !== taskItem) el.classList.remove('drag-over');
+  });
+
+  if (!taskItem.classList.contains('dragging') && !taskItem.classList.contains('completed')) {
+    taskItem.classList.add('drag-over');
+  }
+}
+
+function handleDragLeave(e) {
+  // Only remove if we're actually leaving the task item
+  const taskItem = e.target.closest('.task-item');
+  const relatedTarget = e.relatedTarget?.closest('.task-item');
+
+  if (taskItem && taskItem !== relatedTarget) {
+    taskItem.classList.remove('drag-over');
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const targetItem = e.target.closest('.task-item');
+  if (!targetItem || !draggedTaskId) return;
+
+  const targetTaskId = targetItem.dataset.taskId;
+  if (draggedTaskId === targetTaskId) return;
+
+  // Find indices in the actual state.tasks array
+  const fromIndex = state.tasks.findIndex(t => t.id === draggedTaskId);
+  const toIndex = state.tasks.findIndex(t => t.id === targetTaskId);
+
+  if (fromIndex !== -1 && toIndex !== -1) {
+    reorderTasks(fromIndex, toIndex);
+  }
+
+  document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
+}
+
+// Play completion ding sound
+function playCompletionDing() {
+  const ctx = initAudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+  osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1); // C#6
+
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.3);
+}
+
+// Track time on active task during Pomo
+function trackTaskTime() {
+  if (state.status === 'running' && state.mode === 'work' && state.activeTaskId) {
+    const task = state.tasks.find(t => t.id === state.activeTaskId);
+    if (task && !task.completed) {
+      task.actualSeconds += 1;
+      // Save periodically (every 30 seconds) to avoid too many writes
+      if (task.actualSeconds % 30 === 0) {
+        saveToStorage();
+      }
+      // Update task display every minute to show accrued time
+      if (task.actualSeconds % 60 === 0) {
+        renderTasks();
+      }
+    }
+  }
+}
+
+// Set active task when Pomo starts
+function setActiveTaskForPomo() {
+  if (state.mode === 'work') {
+    const nextTask = getNextIncompleteTask();
+    if (nextTask) {
+      state.activeTaskId = nextTask.id;
+    } else {
+      state.activeTaskId = null;
+    }
+    renderTasks();
+  }
+}
+
+// Initialize task settings UI
+function initTaskSettings() {
+  // Show completed toggle
+  if (elements.showCompletedToggle) {
+    elements.showCompletedToggle.checked = state.showCompletedTasks;
+    elements.showCompletedToggle.addEventListener('change', (e) => {
+      state.showCompletedTasks = e.target.checked;
+      saveToStorage();
+      renderTasks();
+    });
+  }
+
+  // Task completion behavior select
+  if (elements.taskCompletionSelect) {
+    elements.taskCompletionSelect.value = state.taskCompletionBehavior;
+    elements.taskCompletionSelect.addEventListener('change', (e) => {
+      state.taskCompletionBehavior = e.target.value;
+      saveToStorage();
+    });
+  }
+
+  // Daily goal select
+  if (elements.dailyGoalSelect) {
+    elements.dailyGoalSelect.value = state.dailyGoalMinutes.toString();
+    elements.dailyGoalSelect.addEventListener('change', (e) => {
+      state.dailyGoalMinutes = parseInt(e.target.value, 10);
+      saveToStorage();
+      updateGoalProgress();
+    });
+  }
+
+  // Keep incomplete tasks toggle
+  if (elements.keepIncompleteTasksToggle) {
+    elements.keepIncompleteTasksToggle.checked = state.keepIncompleteTasks;
+    elements.keepIncompleteTasksToggle.addEventListener('change', (e) => {
+      state.keepIncompleteTasks = e.target.checked;
+      saveToStorage();
+    });
+  }
+
+  // Undo button
+  if (elements.undoBtn) {
+    elements.undoBtn.addEventListener('click', undoDelete);
+  }
+}
+
+// Initialize task sidebar event listeners
+function initTaskSidebarListeners() {
+  // Sidebar toggle
+  elements.sidebarTab.addEventListener('click', openSidebar);
+  elements.sidebarClose.addEventListener('click', closeSidebar);
+
+  // Add task form - Enter to add (from either input or estimate dropdown)
+  const submitNewTask = () => {
+    const name = elements.addTaskInput.value.trim();
+    const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
+    if (name) {
+      addTask(name, estimate);
+      elements.addTaskInput.value = '';
+      elements.addTaskEstimate.value = '';
+    }
+  };
+
+  elements.addTaskInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitNewTask();
+  });
+
+  elements.addTaskEstimate.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitNewTask();
+  });
+
+  // Initialize settings
+  initTaskSettings();
+
+  // Check for new day and clear completed tasks
+  checkNewDay();
+
+  // Initial render
+  renderTasks();
 }
 
 // ============================================
@@ -1799,14 +4363,27 @@ function initEventListeners() {
   elements.themeToggle.addEventListener('click', cycleTheme);
 
   // Sound controls
-  elements.soundBtns.forEach(btn => {
+  elements.soundToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSoundDropdown();
+  });
+
+  elements.soundOptions.forEach(btn => {
     btn.addEventListener('click', () => {
       playAmbientSound(btn.dataset.sound);
+      closeSoundDropdown();
     });
   });
 
   elements.volumeSlider.addEventListener('input', (e) => {
     updateVolume(parseInt(e.target.value, 10));
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!elements.soundControl.contains(e.target)) {
+      closeSoundDropdown();
+    }
   });
 
   // Stats modal
@@ -1830,30 +4407,74 @@ function initEventListeners() {
     });
   });
 
-  // Task intent
-  elements.taskTrigger.addEventListener('click', openTaskModal);
+  // Chart tabs (daily/weekly/monthly)
+  document.querySelectorAll('.chart-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      generateChart(tab.dataset.chart);
+    });
+  });
 
-  elements.taskModalOverlay.addEventListener('click', (e) => {
-    if (e.target === elements.taskModalOverlay) {
-      closeTaskModal();
+  // Heat map navigation
+  const heatmapPrev = document.getElementById('heatmapPrev');
+  const heatmapNext = document.getElementById('heatmapNext');
+  if (heatmapPrev) heatmapPrev.addEventListener('click', () => navigateHeatmap(-1));
+  if (heatmapNext) heatmapNext.addEventListener('click', () => navigateHeatmap(1));
+
+  // Settings modal
+  elements.settingsBtn.addEventListener('click', openSettingsModal);
+  elements.settingsCloseBtn.addEventListener('click', closeSettingsModal);
+  elements.settingsOverlay.addEventListener('click', (e) => {
+    if (e.target === elements.settingsOverlay) {
+      closeSettingsModal();
+    }
+  });
+  elements.settingsOverlay.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeSettingsModal();
     }
   });
 
-  elements.taskInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && elements.taskInput.value.trim()) {
-      setTask(elements.taskInput.value);
-    } else if (e.key === 'Escape') {
-      closeTaskModal();
+  // Notes modal
+  elements.notesCloseBtn.addEventListener('click', closeNotesModal);
+  elements.notesSaveBtn.addEventListener('click', saveTaskNotes);
+  elements.notesOverlay.addEventListener('click', (e) => {
+    if (e.target === elements.notesOverlay) {
+      closeNotesModal();
+    }
+  });
+  elements.notesOverlay.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeNotesModal();
+    }
+  });
+  // Save notes on Cmd/Ctrl+Enter
+  elements.notesTextarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      saveTaskNotes();
     }
   });
 
-  elements.taskCompleteBtn.addEventListener('click', completeTask);
-  elements.taskClearBtn.addEventListener('click', clearTask);
+  // Summary modal
+  elements.summaryCloseBtn.addEventListener('click', closeSummaryModal);
+  elements.summaryDismissBtn.addEventListener('click', closeSummaryModal);
+  elements.summaryOverlay.addEventListener('click', (e) => {
+    if (e.target === elements.summaryOverlay) {
+      closeSummaryModal();
+    }
+  });
+  elements.summaryOverlay.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeSummaryModal();
+    }
+  });
 
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
-    // Don't trigger if typing in input
-    if (e.target.tagName === 'INPUT') return;
+    // Don't trigger if typing in input or contenteditable
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
     switch (e.code) {
       case 'Space':
@@ -1920,21 +4541,21 @@ function init() {
 
   initEventListeners();
 
+  // Initialize task sidebar
+  initTaskSidebarListeners();
+
   // Initialize break duration display
   updateBreakDisplay();
 
-  // Restore sound button UI state
-  elements.soundBtns.forEach(btn => {
-    const isActive = btn.dataset.sound === state.currentSound;
-    btn.classList.toggle('active', isActive);
-    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-  });
-
-  // Restore task UI state
-  updateTaskUI();
+  // Reset sound to off (don't persist between sessions)
+  state.currentSound = 'off';
+  updateSoundUI();
 
   // Initial UI update
   updateUI();
+
+  // Check if we need to show yesterday's summary
+  checkAndShowSummary();
 
   console.log('🍅 Pomo initialized. Keyboard shortcuts: Space (start/pause/continue), D (done - work), S (skip - break), Esc (abandon), T (theme)');
 }

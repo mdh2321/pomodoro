@@ -10,14 +10,89 @@
 </head>
 <body>
   <div class="app">
-    <!-- Header with theme toggle -->
+    <!-- Header with theme toggle and sound control -->
     <div class="header">
       <h1 class="app-title">Pomo</h1>
-      <button class="theme-toggle" id="themeToggle" aria-label="Cycle theme">
-        <span class="theme-icon theme-icon--light"></span>
-        <span class="theme-icon theme-icon--dark"></span>
-        <span class="theme-icon theme-icon--synthwave"></span>
-      </button>
+      <div class="header-controls">
+        <!-- Sound Control (only visible during sessions) -->
+        <div class="sound-control" id="soundControl" hidden>
+          <button class="sound-toggle" id="soundToggle" aria-label="Toggle soundscape menu" aria-expanded="false">
+            <span class="sound-toggle-icon"></span>
+          </button>
+          <div class="sound-dropdown" id="soundDropdown" hidden>
+            <div class="sound-dropdown-header">Soundscape</div>
+            <div class="sound-options">
+              <button class="sound-option active" data-sound="off" aria-pressed="true">
+                <span class="sound-option-icon sound-option-icon--off"></span>
+                <span>Off</span>
+              </button>
+              <!-- Nature sounds (light/dark themes) -->
+              <button class="sound-option sound-option--nature" data-sound="rain" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--rain"></span>
+                <span>Rain on Tent</span>
+              </button>
+              <button class="sound-option sound-option--nature" data-sound="fireplace" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--fire"></span>
+                <span>Fireplace</span>
+              </button>
+              <button class="sound-option sound-option--nature" data-sound="forest" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--forest"></span>
+                <span>Forest</span>
+              </button>
+              <!-- Synthwave tracks (synthwave theme only) -->
+              <button class="sound-option sound-option--synth" data-sound="synthDrive" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--drive"></span>
+                <span>Neon Drive</span>
+              </button>
+              <button class="sound-option sound-option--synth" data-sound="synthNeon" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--neon"></span>
+                <span>Midnight</span>
+              </button>
+              <button class="sound-option sound-option--synth" data-sound="synthGrid" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--grid"></span>
+                <span>Retrowave</span>
+              </button>
+              <!-- Lo-fi Café sounds (lofi theme only) -->
+              <button class="sound-option sound-option--lofi" data-sound="cafeAmbience" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--cafe"></span>
+                <span>Café Ambience</span>
+              </button>
+              <button class="sound-option sound-option--lofi" data-sound="lofiJazz" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--jazz"></span>
+                <span>Soft Jazz</span>
+              </button>
+              <button class="sound-option sound-option--lofi" data-sound="lofiTyping" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--typing"></span>
+                <span>Typing & Rain</span>
+              </button>
+              <!-- Terminal sounds (terminal theme only) -->
+              <button class="sound-option sound-option--terminal" data-sound="terminalHum" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--hum"></span>
+                <span>System Hum</span>
+              </button>
+              <button class="sound-option sound-option--terminal" data-sound="terminalKeys" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--keys"></span>
+                <span>Mech Keys</span>
+              </button>
+              <button class="sound-option sound-option--terminal" data-sound="terminalData" aria-pressed="false">
+                <span class="sound-option-icon sound-option-icon--data"></span>
+                <span>Data Stream</span>
+              </button>
+            </div>
+            <div class="sound-volume">
+              <span class="volume-icon"></span>
+              <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="50" aria-label="Volume">
+            </div>
+          </div>
+        </div>
+        <button class="theme-toggle" id="themeToggle" aria-label="Cycle theme">
+          <span class="theme-icon theme-icon--light"></span>
+          <span class="theme-icon theme-icon--dark"></span>
+          <span class="theme-icon theme-icon--synthwave"></span>
+          <span class="theme-icon theme-icon--lofi"></span>
+          <span class="theme-icon theme-icon--terminal"></span>
+        </button>
+      </div>
     </div>
 
     <!-- Timer Display -->
@@ -47,41 +122,6 @@
       </div>
     </div>
 
-    <!-- Task Intent -->
-    <div class="task-intent" id="taskIntent">
-      <!-- Trigger button (when no task) -->
-      <button class="task-trigger" id="taskTrigger">
-        <span class="task-trigger-icon">+</span>
-        <span>Set focus</span>
-      </button>
-
-      <!-- Task card (when task is set) -->
-      <div class="task-card" id="taskDisplay" hidden>
-        <button class="task-check" id="taskCompleteBtn" aria-label="Complete task">
-          <span class="task-check-icon"></span>
-        </button>
-        <span class="task-card-text" id="taskText"></span>
-        <button class="task-clear" id="taskClearBtn" aria-label="Clear task">
-          <span class="task-clear-icon"></span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Task Modal -->
-    <div class="task-modal-overlay" id="taskModalOverlay" hidden aria-hidden="true">
-      <div class="task-modal">
-        <input
-          type="text"
-          class="task-modal-input"
-          id="taskInput"
-          placeholder="What will you focus on?"
-          maxlength="70"
-          aria-label="Task description"
-        >
-        <div class="task-modal-hint">Press Enter to set · Esc to cancel</div>
-      </div>
-    </div>
-
     <!-- Control Buttons -->
     <div class="controls">
       <button class="btn btn--primary" id="startBtn" aria-label="Start timer">
@@ -104,93 +144,197 @@
       </button>
     </div>
 
-    <!-- Ambient Sounds -->
-    <div class="sound-controls">
-      <div class="sound-buttons">
-        <button class="sound-btn active" data-sound="off" aria-pressed="true">
-          <span class="sound-icon sound-icon--off"></span>
-          <span class="sound-label">Off</span>
-        </button>
-        <!-- Nature sounds (light/dark themes) -->
-        <button class="sound-btn sound-btn--nature" data-sound="rain" aria-pressed="false">
-          <span class="sound-icon sound-icon--rain"></span>
-          <span class="sound-label">Rain</span>
-        </button>
-        <button class="sound-btn sound-btn--nature" data-sound="fireplace" aria-pressed="false">
-          <span class="sound-icon sound-icon--fire"></span>
-          <span class="sound-label">Fire</span>
-        </button>
-        <button class="sound-btn sound-btn--nature" data-sound="river" aria-pressed="false">
-          <span class="sound-icon sound-icon--river"></span>
-          <span class="sound-label">River</span>
-        </button>
-        <!-- Synthwave tracks (synthwave theme only) -->
-        <button class="sound-btn sound-btn--synth" data-sound="synthDrive" aria-pressed="false">
-          <span class="sound-icon sound-icon--drive"></span>
-          <span class="sound-label">Drive</span>
-        </button>
-        <button class="sound-btn sound-btn--synth" data-sound="synthNeon" aria-pressed="false">
-          <span class="sound-icon sound-icon--neon"></span>
-          <span class="sound-label">Neon</span>
-        </button>
-        <button class="sound-btn sound-btn--synth" data-sound="synthGrid" aria-pressed="false">
-          <span class="sound-icon sound-icon--grid"></span>
-          <span class="sound-label">Grid</span>
-        </button>
-      </div>
-      <div class="volume-control">
-        <span class="volume-icon"></span>
-        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="50" aria-label="Volume">
-      </div>
-    </div>
-
     <!-- Session Info -->
     <div class="session-info">
-      <span class="session-count" id="sessionCount">Session #1</span>
-      <span class="session-separator">•</span>
-      <span class="total-time" id="totalTime">0 min focused today</span>
-      <button class="stats-btn" id="statsBtn" aria-label="View statistics">📊</button>
+      <div class="goal-progress" id="goalProgress">
+        <div class="goal-progress-bar-container">
+          <div class="goal-progress-bar" id="goalProgressBar"></div>
+        </div>
+        <span class="goal-progress-text" id="goalProgressText">0 / 90 min</span>
+      </div>
+      <div class="session-buttons">
+        <button class="stats-btn" id="statsBtn" aria-label="View statistics">📊</button>
+        <button class="settings-btn" id="settingsBtn" aria-label="Settings">⚙️</button>
+      </div>
     </div>
   </div>
 
-  <!-- Statistics Modal -->
-  <div class="modal-overlay" id="statsOverlay" aria-hidden="true">
-    <div class="modal modal--stats" role="dialog" aria-labelledby="statsTitle" aria-modal="true">
-      <div class="modal-header">
-        <h2 class="modal-title" id="statsTitle">Statistics</h2>
-        <div class="stats-toggle">
-          <button class="stats-toggle-btn active" data-view="sessions" aria-pressed="true">Sessions</button>
-          <button class="stats-toggle-btn" data-view="minutes" aria-pressed="false">Minutes</button>
+  <!-- Task Sidebar -->
+  <div class="task-sidebar" id="taskSidebar">
+    <!-- Sidebar Tab (visible when closed) -->
+    <button class="sidebar-tab" id="sidebarTab" aria-label="Open task list">
+      <span class="sidebar-tab-icon">☰</span>
+    </button>
+
+    <!-- Sidebar Panel -->
+    <div class="sidebar-panel" id="sidebarPanel">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Tasks</h2>
+        <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">×</button>
+      </div>
+
+      <!-- Daily Progress Bar -->
+      <div class="daily-progress">
+        <div class="daily-progress-bar-container">
+          <div class="daily-progress-bar" id="dailyProgressBar"></div>
         </div>
+        <span class="daily-progress-text" id="dailyProgressText">0m / -</span>
+      </div>
+
+      <!-- Add Task Form -->
+      <div class="add-task-form">
+        <input
+          type="text"
+          class="add-task-input"
+          id="addTaskInput"
+          placeholder="Add a task..."
+          maxlength="100"
+          aria-label="New task name"
+        >
+        <select class="add-task-estimate" id="addTaskEstimate" aria-label="Estimated time">
+          <option value="">Est.</option>
+          <option value="5">5m</option>
+          <option value="10">10m</option>
+          <option value="15">15m</option>
+          <option value="20">20m</option>
+          <option value="25">25m</option>
+          <option value="30">30m</option>
+          <option value="35">35m</option>
+          <option value="40">40m</option>
+          <option value="45">45m</option>
+          <option value="50">50m</option>
+          <option value="55">55m</option>
+          <option value="60">60m</option>
+          <option value="90">90m</option>
+          <option value="120">120m</option>
+        </select>
+      </div>
+
+      <!-- Task List -->
+      <div class="task-list" id="taskList">
+        <!-- Tasks will be rendered here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics Modal -->
+  <div class="modal-overlay" id="statsOverlay" aria-hidden="true">
+    <div class="modal modal--analytics" role="dialog" aria-labelledby="statsTitle" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="statsTitle">Analytics</h2>
         <button class="modal-close" id="statsCloseBtn" aria-label="Close">×</button>
       </div>
       <div class="modal-content">
-        <!-- Summary Stats -->
-        <div class="stats-summary" id="statsSummary">
-          <div class="stat-card">
-            <span class="stat-value" id="statToday">0</span>
-            <span class="stat-label">Today</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-value" id="statWeek">0</span>
-            <span class="stat-label">This Week</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-value" id="statMonth">0</span>
-            <span class="stat-label">This Month</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-value" id="statTotal">0</span>
-            <span class="stat-label">All Time</span>
+        <!-- Summary Stats Row -->
+        <div class="analytics-section">
+          <div class="stats-summary" id="statsSummary">
+            <div class="stat-card">
+              <span class="stat-value" id="statToday">0</span>
+              <span class="stat-label">Today</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="statWeek">0</span>
+              <span class="stat-label">This Week</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="statMonth">0</span>
+              <span class="stat-label">This Month</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="statTotal">0</span>
+              <span class="stat-label">All Time</span>
+            </div>
           </div>
         </div>
-        <!-- Chart -->
-        <div class="stats-chart-container">
-          <h3 class="chart-title">Last 14 Days</h3>
-          <div class="stats-chart" id="statsChart"></div>
+
+        <!-- Insights Row -->
+        <div class="analytics-section">
+          <div class="analytics-insights">
+            <div class="insight-card">
+              <span class="insight-label">Best Day</span>
+              <span class="insight-value" id="bestDayOfWeek">-</span>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Daily Average</span>
+              <span class="insight-value" id="avgFocusPerDay">0 min</span>
+            </div>
+            <div class="insight-card insight-card--streak">
+              <span class="streak-icon">🔥</span>
+              <span class="insight-value" id="currentStreak">0</span>
+              <span class="insight-label">Day Streak</span>
+            </div>
+            <div class="insight-card insight-card--streak">
+              <span class="streak-icon">🏆</span>
+              <span class="insight-value" id="longestStreak">0</span>
+              <span class="insight-label">Best Streak</span>
+            </div>
+          </div>
         </div>
-        <!-- Settings -->
-        <div class="settings-section">
+
+        <!-- Charts Section -->
+        <div class="analytics-section">
+          <div class="chart-header">
+            <h3 class="chart-section-title">Focus Time</h3>
+            <div class="chart-tabs">
+              <button class="chart-tab active" data-chart="daily">Days</button>
+              <button class="chart-tab" data-chart="weekly">Weeks</button>
+              <button class="chart-tab" data-chart="monthly">Months</button>
+            </div>
+          </div>
+          <div class="chart-container">
+            <div class="stats-chart" id="statsChart"></div>
+            <div class="chart-labels" id="chartLabels"></div>
+          </div>
+        </div>
+
+        <!-- Trend Line Section -->
+        <div class="analytics-section">
+          <h3 class="chart-section-title">Trend (Last 30 Days)</h3>
+          <div class="trend-container">
+            <canvas id="trendCanvas" width="500" height="100"></canvas>
+          </div>
+        </div>
+
+        <!-- Heat Map Section -->
+        <div class="analytics-section">
+          <div class="heatmap-header">
+            <h3 class="chart-section-title">Activity</h3>
+            <div class="heatmap-nav">
+              <button class="heatmap-nav-btn" id="heatmapPrev" aria-label="Previous month">‹</button>
+              <span class="heatmap-month" id="heatmapMonth">January 2026</span>
+              <button class="heatmap-nav-btn" id="heatmapNext" aria-label="Next month">›</button>
+            </div>
+          </div>
+          <div class="heatmap-container">
+            <div class="heatmap-weekdays">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div class="heatmap-grid" id="heatmapGrid"></div>
+          </div>
+          <div class="heatmap-legend">
+            <span class="heatmap-legend-label">Less</span>
+            <span class="heatmap-legend-cell" data-level="0"></span>
+            <span class="heatmap-legend-cell" data-level="1"></span>
+            <span class="heatmap-legend-cell" data-level="2"></span>
+            <span class="heatmap-legend-cell" data-level="3"></span>
+            <span class="heatmap-legend-cell" data-level="4"></span>
+            <span class="heatmap-legend-label">More</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsOverlay" aria-hidden="true">
+    <div class="modal modal--settings" role="dialog" aria-labelledby="settingsTitle" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="settingsTitle">Settings</h2>
+        <button class="modal-close" id="settingsCloseBtn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-content">
+        <div class="settings-group">
+          <h3 class="settings-group-title">Timer</h3>
           <div class="settings-row">
             <span class="settings-label">Break duration</span>
             <div class="settings-stepper">
@@ -200,8 +344,118 @@
             </div>
           </div>
         </div>
+        <div class="settings-group">
+          <h3 class="settings-group-title">Tasks</h3>
+          <div class="settings-row">
+            <span class="settings-label">Show completed tasks</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="showCompletedToggle" checked>
+              <span class="settings-toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">On task completion</span>
+            <select class="settings-select" id="taskCompletionSelect">
+              <option value="nextTask">Start next task</option>
+              <option value="endSession">End session</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">Keep incomplete tasks daily</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="keepIncompleteTasksToggle" checked>
+              <span class="settings-toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h3 class="settings-group-title">Daily Goal</h3>
+          <div class="settings-row">
+            <span class="settings-label">Focus goal</span>
+            <select class="settings-select" id="dailyGoalSelect">
+              <option value="30">30 min</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+              <option value="150">2.5 hours</option>
+              <option value="180">3 hours</option>
+              <option value="240">4 hours</option>
+              <option value="300">5 hours</option>
+              <option value="360">6 hours</option>
+              <option value="480">8 hours</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
+
+  <!-- End of Day Summary Modal -->
+  <div class="modal-overlay" id="summaryOverlay" aria-hidden="true">
+    <div class="modal modal--summary" role="dialog" aria-labelledby="summaryTitle" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="summaryTitle">Yesterday's Summary</h2>
+        <button class="modal-close" id="summaryCloseBtn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-content">
+        <div class="summary-stats">
+          <div class="summary-stat summary-stat--primary">
+            <span class="summary-stat-value" id="summaryMinutes">0</span>
+            <span class="summary-stat-label">minutes focused</span>
+          </div>
+          <div class="summary-stat-row">
+            <div class="summary-stat">
+              <span class="summary-stat-value" id="summarySessions">0</span>
+              <span class="summary-stat-label">sessions</span>
+            </div>
+            <div class="summary-stat">
+              <span class="summary-stat-value" id="summaryTasks">0</span>
+              <span class="summary-stat-label">tasks done</span>
+            </div>
+          </div>
+        </div>
+        <div class="summary-streak" id="summaryStreak">
+          <span class="summary-streak-icon">🔥</span>
+          <span class="summary-streak-text" id="summaryStreakText">0 day streak</span>
+        </div>
+        <div class="summary-message" id="summaryMessage">
+          Great work yesterday! Keep up the momentum.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn--primary" id="summaryDismissBtn">Let's Go</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task Notes Modal -->
+  <div class="modal-overlay" id="notesOverlay" aria-hidden="true">
+    <div class="modal modal--notes" role="dialog" aria-labelledby="notesTitle" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="notesTitle">Notes</h2>
+        <button class="modal-close" id="notesCloseBtn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-content">
+        <div class="notes-task-name" id="notesTaskName"></div>
+        <textarea
+          class="notes-textarea"
+          id="notesTextarea"
+          placeholder="Add details, links, or thoughts about this task..."
+          rows="8"
+          aria-label="Task notes"
+        ></textarea>
+        <div class="notes-hint">⌘/Ctrl + Enter to save</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn--primary" id="notesSaveBtn">Save Notes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Undo Toast -->
+  <div class="undo-toast" id="undoToast" hidden>
+    <span class="undo-toast-message">Task deleted</span>
+    <button class="undo-toast-btn" id="undoBtn">Undo</button>
   </div>
 
   <script src="app.js"></script>
