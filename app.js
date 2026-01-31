@@ -69,6 +69,7 @@ const state = {
   dailyGoalMinutes: 90, // Target focused minutes per day
   currentStreak: 0, // Consecutive days hitting goal
   longestStreak: 0, // All-time best streak
+  includeWeekends: true, // Whether to include weekends in stats
 
   // Summary tracking
   summaryShownDate: null, // Date when summary was last shown (YYYY-MM-DD)
@@ -178,6 +179,7 @@ const elements = {
   settingsOverlay: document.getElementById('settingsOverlay'),
   settingsCloseBtn: document.getElementById('settingsCloseBtn'),
   dailyGoalSelect: document.getElementById('dailyGoalSelect'),
+  includeWeekendsToggle: document.getElementById('includeWeekendsToggle'),
 
   // Daily progress (task sidebar)
   dailyProgressBar: document.getElementById('dailyProgressBar'),
@@ -280,6 +282,9 @@ function loadFromStorage() {
       if (typeof data.longestStreak === 'number') {
         state.longestStreak = data.longestStreak;
       }
+      if (typeof data.includeWeekends === 'boolean') {
+        state.includeWeekends = data.includeWeekends;
+      }
 
       // Restore summary shown date
       if (data.summaryShownDate) {
@@ -314,6 +319,7 @@ function saveToStorage() {
       dailyGoalMinutes: state.dailyGoalMinutes,
       currentStreak: state.currentStreak,
       longestStreak: state.longestStreak,
+      includeWeekends: state.includeWeekends,
       // Summary
       summaryShownDate: state.summaryShownDate,
       date: getTodayDate()
@@ -3141,27 +3147,12 @@ function updateStatsDisplay() {
   let monthStats = { sessions: 0, minutes: 0 };
   let totalStats = { sessions: 0, minutes: 0 };
 
-  // Day of week totals for best day calculation (Mon-Fri only, indices 1-5)
-  const dayOfWeekTotals = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-  const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0];
-  let totalDays = 0;
-
   for (const [dateStr, data] of Object.entries(state.history)) {
     const date = new Date(dateStr);
-    const dayOfWeek = date.getDay();
     const minutes = data.minutes || 0;
-
-    // Skip weekends for average and best day calculations
-    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
 
     totalStats.sessions += data.sessions;
     totalStats.minutes += minutes;
-
-    if (minutes > 0 && !isWeekend) {
-      dayOfWeekTotals[dayOfWeek] += minutes;
-      dayOfWeekCounts[dayOfWeek]++;
-      totalDays++;
-    }
 
     if (date >= weekStart) {
       weekStats.sessions += data.sessions;
@@ -3179,26 +3170,6 @@ function updateStatsDisplay() {
   document.getElementById('statMonth').textContent = formatMinutesShort(monthStats.minutes);
   document.getElementById('statTotal').textContent = formatMinutesShort(totalStats.minutes);
 
-  // Calculate best day of week (Mon-Fri only)
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  let bestDay = '-';
-  let bestDayAvg = 0;
-  // Only check Mon (1) through Fri (5)
-  for (let i = 1; i <= 5; i++) {
-    if (dayOfWeekCounts[i] > 0) {
-      const avg = dayOfWeekTotals[i] / dayOfWeekCounts[i];
-      if (avg > bestDayAvg) {
-        bestDayAvg = avg;
-        bestDay = dayNames[i];
-      }
-    }
-  }
-  document.getElementById('bestDayOfWeek').textContent = bestDay;
-
-  // Calculate average focus time per day
-  const avgPerDay = totalDays > 0 ? Math.round(totalStats.minutes / totalDays) : 0;
-  document.getElementById('avgFocusPerDay').textContent = formatMinutesShort(avgPerDay);
-
   // Update streak displays
   if (elements.currentStreakDisplay) {
     elements.currentStreakDisplay.textContent = state.currentStreak;
@@ -3209,7 +3180,6 @@ function updateStatsDisplay() {
 
   // Generate charts
   generateChart('daily');
-  generateTrendLine();
   generateHeatMap();
 }
 
@@ -3245,20 +3215,43 @@ function generateChart(view) {
     data = getMonthlyChartData(12);
   }
 
-  // Find max value for scaling
-  const maxValue = Math.max(...data.map(d => d.value), 1);
+  // Calculate average for display
+  const totalValue = data.reduce((sum, d) => sum + d.value, 0);
+  const avgValue = data.length > 0 ? Math.round(totalValue / data.length) : 0;
+  const avgDisplay = document.getElementById('chartAverage');
+  if (avgDisplay) {
+    const avgLabel = view === 'daily' ? 'Daily' : (view === 'weekly' ? 'Weekly' : 'Monthly');
+    avgDisplay.textContent = `${avgLabel} Avg: ${formatMinutesShort(avgValue)}`;
+  }
+
+  // Find max value for scaling - ensure goal line fits for daily view
+  const goalValue = view === 'daily' ? state.dailyGoalMinutes : 0;
+  const maxValue = Math.max(...data.map(d => d.value), goalValue, 1);
+
+  // Handle goal line (daily view only)
+  const goalLine = document.getElementById('chartGoalLine');
+  if (goalLine) {
+    if (view === 'daily' && goalValue > 0) {
+      // Position goal line relative to chart height (120px chart + padding)
+      const chartHeight = 120;
+      const goalPercent = (goalValue / maxValue) * 100;
+      const bottomOffset = 24 + (goalPercent / 100) * chartHeight; // 24px for label area
+      goalLine.style.bottom = bottomOffset + 'px';
+      goalLine.classList.add('visible');
+    } else {
+      goalLine.classList.remove('visible');
+    }
+  }
 
   // Create bars
   data.forEach(item => {
     const bar = document.createElement('div');
     bar.className = 'chart-bar';
-    if (item.goalMet) {
-      bar.classList.add('goal-met');
-    }
 
     const fill = document.createElement('div');
     fill.className = 'chart-bar-fill';
-    if (item.goalMet) {
+    // Only apply goal-met styling on daily view
+    if (view === 'daily' && item.goalMet) {
       fill.classList.add('goal-met');
     }
     if (item.value === 0) {
@@ -3290,28 +3283,31 @@ function getDailyChartData(numDays) {
   let collected = 0;
   let daysBack = 0;
 
-  // Collect numDays weekdays (Mon-Fri), skipping Sat/Sun
   while (collected < numDays) {
     const date = new Date(now);
     date.setDate(now.getDate() - daysBack);
     const dayOfWeek = date.getDay();
 
-    // Skip Saturday (6) and Sunday (0)
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      const dateStr = getDateInAEST(date);
-      const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
-      const minutes = data.minutes || 0;
-      const goalForDay = data.dailyGoal || state.dailyGoalMinutes;
-
-      days.unshift({
-        date: date,
-        dateStr: dateStr,
-        value: minutes,
-        label: date.getDate().toString(),
-        goalMet: minutes >= goalForDay
-      });
-      collected++;
+    // Skip weekends if setting is off
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+    if (!state.includeWeekends && isWeekend) {
+      daysBack++;
+      continue;
     }
+
+    const dateStr = getDateInAEST(date);
+    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+    const minutes = data.minutes || 0;
+    const goalForDay = data.dailyGoal || state.dailyGoalMinutes;
+
+    days.unshift({
+      date: date,
+      dateStr: dateStr,
+      value: minutes,
+      label: date.getDate().toString(),
+      goalMet: minutes >= goalForDay
+    });
+    collected++;
     daysBack++;
   }
 
@@ -3330,17 +3326,18 @@ function getWeeklyChartData(numWeeks) {
 
     let weekTotal = 0;
     let daysMetGoal = 0;
-    let weekdayCount = 0;
+    let dayCount = 0;
 
     for (let d = 0; d < 7; d++) {
       const date = new Date(weekStart);
       date.setDate(weekStart.getDate() + d);
       const dayOfWeek = date.getDay();
 
-      // Skip Saturday (6) and Sunday (0)
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+      // Skip weekends if setting is off
+      const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+      if (!state.includeWeekends && isWeekend) continue;
 
-      weekdayCount++;
+      dayCount++;
       const dateStr = getDateInAEST(date);
       const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
       const minutes = data.minutes || 0;
@@ -3353,10 +3350,12 @@ function getWeeklyChartData(numWeeks) {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const label = `${monthNames[weekStart.getMonth()]} ${weekStart.getDate()}`;
 
+    // Goal threshold: 80% of days counted
+    const goalThreshold = Math.ceil(dayCount * 0.8);
     weeks.push({
       value: weekTotal,
       label: i === 0 ? 'This' : (i === 1 ? 'Last' : label),
-      goalMet: daysMetGoal >= 4 // Consider week successful if 4+ weekdays met goal (out of 5)
+      goalMet: daysMetGoal >= goalThreshold
     });
   }
 
@@ -3374,16 +3373,17 @@ function getMonthlyChartData(numMonths) {
     let monthTotal = 0;
     let daysMetGoal = 0;
     let daysInMonth = monthEnd.getDate();
-    let weekdayCount = 0;
+    let dayCount = 0;
 
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
       const dayOfWeek = date.getDay();
 
-      // Skip Saturday (6) and Sunday (0)
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+      // Skip weekends if setting is off
+      const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+      if (!state.includeWeekends && isWeekend) continue;
 
-      weekdayCount++;
+      dayCount++;
       const dateStr = getDateInAEST(date);
       const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
       const minutes = data.minutes || 0;
@@ -3397,129 +3397,11 @@ function getMonthlyChartData(numMonths) {
     months.push({
       value: monthTotal,
       label: monthNames[monthDate.getMonth()],
-      goalMet: daysMetGoal >= Math.floor(weekdayCount * 0.7) // 70% of weekdays
+      goalMet: daysMetGoal >= Math.floor(dayCount * 0.7) // 70% of counted days
     });
   }
 
   return months;
-}
-
-function generateTrendLine() {
-  const canvas = document.getElementById('trendCanvas');
-  if (!canvas) return;
-
-  const ctx = canvas.getContext('2d');
-  const rect = canvas.parentElement.getBoundingClientRect();
-
-  // Set canvas size
-  canvas.width = rect.width - 32; // Account for padding
-  canvas.height = 100;
-
-  const width = canvas.width;
-  const height = canvas.height;
-
-  // Get last 30 days of data with goals
-  const data = [];
-  const goals = [];
-  const now = new Date();
-
-  for (let i = 29; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(now.getDate() - i);
-    const dateStr = getDateInAEST(date);
-    const dayData = state.history[dateStr] || { sessions: 0, minutes: 0 };
-    data.push(dayData.minutes || 0);
-    // Use stored goal for that day, or current goal as fallback
-    goals.push(dayData.dailyGoal || state.dailyGoalMinutes);
-  }
-
-  // Calculate 7-day moving average for smoother trend
-  const movingAvg = [];
-  for (let i = 0; i < data.length; i++) {
-    let sum = 0;
-    let count = 0;
-    for (let j = Math.max(0, i - 6); j <= i; j++) {
-      sum += data[j];
-      count++;
-    }
-    movingAvg.push(sum / count);
-  }
-
-  // Max value considers both data and all goal values
-  const maxValue = Math.max(...data, ...goals, 1);
-  const padding = 10;
-
-  // Clear canvas
-  ctx.clearRect(0, 0, width, height);
-
-  // Get theme colors
-  const style = getComputedStyle(document.documentElement);
-  const primaryColor = style.getPropertyValue('--color-primary').trim() || '#38bdf8';
-  const mutedColor = style.getPropertyValue('--color-text-muted').trim() || '#64748b';
-
-  const stepX = (width - padding * 2) / (data.length - 1);
-
-  // Draw dynamic goal line (stepped line that changes per day)
-  ctx.strokeStyle = mutedColor;
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath();
-
-  goals.forEach((goal, i) => {
-    const x = padding + i * stepX;
-    const nextX = i < goals.length - 1 ? padding + (i + 1) * stepX : width - padding;
-    const goalY = height - padding - ((goal / maxValue) * (height - padding * 2));
-
-    if (i === 0) {
-      ctx.moveTo(x, goalY);
-    } else {
-      // Draw horizontal line to current x, then step to new goal level if changed
-      const prevGoal = goals[i - 1];
-      const prevGoalY = height - padding - ((prevGoal / maxValue) * (height - padding * 2));
-      ctx.lineTo(x, prevGoalY);
-      if (goal !== prevGoal) {
-        ctx.lineTo(x, goalY);
-      }
-    }
-    // Draw horizontal line to next point
-    ctx.lineTo(nextX, goalY);
-  });
-
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Draw data points and line
-  ctx.strokeStyle = primaryColor;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-
-  data.forEach((value, i) => {
-    const x = padding + i * stepX;
-    const y = height - padding - ((value / maxValue) * (height - padding * 2));
-
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  });
-
-  ctx.stroke();
-
-  // Draw moving average as filled area
-  ctx.fillStyle = primaryColor.replace(')', ', 0.1)').replace('rgb', 'rgba');
-  ctx.beginPath();
-  ctx.moveTo(padding, height - padding);
-
-  movingAvg.forEach((value, i) => {
-    const x = padding + i * stepX;
-    const y = height - padding - ((value / maxValue) * (height - padding * 2));
-    ctx.lineTo(x, y);
-  });
-
-  ctx.lineTo(width - padding, height - padding);
-  ctx.closePath();
-  ctx.fill();
 }
 
 // Heat map state
@@ -4284,6 +4166,20 @@ function initTaskSettings() {
     elements.keepIncompleteTasksToggle.addEventListener('change', (e) => {
       state.keepIncompleteTasks = e.target.checked;
       saveToStorage();
+    });
+  }
+
+  // Include weekends toggle
+  if (elements.includeWeekendsToggle) {
+    elements.includeWeekendsToggle.checked = state.includeWeekends;
+    elements.includeWeekendsToggle.addEventListener('change', (e) => {
+      state.includeWeekends = e.target.checked;
+      saveToStorage();
+      // Refresh stats display if analytics modal is open
+      if (elements.statsOverlay && !elements.statsOverlay.getAttribute('aria-hidden')) {
+        updateStatsDisplay();
+        generateChart(currentChartView);
+      }
     });
   }
 
