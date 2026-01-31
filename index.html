@@ -250,18 +250,10 @@
         <!-- Insights Row -->
         <div class="analytics-section">
           <div class="analytics-insights">
-            <div class="insight-card">
-              <span class="insight-label">Best Day</span>
-              <span class="insight-value" id="bestDayOfWeek">-</span>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Daily Average</span>
-              <span class="insight-value" id="avgFocusPerDay">0 min</span>
-            </div>
             <div class="insight-card insight-card--streak">
               <span class="streak-icon">🔥</span>
               <span class="insight-value" id="currentStreak">0</span>
-              <span class="insight-label">Day Streak</span>
+              <span class="insight-label">Current Streak</span>
             </div>
             <div class="insight-card insight-card--streak">
               <span class="streak-icon">🏆</span>
@@ -281,17 +273,11 @@
               <button class="chart-tab" data-chart="monthly">Months</button>
             </div>
           </div>
+          <div class="chart-average" id="chartAverage">Avg: 0 min</div>
           <div class="chart-container">
+            <div class="chart-goal-line" id="chartGoalLine"></div>
             <div class="stats-chart" id="statsChart"></div>
             <div class="chart-labels" id="chartLabels"></div>
-          </div>
-        </div>
-
-        <!-- Trend Line Section -->
-        <div class="analytics-section">
-          <h3 class="chart-section-title">Trend (Last 30 Days)</h3>
-          <div class="trend-container">
-            <canvas id="trendCanvas" width="500" height="100"></canvas>
           </div>
         </div>
 
@@ -384,6 +370,16 @@
               <option value="360">6 hours</option>
               <option value="480">8 hours</option>
             </select>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h3 class="settings-group-title">Stats</h3>
+          <div class="settings-row">
+            <span class="settings-label">Include weekends</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="includeWeekendsToggle" checked>
+              <span class="settings-toggle-slider"></span>
+            </label>
           </div>
         </div>
       </div>
