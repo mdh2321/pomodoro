@@ -1629,48 +1629,40 @@ body {
   cursor: pointer;
 }
 
-/* Stats Button */
-.stats-btn {
-  margin-left: auto;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: 1rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  line-height: 1;
-}
-
-.stats-btn:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-background);
-}
-
-.stats-btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-/* Settings Button */
+/* Stats & Settings Buttons - Ghost style with SVG icons */
+.stats-btn,
 .settings-btn {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: 1rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: transparent;
+  border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  line-height: 1;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
+.stats-btn svg,
+.settings-btn svg {
+  display: block;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+
+.stats-btn:hover,
 .settings-btn:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-background);
+  transform: scale(1.1);
 }
 
+.stats-btn:hover svg,
+.settings-btn:hover svg {
+  color: var(--color-primary);
+}
+
+.stats-btn:focus-visible,
 .settings-btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -2883,26 +2875,16 @@ body.focus-mode .timer-container {
   box-shadow: 0 0 10px rgba(255, 107, 53, 0.4);
 }
 
-/* Stats button */
-[data-theme="synthwave"] .stats-btn {
-  background: rgba(45, 27, 78, 0.8);
-  border-color: rgba(155, 77, 202, 0.5);
+/* Stats & Settings buttons - SVG glow effect */
+[data-theme="synthwave"] .stats-btn svg,
+[data-theme="synthwave"] .settings-btn svg {
+  color: rgba(155, 77, 202, 0.8);
 }
 
-[data-theme="synthwave"] .stats-btn:hover {
-  border-color: #ff6b35;
-  box-shadow: var(--glow-primary);
-}
-
-/* Settings button */
-[data-theme="synthwave"] .settings-btn {
-  background: rgba(45, 27, 78, 0.8);
-  border-color: rgba(155, 77, 202, 0.5);
-}
-
-[data-theme="synthwave"] .settings-btn:hover {
-  border-color: #ff6b35;
-  box-shadow: var(--glow-primary);
+[data-theme="synthwave"] .stats-btn:hover svg,
+[data-theme="synthwave"] .settings-btn:hover svg {
+  color: #ff6b35;
+  filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.6));
 }
 
 /* Modal styling */
@@ -3901,6 +3883,19 @@ body.focus-mode .timer-container {
 [data-theme="terminal"] .add-task-btn {
   background: var(--color-primary);
   color: #0a0a0a;
+}
+
+/* Stats & Settings buttons */
+[data-theme="terminal"] .stats-btn svg,
+[data-theme="terminal"] .settings-btn svg {
+  color: var(--color-primary);
+  opacity: 0.7;
+}
+
+[data-theme="terminal"] .stats-btn:hover svg,
+[data-theme="terminal"] .settings-btn:hover svg {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(0, 255, 0, 0.6));
 }
 
 /* Undo toast */
