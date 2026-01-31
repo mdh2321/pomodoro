@@ -466,8 +466,10 @@ function doneTimer() {
     // Record in history - minutes only, NOT as a completed session
     const today = getTodayDate();
     if (!state.history[today]) {
-      state.history[today] = { sessions: 0, minutes: 0 };
+      state.history[today] = { sessions: 0, minutes: 0, dailyGoal: state.dailyGoalMinutes };
     }
+    // Update dailyGoal to current value (tracks most recent goal for the day)
+    state.history[today].dailyGoal = state.dailyGoalMinutes;
     // Note: sessions NOT incremented for "Done" - only minutes
     state.history[today].minutes += partialMinutes;
 
@@ -526,8 +528,10 @@ function completeTimer() {
     // Record in history
     const today = getTodayDate();
     if (!state.history[today]) {
-      state.history[today] = { sessions: 0, minutes: 0 };
+      state.history[today] = { sessions: 0, minutes: 0, dailyGoal: state.dailyGoalMinutes };
     }
+    // Update dailyGoal to current value (tracks most recent goal for the day)
+    state.history[today].dailyGoal = state.dailyGoalMinutes;
     state.history[today].sessions++;
     state.history[today].minutes += minutes;
 
@@ -3137,7 +3141,7 @@ function updateStatsDisplay() {
   let monthStats = { sessions: 0, minutes: 0 };
   let totalStats = { sessions: 0, minutes: 0 };
 
-  // Day of week totals for best day calculation
+  // Day of week totals for best day calculation (Mon-Fri only, indices 1-5)
   const dayOfWeekTotals = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
   const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0];
   let totalDays = 0;
@@ -3147,10 +3151,13 @@ function updateStatsDisplay() {
     const dayOfWeek = date.getDay();
     const minutes = data.minutes || 0;
 
+    // Skip weekends for average and best day calculations
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
     totalStats.sessions += data.sessions;
     totalStats.minutes += minutes;
 
-    if (minutes > 0) {
+    if (minutes > 0 && !isWeekend) {
       dayOfWeekTotals[dayOfWeek] += minutes;
       dayOfWeekCounts[dayOfWeek]++;
       totalDays++;
@@ -3172,11 +3179,12 @@ function updateStatsDisplay() {
   document.getElementById('statMonth').textContent = formatMinutesShort(monthStats.minutes);
   document.getElementById('statTotal').textContent = formatMinutesShort(totalStats.minutes);
 
-  // Calculate best day of week
+  // Calculate best day of week (Mon-Fri only)
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   let bestDay = '-';
   let bestDayAvg = 0;
-  for (let i = 0; i < 7; i++) {
+  // Only check Mon (1) through Fri (5)
+  for (let i = 1; i <= 5; i++) {
     if (dayOfWeekCounts[i] > 0) {
       const avg = dayOfWeekTotals[i] / dayOfWeekCounts[i];
       if (avg > bestDayAvg) {
@@ -3279,21 +3287,32 @@ function generateChart(view) {
 function getDailyChartData(numDays) {
   const days = [];
   const now = new Date();
+  let collected = 0;
+  let daysBack = 0;
 
-  for (let i = numDays - 1; i >= 0; i--) {
+  // Collect numDays weekdays (Mon-Fri), skipping Sat/Sun
+  while (collected < numDays) {
     const date = new Date(now);
-    date.setDate(now.getDate() - i);
-    const dateStr = getDateInAEST(date);
-    const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
-    const minutes = data.minutes || 0;
+    date.setDate(now.getDate() - daysBack);
+    const dayOfWeek = date.getDay();
 
-    days.push({
-      date: date,
-      dateStr: dateStr,
-      value: minutes,
-      label: date.getDate().toString(),
-      goalMet: minutes >= state.dailyGoalMinutes
-    });
+    // Skip Saturday (6) and Sunday (0)
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      const dateStr = getDateInAEST(date);
+      const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
+      const minutes = data.minutes || 0;
+      const goalForDay = data.dailyGoal || state.dailyGoalMinutes;
+
+      days.unshift({
+        date: date,
+        dateStr: dateStr,
+        value: minutes,
+        label: date.getDate().toString(),
+        goalMet: minutes >= goalForDay
+      });
+      collected++;
+    }
+    daysBack++;
   }
 
   return days;
@@ -3311,15 +3330,23 @@ function getWeeklyChartData(numWeeks) {
 
     let weekTotal = 0;
     let daysMetGoal = 0;
+    let weekdayCount = 0;
 
     for (let d = 0; d < 7; d++) {
       const date = new Date(weekStart);
       date.setDate(weekStart.getDate() + d);
+      const dayOfWeek = date.getDay();
+
+      // Skip Saturday (6) and Sunday (0)
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+      weekdayCount++;
       const dateStr = getDateInAEST(date);
       const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
       const minutes = data.minutes || 0;
+      const goalForDay = data.dailyGoal || state.dailyGoalMinutes;
       weekTotal += minutes;
-      if (minutes >= state.dailyGoalMinutes) daysMetGoal++;
+      if (minutes >= goalForDay) daysMetGoal++;
     }
 
     // Week label: "Jan 5" format
@@ -3329,7 +3356,7 @@ function getWeeklyChartData(numWeeks) {
     weeks.push({
       value: weekTotal,
       label: i === 0 ? 'This' : (i === 1 ? 'Last' : label),
-      goalMet: daysMetGoal >= 5 // Consider week successful if 5+ days met goal
+      goalMet: daysMetGoal >= 4 // Consider week successful if 4+ weekdays met goal (out of 5)
     });
   }
 
@@ -3347,14 +3374,22 @@ function getMonthlyChartData(numMonths) {
     let monthTotal = 0;
     let daysMetGoal = 0;
     let daysInMonth = monthEnd.getDate();
+    let weekdayCount = 0;
 
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
+      const dayOfWeek = date.getDay();
+
+      // Skip Saturday (6) and Sunday (0)
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+      weekdayCount++;
       const dateStr = getDateInAEST(date);
       const data = state.history[dateStr] || { sessions: 0, minutes: 0 };
       const minutes = data.minutes || 0;
+      const goalForDay = data.dailyGoal || state.dailyGoalMinutes;
       monthTotal += minutes;
-      if (minutes >= state.dailyGoalMinutes) daysMetGoal++;
+      if (minutes >= goalForDay) daysMetGoal++;
     }
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -3362,7 +3397,7 @@ function getMonthlyChartData(numMonths) {
     months.push({
       value: monthTotal,
       label: monthNames[monthDate.getMonth()],
-      goalMet: daysMetGoal >= Math.floor(daysInMonth * 0.7) // 70% of days
+      goalMet: daysMetGoal >= Math.floor(weekdayCount * 0.7) // 70% of weekdays
     });
   }
 
@@ -3383,8 +3418,9 @@ function generateTrendLine() {
   const width = canvas.width;
   const height = canvas.height;
 
-  // Get last 30 days of data
+  // Get last 30 days of data with goals
   const data = [];
+  const goals = [];
   const now = new Date();
 
   for (let i = 29; i >= 0; i--) {
@@ -3393,6 +3429,8 @@ function generateTrendLine() {
     const dateStr = getDateInAEST(date);
     const dayData = state.history[dateStr] || { sessions: 0, minutes: 0 };
     data.push(dayData.minutes || 0);
+    // Use stored goal for that day, or current goal as fallback
+    goals.push(dayData.dailyGoal || state.dailyGoalMinutes);
   }
 
   // Calculate 7-day moving average for smoother trend
@@ -3407,7 +3445,8 @@ function generateTrendLine() {
     movingAvg.push(sum / count);
   }
 
-  const maxValue = Math.max(...data, state.dailyGoalMinutes, 1);
+  // Max value considers both data and all goal values
+  const maxValue = Math.max(...data, ...goals, 1);
   const padding = 10;
 
   // Clear canvas
@@ -3418,14 +3457,34 @@ function generateTrendLine() {
   const primaryColor = style.getPropertyValue('--color-primary').trim() || '#38bdf8';
   const mutedColor = style.getPropertyValue('--color-text-muted').trim() || '#64748b';
 
-  // Draw goal line
-  const goalY = height - padding - ((state.dailyGoalMinutes / maxValue) * (height - padding * 2));
+  const stepX = (width - padding * 2) / (data.length - 1);
+
+  // Draw dynamic goal line (stepped line that changes per day)
   ctx.strokeStyle = mutedColor;
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
-  ctx.moveTo(0, goalY);
-  ctx.lineTo(width, goalY);
+
+  goals.forEach((goal, i) => {
+    const x = padding + i * stepX;
+    const nextX = i < goals.length - 1 ? padding + (i + 1) * stepX : width - padding;
+    const goalY = height - padding - ((goal / maxValue) * (height - padding * 2));
+
+    if (i === 0) {
+      ctx.moveTo(x, goalY);
+    } else {
+      // Draw horizontal line to current x, then step to new goal level if changed
+      const prevGoal = goals[i - 1];
+      const prevGoalY = height - padding - ((prevGoal / maxValue) * (height - padding * 2));
+      ctx.lineTo(x, prevGoalY);
+      if (goal !== prevGoal) {
+        ctx.lineTo(x, goalY);
+      }
+    }
+    // Draw horizontal line to next point
+    ctx.lineTo(nextX, goalY);
+  });
+
   ctx.stroke();
   ctx.setLineDash([]);
 
@@ -3433,8 +3492,6 @@ function generateTrendLine() {
   ctx.strokeStyle = primaryColor;
   ctx.lineWidth = 2;
   ctx.beginPath();
-
-  const stepX = (width - padding * 2) / (data.length - 1);
 
   data.forEach((value, i) => {
     const x = padding + i * stepX;
@@ -3785,19 +3842,35 @@ function checkNewDay() {
 }
 
 // Update streak when a new day starts
+// Streaks only count weekdays (Mon-Fri), weekends are skipped
 function updateStreakForNewDay(lastDate) {
-  // Check if the last visit date was yesterday (in AEST)
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = getDateInAEST(yesterday);
+  const today = new Date();
+  const todayDayOfWeek = today.getDay();
 
-  // Get the minutes focused on the last visit date
-  const lastDayData = state.history[lastDate];
-  const lastDayMinutes = lastDayData?.minutes || 0;
+  // If today is a weekend, don't update streak
+  if (todayDayOfWeek === 0 || todayDayOfWeek === 6) {
+    return;
+  }
 
-  if (lastDate === yesterdayStr) {
-    // Last visit was yesterday - check if goal was met
-    if (lastDayMinutes >= state.dailyGoalMinutes) {
+  // Find the previous weekday (could be yesterday, or Friday if today is Monday)
+  let prevWeekday = new Date(today);
+  prevWeekday.setDate(today.getDate() - 1);
+
+  // Skip back over weekends to find the last weekday
+  while (prevWeekday.getDay() === 0 || prevWeekday.getDay() === 6) {
+    prevWeekday.setDate(prevWeekday.getDate() - 1);
+  }
+
+  const prevWeekdayStr = getDateInAEST(prevWeekday);
+
+  // Get the minutes focused on the previous weekday
+  const prevDayData = state.history[prevWeekdayStr];
+  const prevDayMinutes = prevDayData?.minutes || 0;
+  const goalForDay = prevDayData?.dailyGoal || state.dailyGoalMinutes;
+
+  if (lastDate === prevWeekdayStr) {
+    // Last visit was the previous weekday - check if goal was met
+    if (prevDayMinutes >= goalForDay) {
       state.currentStreak++;
       if (state.currentStreak > state.longestStreak) {
         state.longestStreak = state.currentStreak;
@@ -3807,8 +3880,31 @@ function updateStreakForNewDay(lastDate) {
       state.currentStreak = 0;
     }
   } else {
-    // Missed one or more days, reset streak
-    state.currentStreak = 0;
+    // Check if we missed weekdays (not just weekends)
+    const lastDateObj = new Date(lastDate);
+    const lastDayOfWeek = lastDateObj.getDay();
+
+    // If last date was also a weekend, find the weekday before it
+    let checkDate = new Date(lastDateObj);
+    while (checkDate.getDay() === 0 || checkDate.getDay() === 6) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    // If we only missed weekends between last weekday and today, streak continues
+    if (getDateInAEST(checkDate) === prevWeekdayStr) {
+      // Check if goal was met on that day
+      if (prevDayMinutes >= goalForDay) {
+        state.currentStreak++;
+        if (state.currentStreak > state.longestStreak) {
+          state.longestStreak = state.currentStreak;
+        }
+      } else {
+        state.currentStreak = 0;
+      }
+    } else {
+      // Missed one or more weekdays, reset streak
+      state.currentStreak = 0;
+    }
   }
 }
 
