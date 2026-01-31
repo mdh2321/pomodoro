@@ -3224,26 +3224,18 @@ function generateChart(view) {
     avgDisplay.textContent = `${avgLabel} Avg: ${formatMinutesShort(avgValue)}`;
   }
 
-  // Find max value for scaling - ensure goal line fits for daily view
-  const goalValue = view === 'daily' ? state.dailyGoalMinutes : 0;
-  const maxValue = Math.max(...data.map(d => d.value), goalValue, 1);
+  // Find max value for scaling - include all goals for daily view
+  const maxGoal = view === 'daily' ? Math.max(...data.map(d => d.goal || 0)) : 0;
+  const maxValue = Math.max(...data.map(d => d.value), maxGoal, 1);
 
-  // Handle goal line (daily view only)
-  const goalLine = document.getElementById('chartGoalLine');
-  if (goalLine) {
-    if (view === 'daily' && goalValue > 0) {
-      const chartHeight = 120;
-      const goalPercent = (goalValue / maxValue) * 100;
-      const bottomOffset = 18 + (goalPercent / 100) * chartHeight;
-      goalLine.style.bottom = bottomOffset + 'px';
-      goalLine.classList.add('visible');
-    } else {
-      goalLine.classList.remove('visible');
-    }
+  // Hide old goal line element (we'll use SVG instead)
+  const oldGoalLine = document.getElementById('chartGoalLine');
+  if (oldGoalLine) {
+    oldGoalLine.classList.remove('visible');
   }
 
   // Create bars with proper structure for percentage heights
-  data.forEach(item => {
+  data.forEach((item, index) => {
     const bar = document.createElement('div');
     bar.className = 'chart-bar';
 
@@ -3262,11 +3254,11 @@ function generateChart(view) {
     const heightPercent = (item.value / maxValue) * 100;
     fill.style.height = Math.max(heightPercent, 3) + '%';
 
+    // Add tooltip for hover (value shown on hover)
     if (item.value > 0) {
-      const value = document.createElement('span');
-      value.className = 'chart-bar-value';
-      value.textContent = item.value >= 60 ? `${Math.round(item.value / 60)}h` : `${item.value}m`;
-      wrapper.appendChild(value);
+      const valueText = item.value >= 60 ? `${Math.round(item.value / 60)}h` : `${item.value}m`;
+      bar.setAttribute('data-value', valueText);
+      bar.setAttribute('title', valueText);
     }
 
     wrapper.appendChild(fill);
@@ -3279,6 +3271,80 @@ function generateChart(view) {
 
     chartContainer.appendChild(bar);
   });
+
+  // Draw goal line SVG for daily view
+  if (view === 'daily') {
+    drawGoalLineSVG(data, maxValue);
+  }
+}
+
+function drawGoalLineSVG(data, maxValue) {
+  const chartContainer = elements.statsChart;
+  const containerRect = chartContainer.getBoundingClientRect();
+
+  // Remove existing SVG if any
+  const existingSvg = chartContainer.querySelector('.goal-line-svg');
+  if (existingSvg) existingSvg.remove();
+
+  // Create SVG overlay
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('goal-line-svg');
+  svg.style.position = 'absolute';
+  svg.style.top = '0';
+  svg.style.left = '0';
+  svg.style.width = '100%';
+  svg.style.height = '100%';
+  svg.style.pointerEvents = 'none';
+  svg.style.overflow = 'visible';
+
+  // Wait for bars to render then draw line
+  requestAnimationFrame(() => {
+    const bars = chartContainer.querySelectorAll('.chart-bar');
+    if (bars.length === 0) return;
+
+    const chartHeight = chartContainer.querySelector('.chart-bar-wrapper')?.offsetHeight || 120;
+    let pathD = '';
+
+    bars.forEach((bar, i) => {
+      const barRect = bar.getBoundingClientRect();
+      const containerRect = chartContainer.getBoundingClientRect();
+      const x = barRect.left - containerRect.left + barRect.width / 2;
+      const goal = data[i]?.goal || state.dailyGoalMinutes;
+      const goalPercent = goal / maxValue;
+      const y = chartHeight - (goalPercent * chartHeight);
+
+      if (i === 0) {
+        pathD = `M ${x} ${y}`;
+      } else {
+        // Get previous goal
+        const prevGoal = data[i - 1]?.goal || state.dailyGoalMinutes;
+        const prevGoalPercent = prevGoal / maxValue;
+        const prevY = chartHeight - (prevGoalPercent * chartHeight);
+
+        // Draw horizontal line at previous level, then vertical step if changed
+        const prevBar = bars[i - 1];
+        const prevBarRect = prevBar.getBoundingClientRect();
+        const midX = (prevBarRect.left - containerRect.left + prevBarRect.width / 2 + x) / 2;
+
+        pathD += ` L ${midX} ${prevY}`;
+        if (Math.abs(y - prevY) > 1) {
+          pathD += ` L ${midX} ${y}`;
+        }
+        pathD += ` L ${x} ${y}`;
+      }
+    });
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', pathD);
+    path.setAttribute('stroke', 'var(--color-text-muted)');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('stroke-dasharray', '4 4');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('opacity', '0.6');
+    svg.appendChild(path);
+  });
+
+  chartContainer.appendChild(svg);
 }
 
 function getDailyChartData(numDays) {
@@ -3309,6 +3375,7 @@ function getDailyChartData(numDays) {
       dateStr: dateStr,
       value: minutes,
       label: date.getDate().toString(),
+      goal: goalForDay,
       goalMet: minutes >= goalForDay
     });
     collected++;
