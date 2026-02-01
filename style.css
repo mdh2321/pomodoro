@@ -2478,6 +2478,7 @@ body {
   height: 100%;
   position: relative;
   cursor: pointer;
+  z-index: 2; /* Above goal line */
 }
 
 .chart-bar-wrapper {
