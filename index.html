@@ -240,13 +240,17 @@
         <button class="modal-close" id="statsCloseBtn" aria-label="Close">×</button>
       </div>
       <div class="modal-content">
-        <!-- Summary Stats Row -->
+        <!-- Hero Stat: Today -->
+        <div class="analytics-section analytics-hero">
+          <div class="hero-stat">
+            <span class="hero-value" id="statToday">0</span>
+            <span class="hero-label">Today's Focus</span>
+          </div>
+        </div>
+
+        <!-- Summary Stats Row: Week, Month, All Time -->
         <div class="analytics-section">
-          <div class="stats-summary" id="statsSummary">
-            <div class="stat-card">
-              <span class="stat-value" id="statToday">0</span>
-              <span class="stat-label">Today</span>
-            </div>
+          <div class="stats-row">
             <div class="stat-card">
               <span class="stat-value" id="statWeek">0</span>
               <span class="stat-label">This Week</span>
@@ -262,18 +266,28 @@
           </div>
         </div>
 
-        <!-- Insights Row -->
+        <!-- Streaks Row -->
         <div class="analytics-section">
-          <div class="analytics-insights">
-            <div class="insight-card insight-card--streak">
-              <span class="streak-icon">🔥</span>
-              <span class="insight-value" id="currentStreak">0</span>
-              <span class="insight-label">Current Streak</span>
+          <div class="streaks-row">
+            <div class="streak-card">
+              <div class="streak-header">
+                <svg class="streak-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <span class="streak-label">Current Streak</span>
+              </div>
+              <span class="streak-value" id="currentStreak">0</span>
+              <span class="streak-sublabel">days hitting goal</span>
             </div>
-            <div class="insight-card insight-card--streak">
-              <span class="streak-icon">🏆</span>
-              <span class="insight-value" id="longestStreak">0</span>
-              <span class="insight-label">Best Streak</span>
+            <div class="streak-card">
+              <div class="streak-header">
+                <svg class="streak-icon streak-icon--best" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                <span class="streak-label">Best Streak</span>
+              </div>
+              <span class="streak-value" id="longestStreak">0</span>
+              <span class="streak-sublabel">days hitting goal</span>
             </div>
           </div>
         </div>
@@ -290,9 +304,7 @@
           </div>
           <div class="chart-average" id="chartAverage">Avg: 0 min</div>
           <div class="chart-container">
-            <div class="chart-goal-line" id="chartGoalLine"></div>
             <div class="stats-chart" id="statsChart"></div>
-            <div class="chart-labels" id="chartLabels"></div>
           </div>
         </div>
 

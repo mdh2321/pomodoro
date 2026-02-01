@@ -3183,13 +3183,13 @@ function updateStatsDisplay() {
   generateHeatMap();
 }
 
-// Format minutes for display (e.g., 90 -> "1h 30m", 45 -> "45m")
+// Format minutes for display (e.g., 90 -> "1h 30min", 45 -> "45 min")
 function formatMinutesShort(minutes) {
-  if (minutes === 0) return '0';
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes === 0) return '0 min';
+  if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
 }
 
 // Current chart view state
@@ -3256,7 +3256,7 @@ function generateChart(view) {
 
     // Add tooltip for hover (value shown on hover)
     if (item.value > 0) {
-      const valueText = item.value >= 60 ? `${Math.round(item.value / 60)}h` : `${item.value}m`;
+      const valueText = item.value >= 60 ? `${Math.round(item.value / 60)}h` : `${item.value} min`;
       bar.setAttribute('data-value', valueText);
       bar.setAttribute('title', valueText);
     }
@@ -3280,13 +3280,12 @@ function generateChart(view) {
 
 function drawGoalLineSVG(data, maxValue) {
   const chartContainer = elements.statsChart;
-  const containerRect = chartContainer.getBoundingClientRect();
 
   // Remove existing SVG if any
   const existingSvg = chartContainer.querySelector('.goal-line-svg');
   if (existingSvg) existingSvg.remove();
 
-  // Create SVG overlay
+  // Create SVG overlay - inserted first so it renders behind bars
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.classList.add('goal-line-svg');
   svg.style.position = 'absolute';
@@ -3296,6 +3295,7 @@ function drawGoalLineSVG(data, maxValue) {
   svg.style.height = '100%';
   svg.style.pointerEvents = 'none';
   svg.style.overflow = 'visible';
+  svg.style.zIndex = '1'; // Behind bars which have higher z-index
 
   // Wait for bars to render then draw line
   requestAnimationFrame(() => {
