@@ -3183,13 +3183,13 @@ function updateStatsDisplay() {
   generateHeatMap();
 }
 
-// Format minutes for display (e.g., 90 -> "1h 30m", 45 -> "45m")
+// Format minutes for display (e.g., 90 -> "1h 30min", 45 -> "45 min")
 function formatMinutesShort(minutes) {
-  if (minutes === 0) return '0';
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes === 0) return '0 min';
+  if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
 }
 
 // Current chart view state
