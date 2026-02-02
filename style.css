@@ -90,30 +90,30 @@
   --color-break: #34d399;
 }
 
-/* Synthwave Theme Colors */
+/* Synthwave Theme Colors - muted warm accent */
 [data-theme="synthwave"] {
-  --color-primary: #ff6b35;
-  --color-primary-dark: #e55a2b;
-  --color-primary-light: #ff8c5a;
+  --color-primary: #e8a87c;
+  --color-primary-dark: #d4916a;
+  --color-primary-light: #f0c4a8;
 
-  --color-work: #ff6b35;
-  --color-break: #c77dff;
-  --color-break-dark: #9b4dca;
+  --color-work: #e8a87c;
+  --color-break: #b794c6;
+  --color-break-dark: #9a7bab;
 
   --color-background: #1a0a2e;
   --color-surface: #2d1b4e;
   --color-surface-elevated: #3d2a5f;
 
-  --color-text-primary: #fff0e6;
+  --color-text-primary: #f5ede6;
   --color-text-secondary: #c9b8d9;
   --color-text-muted: #8b7a9e;
 
   --color-border: #4a3a6e;
-  --color-border-focus: #ff6b35;
+  --color-border-focus: #e8a87c;
 
-  /* Glow effects */
-  --glow-primary: 0 0 20px rgba(255, 107, 53, 0.5);
-  --glow-accent: 0 0 15px rgba(155, 77, 202, 0.4);
+  /* Subtle glow effects */
+  --glow-primary: 0 0 15px rgba(232, 168, 124, 0.3);
+  --glow-accent: 0 0 12px rgba(183, 148, 198, 0.25);
 }
 
 /* Lo-fi Café Theme Colors */
@@ -141,58 +141,57 @@
   --glow-warm: 0 0 15px rgba(196, 149, 106, 0.3);
 }
 
-/* Terminal Theme Colors */
+/* Terminal Theme Colors - muted phosphor green */
 [data-theme="terminal"] {
-  --color-primary: #00ff00;
-  --color-primary-dark: #00cc00;
-  --color-primary-light: #33ff33;
+  --color-primary: #4ade80;
+  --color-primary-dark: #22c55e;
+  --color-primary-light: #86efac;
 
-  --color-work: #00ff00;
-  --color-break: #00ffff;
-  --color-break-dark: #00cccc;
+  --color-work: #4ade80;
+  --color-break: #5eead4;
+  --color-break-dark: #2dd4bf;
 
   --color-background: #0a0a0a;
   --color-surface: #111111;
   --color-surface-elevated: #1a1a1a;
 
-  --color-text-primary: #00ff00;
-  --color-text-secondary: #00cc00;
-  --color-text-muted: #008800;
+  --color-text-primary: #d4f4dd;
+  --color-text-secondary: #86efac;
+  --color-text-muted: #4ade80;
 
-  --color-border: #003300;
-  --color-border-focus: #00ff00;
+  --color-border: #1a3320;
+  --color-border-focus: #4ade80;
 
-  /* Phosphor glow */
-  --glow-terminal: 0 0 10px rgba(0, 255, 0, 0.5);
+  /* Subtle phosphor glow */
+  --glow-terminal: 0 0 8px rgba(74, 222, 128, 0.3);
 }
 
-/* Fireside Theme Colors */
+/* Fireside Theme Colors - muted amber/burnt orange */
 [data-theme="fireside"] {
-  /* Vibrant ember orange */
-  --color-primary: #e67e22;
-  --color-primary-dark: #d35400;
-  --color-primary-light: #f39c12;
+  --color-primary: #d4915a;
+  --color-primary-dark: #b87a4a;
+  --color-primary-light: #e8a87c;
 
-  --color-work: #e67e22;
-  --color-break: #27ae60;
-  --color-break-dark: #1e8449;
+  --color-work: #d4915a;
+  --color-break: #5d9e6e;
+  --color-break-dark: #4a8458;
 
-  /* Deep navy base */
-  --color-background: #151a2e;
-  --color-surface: rgba(25, 30, 50, 0.9);
-  --color-surface-elevated: rgba(35, 40, 60, 0.95);
+  /* Near-black warm base */
+  --color-background: #0d1117;
+  --color-surface: rgba(20, 24, 32, 0.95);
+  --color-surface-elevated: rgba(30, 34, 42, 0.95);
 
   /* Warm cream text */
-  --color-text-primary: #f5ebe0;
-  --color-text-secondary: #c4b5a5;
-  --color-text-muted: #8a7b6b;
+  --color-text-primary: #e8e0d4;
+  --color-text-secondary: #b0a090;
+  --color-text-muted: #78705f;
 
-  --color-border: rgba(230, 126, 34, 0.25);
-  --color-border-focus: #e67e22;
+  --color-border: rgba(212, 145, 90, 0.2);
+  --color-border-focus: #d4915a;
 
-  /* Warm glows */
-  --glow-fire: 0 0 25px rgba(230, 126, 34, 0.3);
-  --glow-ember: 0 0 15px rgba(211, 84, 0, 0.35);
+  /* Subtle warm glow */
+  --glow-fire: 0 0 15px rgba(212, 145, 90, 0.2);
+  --glow-ember: 0 0 10px rgba(184, 122, 74, 0.25);
 }
 
 /* Reset & Base Styles */
@@ -249,47 +248,18 @@ body {
       #f0e8db 100%);
 }
 
-/* Synthwave Background */
+/* Synthwave Background - deep purple to dark indigo, muted */
 [data-theme="synthwave"] body {
   background:
-    /* Sun glow */
-    radial-gradient(ellipse 80% 50% at 50% 100%,
-      rgba(255,107,53,0.3) 0%, transparent 50%),
-    /* Sunset gradient */
-    linear-gradient(to bottom,
+    /* Subtle warm glow at bottom */
+    radial-gradient(ellipse 60% 30% at 50% 100%,
+      rgba(180, 100, 80, 0.15) 0%, transparent 60%),
+    /* Deep purple to indigo gradient */
+    linear-gradient(180deg,
       #1a0a2e 0%,
-      #2d1b4e 40%,
-      #6b3fa0 60%,
-      #ff6b35 85%,
-      #ffb347 100%);
-}
-
-[data-theme="synthwave"] .app::before {
-  content: '';
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 40%;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 30px,
-      rgba(255,107,53,0.08) 30px,
-      rgba(255,107,53,0.08) 31px
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      transparent,
-      transparent 20px,
-      rgba(255,107,53,0.1) 20px,
-      rgba(255,107,53,0.1) 21px
-    );
-  transform: perspective(300px) rotateX(60deg);
-  transform-origin: bottom;
-  pointer-events: none;
-  z-index: -1;
+      #1f1040 30%,
+      #251550 60%,
+      #2a1a55 100%);
 }
 
 /* Terminal Background */
@@ -334,39 +304,22 @@ body {
   inset: 0;
   background: radial-gradient(
     ellipse at center,
-    rgba(0, 255, 0, 0.03) 0%,
+    rgba(74, 222, 128, 0.03) 0%,
     transparent 70%
   );
   pointer-events: none;
   z-index: -1;
 }
 
-/* Fireside theme body - gradient background simulating night sky with firelight */
+/* Fireside theme body - dark warm background with subtle gradient */
 [data-theme="fireside"] body {
-  background:
-    /* Stars scattered across the sky */
-    radial-gradient(1px 1px at 20% 15%, rgba(255, 255, 255, 0.4), transparent),
-    radial-gradient(1px 1px at 40% 25%, rgba(255, 255, 255, 0.3), transparent),
-    radial-gradient(1px 1px at 60% 10%, rgba(255, 255, 255, 0.35), transparent),
-    radial-gradient(1px 1px at 80% 30%, rgba(255, 255, 255, 0.25), transparent),
-    radial-gradient(1px 1px at 15% 35%, rgba(255, 255, 255, 0.3), transparent),
-    radial-gradient(1px 1px at 70% 20%, rgba(255, 255, 255, 0.4), transparent),
-    radial-gradient(1px 1px at 35% 8%, rgba(255, 255, 255, 0.35), transparent),
-    radial-gradient(1px 1px at 85% 12%, rgba(255, 255, 255, 0.3), transparent),
-    radial-gradient(1px 1px at 50% 18%, rgba(255, 255, 255, 0.25), transparent),
-    radial-gradient(1px 1px at 25% 22%, rgba(255, 255, 255, 0.35), transparent),
-    /* Main gradient - dark sky to warm earth with fire glow */
-    linear-gradient(
-      180deg,
-      #0a0f1a 0%,
-      #0f1525 20%,
-      #151a2e 40%,
-      #1a1f35 55%,
-      #2a1f25 70%,
-      #3d2520 85%,
-      #4a2a1a 100%
-    );
-  background-attachment: fixed;
+  background: linear-gradient(
+    180deg,
+    #0d1117 0%,
+    #111820 40%,
+    #151a20 70%,
+    #1a1815 100%
+  );
 }
 
 /* Subtle warm glow overlay from bottom */
@@ -376,10 +329,10 @@ body {
   inset: 0;
   background:
     radial-gradient(
-      ellipse 70% 40% at 50% 100%,
-      rgba(230, 126, 34, 0.25) 0%,
-      rgba(211, 84, 0, 0.15) 30%,
-      transparent 60%
+      ellipse 60% 35% at 50% 100%,
+      rgba(212, 145, 90, 0.15) 0%,
+      rgba(184, 122, 74, 0.08) 40%,
+      transparent 70%
     );
   pointer-events: none;
   z-index: 0;
@@ -615,13 +568,13 @@ body {
   bottom: 3px;
   width: 8px;
   height: 11px;
-  background: linear-gradient(0deg, #d35400 0%, #e67e22 40%, #f39c12 100%);
+  background: linear-gradient(0deg, #b87a4a 0%, #d4915a 40%, #e8a87c 100%);
   border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
   box-shadow:
     /* Left flame */
-    -5px 2px 0 -1px #e67e22,
+    -5px 2px 0 -1px #d4915a,
     /* Right flame */
-    5px 2px 0 -1px #e67e22;
+    5px 2px 0 -1px #d4915a;
 }
 
 /* Campfire logs */
@@ -695,6 +648,66 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Subtle radial glow behind timer ring - theme specific */
+.timer-container::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(8, 145, 178, 0.08) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Dark theme ring glow */
+[data-theme="dark"] .timer-container::before {
+  background: radial-gradient(
+    circle at center,
+    rgba(34, 211, 238, 0.08) 0%,
+    transparent 70%
+  );
+}
+
+/* Synthwave theme ring glow */
+[data-theme="synthwave"] .timer-container::before {
+  background: radial-gradient(
+    circle at center,
+    rgba(232, 168, 124, 0.12) 0%,
+    transparent 70%
+  );
+}
+
+/* Lo-fi theme ring glow */
+[data-theme="lofi"] .timer-container::before {
+  background: radial-gradient(
+    circle at center,
+    rgba(196, 149, 106, 0.1) 0%,
+    transparent 70%
+  );
+}
+
+/* Terminal theme ring glow */
+[data-theme="terminal"] .timer-container::before {
+  background: radial-gradient(
+    circle at center,
+    rgba(74, 222, 128, 0.1) 0%,
+    transparent 70%
+  );
+}
+
+/* Fireside theme ring glow - warm ember */
+[data-theme="fireside"] .timer-container::before {
+  background: radial-gradient(
+    circle at center,
+    rgba(212, 145, 90, 0.15) 0%,
+    transparent 70%
+  );
 }
 
 /* Progress Ring (SVG) */
@@ -1303,7 +1316,7 @@ body {
 }
 
 [data-theme="synthwave"] .goal-progress-bar {
-  background: linear-gradient(90deg, #ff6b35, #ff8c5a);
+  background: linear-gradient(90deg, #e8a87c, #f0c4a8);
 }
 
 [data-theme="synthwave"] .goal-progress.goal-complete .goal-progress-bar {
@@ -2425,7 +2438,7 @@ body {
 
 /* Synthwave summary styling */
 [data-theme="synthwave"] .summary-stat--primary .summary-stat-value {
-  text-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
+  text-shadow: 0 0 10px rgba(232, 168, 124, 0.5);
 }
 
 [data-theme="synthwave"] .summary-streak {
@@ -2583,7 +2596,7 @@ body {
 
 [data-theme="synthwave"] .stats-toggle-btn.active {
   background: rgba(107, 63, 160, 0.5);
-  box-shadow: 0 0 10px rgba(255, 107, 53, 0.2);
+  box-shadow: 0 0 10px rgba(232, 168, 124, 0.2);
 }
 
 .modal-close {
@@ -2786,10 +2799,10 @@ body.focus-mode .timer-container {
 /* Synthwave theme focus mode */
 @keyframes focus-pulse-synthwave {
   0%, 100% {
-    filter: drop-shadow(0 0 25px rgba(255, 107, 53, 0.4));
+    filter: drop-shadow(0 0 25px rgba(232, 168, 124, 0.4));
   }
   50% {
-    filter: drop-shadow(0 0 60px rgba(255, 107, 53, 0.9));
+    filter: drop-shadow(0 0 60px rgba(232, 168, 124, 0.9));
   }
 }
 
@@ -2863,7 +2876,7 @@ body.focus-mode .timer-container {
   background: rgba(45, 27, 78, 0.95);
   color: var(--color-text-primary);
   border: 1px solid rgba(155, 77, 202, 0.5);
-  box-shadow: 0 0 20px rgba(255, 107, 53, 0.3);
+  box-shadow: 0 0 20px rgba(232, 168, 124, 0.3);
 }
 
 /* Responsive Adjustments */
@@ -2922,17 +2935,13 @@ body.focus-mode .timer-container {
 
 /* Timer glow effect */
 [data-theme="synthwave"] .timer-time {
-  font-family: 'Courier New', Consolas, monospace;
-  font-weight: bold;
-  letter-spacing: 0.05em;
   text-shadow:
-    0 0 10px rgba(255, 107, 53, 0.8),
-    0 0 20px rgba(255, 107, 53, 0.5),
-    0 0 40px rgba(255, 107, 53, 0.3);
+    0 0 10px rgba(180, 100, 80, 0.5),
+    0 0 20px rgba(180, 100, 80, 0.3);
 }
 
 [data-theme="synthwave"] .progress-ring__progress {
-  filter: drop-shadow(0 0 8px rgba(255, 107, 53, 0.6));
+  filter: drop-shadow(0 0 8px rgba(232, 168, 124, 0.6));
 }
 
 [data-theme="synthwave"] .progress-ring__progress.break-mode {
@@ -2941,13 +2950,13 @@ body.focus-mode .timer-container {
 
 /* Primary button styling */
 [data-theme="synthwave"] .btn--primary {
-  background: linear-gradient(135deg, #ff6b35, #e55a2b);
+  background: linear-gradient(135deg, #e8a87c, #d4916a);
   box-shadow: var(--glow-primary);
 }
 
 [data-theme="synthwave"] .btn--primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #ff8c5a, #ff6b35);
-  box-shadow: 0 0 25px rgba(255, 107, 53, 0.6);
+  background: linear-gradient(135deg, #f0c4a8, #e8a87c);
+  box-shadow: 0 0 25px rgba(232, 168, 124, 0.6);
 }
 
 [data-theme="synthwave"] .btn--primary.break-mode {
@@ -2962,14 +2971,14 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="synthwave"] .btn--secondary:hover:not(:disabled) {
-  border-color: #ff6b35;
+  border-color: #e8a87c;
   box-shadow: var(--glow-primary);
   background: rgba(61, 42, 95, 0.9);
 }
 
 /* Inline time arrows - synthwave */
 [data-theme="synthwave"] .time-arrow:hover {
-  color: #ff6b35;
+  color: #e8a87c;
   text-shadow: var(--glow-primary);
 }
 
@@ -2980,8 +2989,8 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="synthwave"] .stepper-btn:hover {
-  border-color: #ff6b35;
-  color: #ff6b35;
+  border-color: #e8a87c;
+  color: #e8a87c;
   box-shadow: var(--glow-primary);
 }
 
@@ -2996,7 +3005,7 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="synthwave"] .sound-option.active {
-  background: linear-gradient(135deg, #ff6b35, #e55a2b);
+  background: linear-gradient(135deg, #e8a87c, #d4916a);
   box-shadow: var(--glow-primary);
 }
 
@@ -3007,13 +3016,13 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .task-trigger:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(255, 107, 53, 0.2);
+  box-shadow: 0 0 10px rgba(232, 168, 124, 0.2);
 }
 
 [data-theme="synthwave"] .task-modal {
   background: var(--color-surface);
   border: 1px solid rgba(155, 77, 202, 0.5);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 107, 53, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(232, 168, 124, 0.1);
 }
 
 [data-theme="synthwave"] .task-modal-input {
@@ -3023,7 +3032,7 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .task-modal-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(255, 107, 53, 0.3);
+  box-shadow: 0 0 10px rgba(232, 168, 124, 0.3);
 }
 
 [data-theme="synthwave"] .task-card {
@@ -3037,8 +3046,8 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .task-check:hover,
 [data-theme="synthwave"] .task-check.checked {
-  background: linear-gradient(135deg, #ff6b35, #e55a2b);
-  box-shadow: 0 0 10px rgba(255, 107, 53, 0.4);
+  background: linear-gradient(135deg, #e8a87c, #d4916a);
+  box-shadow: 0 0 10px rgba(232, 168, 124, 0.4);
 }
 
 /* Stats & Settings buttons - SVG glow effect */
@@ -3049,8 +3058,8 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .stats-btn:hover svg,
 [data-theme="synthwave"] .settings-btn:hover svg {
-  color: #ff6b35;
-  filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.6));
+  color: #e8a87c;
+  filter: drop-shadow(0 0 6px rgba(232, 168, 124, 0.6));
 }
 
 /* Modal styling */
@@ -3638,11 +3647,11 @@ body.focus-mode .timer-container {
 [data-theme="synthwave"] .add-task-input:focus,
 [data-theme="synthwave"] .add-task-estimate:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 8px rgba(255, 107, 53, 0.3);
+  box-shadow: 0 0 8px rgba(232, 168, 124, 0.3);
 }
 
 [data-theme="synthwave"] .add-task-btn {
-  background: linear-gradient(135deg, #ff6b35, #e55a2b);
+  background: linear-gradient(135deg, #e8a87c, #d4916a);
   box-shadow: var(--glow-primary);
 }
 
@@ -3653,22 +3662,22 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .task-item:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(255, 107, 53, 0.2);
+  box-shadow: 0 0 10px rgba(232, 168, 124, 0.2);
 }
 
 [data-theme="synthwave"] .task-item.next-task {
-  background: rgba(255, 107, 53, 0.15);
+  background: rgba(232, 168, 124, 0.15);
   border-color: var(--color-primary);
 }
 
 [data-theme="synthwave"] .task-item.active-task {
-  background: rgba(255, 107, 53, 0.2);
+  background: rgba(232, 168, 124, 0.2);
   box-shadow: var(--glow-primary);
 }
 
 [data-theme="synthwave"] .task-item-checkbox:hover,
 [data-theme="synthwave"] .task-item.completed .task-item-checkbox {
-  background: linear-gradient(135deg, #ff6b35, #e55a2b);
+  background: linear-gradient(135deg, #e8a87c, #d4916a);
   border-color: var(--color-primary);
 }
 
@@ -3695,9 +3704,7 @@ body.focus-mode .timer-container {
 
 /* Warm cozy styling */
 [data-theme="lofi"] .timer-time {
-  font-family: 'Georgia', 'Times New Roman', serif;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  color: var(--color-text-primary);
 }
 
 [data-theme="lofi"] .progress-ring__progress {
@@ -3868,48 +3875,30 @@ body.focus-mode .timer-container {
    Terminal Theme Specific Styles
    ============================================ */
 
-/* Monospace everything */
-[data-theme="terminal"] {
-  font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
-}
-
+/* Terminal timer styling - color-based identity only */
 [data-theme="terminal"] .timer-time {
-  font-family: 'Courier New', 'Monaco', monospace;
-  font-weight: bold;
-  letter-spacing: 0.05em;
   text-shadow:
-    0 0 10px rgba(0, 255, 0, 0.8),
-    0 0 20px rgba(0, 255, 0, 0.5),
-    0 0 40px rgba(0, 255, 0, 0.3);
+    0 0 8px rgba(0, 200, 0, 0.4),
+    0 0 16px rgba(0, 200, 0, 0.2);
 }
 
 [data-theme="terminal"] .timer-status {
-  font-family: 'Courier New', monospace;
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
-[data-theme="terminal"] .timer-status::before {
-  content: '[ ';
-}
-
-[data-theme="terminal"] .timer-status::after {
-  content: ' ]';
-}
-
 [data-theme="terminal"] .progress-ring__progress {
-  filter: drop-shadow(0 0 8px rgba(0, 255, 0, 0.6));
+  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6));
 }
 
 [data-theme="terminal"] .progress-ring__progress.break-mode {
-  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.6));
+  filter: drop-shadow(0 0 8px rgba(94, 234, 212, 0.6));
 }
 
 /* Buttons */
 [data-theme="terminal"] .btn {
-  font-family: 'Courier New', monospace;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.05em;
   border: 1px solid var(--color-primary);
   background: transparent;
 }
@@ -3920,7 +3909,7 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="terminal"] .btn--primary:hover:not(:disabled) {
-  box-shadow: var(--glow-terminal), 0 0 20px rgba(0, 255, 0, 0.4);
+  box-shadow: var(--glow-terminal), 0 0 20px rgba(74, 222, 128, 0.4);
 }
 
 [data-theme="terminal"] .btn--secondary {
@@ -3941,7 +3930,7 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="terminal"] .sound-option:hover {
-  background: rgba(0, 255, 0, 0.1);
+  background: rgba(74, 222, 128, 0.1);
 }
 
 [data-theme="terminal"] .sound-option.active {
@@ -3952,20 +3941,20 @@ body.focus-mode .timer-container {
 /* Goal progress */
 [data-theme="terminal"] .goal-progress-bar {
   background: var(--color-primary);
-  box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
 }
 
 [data-theme="terminal"] .goal-progress.goal-complete .goal-progress-bar {
-  background: #ffff00;
-  box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+  background: #fcd34d;
+  box-shadow: 0 0 10px rgba(252, 211, 77, 0.5);
 }
 
 [data-theme="terminal"] .goal-progress.goal-complete .goal-progress-bar-container {
-  border-color: #ffff00;
+  border-color: #fcd34d;
 }
 
 [data-theme="terminal"] .goal-progress.goal-complete .goal-progress-text {
-  color: #ffff00;
+  color: #fcd34d;
 }
 
 /* Modals */
@@ -3975,19 +3964,18 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="terminal"] .modal-title {
-  font-family: 'Courier New', monospace;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.05em;
 }
 
 /* Stats */
 [data-theme="terminal"] .stat-card {
-  background: rgba(0, 255, 0, 0.05);
+  background: rgba(74, 222, 128, 0.05);
   border: 1px solid var(--color-border);
 }
 
 [data-theme="terminal"] .streak-card {
-  background: rgba(0, 255, 0, 0.05);
+  background: rgba(74, 222, 128, 0.05);
   border: 1px solid var(--color-border);
 }
 
@@ -4010,17 +3998,16 @@ body.focus-mode .timer-container {
 [data-theme="terminal"] .task-item {
   background: transparent;
   border: 1px solid var(--color-border);
-  font-family: 'Courier New', monospace;
 }
 
 [data-theme="terminal"] .task-item:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
 }
 
 [data-theme="terminal"] .task-item.next-task {
   border-color: var(--color-primary);
-  background: rgba(0, 255, 0, 0.05);
+  background: rgba(74, 222, 128, 0.05);
 }
 
 [data-theme="terminal"] .task-item.active-task {
@@ -4037,13 +4024,12 @@ body.focus-mode .timer-container {
 [data-theme="terminal"] .add-task-estimate {
   background: transparent;
   border: 1px solid var(--color-border);
-  font-family: 'Courier New', monospace;
 }
 
 [data-theme="terminal"] .add-task-input:focus,
 [data-theme="terminal"] .add-task-estimate:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
 }
 
 [data-theme="terminal"] .add-task-btn {
@@ -4061,23 +4047,22 @@ body.focus-mode .timer-container {
 [data-theme="terminal"] .stats-btn:hover svg,
 [data-theme="terminal"] .settings-btn:hover svg {
   opacity: 1;
-  filter: drop-shadow(0 0 4px rgba(0, 255, 0, 0.6));
+  filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.6));
 }
 
 /* Undo toast */
 [data-theme="terminal"] .undo-toast {
   background: var(--color-primary);
   color: #0a0a0a;
-  font-family: 'Courier New', monospace;
 }
 
 /* Focus mode */
 @keyframes focus-pulse-terminal {
   0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(0, 255, 0, 0.4));
+    filter: drop-shadow(0 0 15px rgba(74, 222, 128, 0.4));
   }
   50% {
-    filter: drop-shadow(0 0 40px rgba(0, 255, 0, 0.8));
+    filter: drop-shadow(0 0 40px rgba(74, 222, 128, 0.8));
   }
 }
 
@@ -4101,7 +4086,7 @@ body.focus-mode .timer-container {
 
 /* Timer ring - ember orange glow */
 [data-theme="fireside"] .progress-ring__progress {
-  filter: drop-shadow(0 0 8px rgba(230, 126, 34, 0.5));
+  filter: drop-shadow(0 0 8px rgba(212, 145, 90, 0.5));
 }
 
 /* Subtle flicker ONLY during active work session */
@@ -4117,22 +4102,22 @@ body.focus-mode .timer-container {
 /* Very subtle, slow ember-like glow variation */
 @keyframes ember-glow {
   0%, 100% {
-    filter: drop-shadow(0 0 8px rgba(230, 126, 34, 0.5));
+    filter: drop-shadow(0 0 8px rgba(212, 145, 90, 0.5));
   }
   30% {
-    filter: drop-shadow(0 0 10px rgba(230, 126, 34, 0.55));
+    filter: drop-shadow(0 0 10px rgba(212, 145, 90, 0.55));
   }
   60% {
-    filter: drop-shadow(0 0 6px rgba(211, 84, 0, 0.45));
+    filter: drop-shadow(0 0 6px rgba(184, 122, 74, 0.45));
   }
   80% {
-    filter: drop-shadow(0 0 9px rgba(230, 126, 34, 0.52));
+    filter: drop-shadow(0 0 9px rgba(212, 145, 90, 0.52));
   }
 }
 
 /* Timer display - warm tint */
 [data-theme="fireside"] .timer-time {
-  text-shadow: 0 0 25px rgba(230, 126, 34, 0.2);
+  text-shadow: 0 0 25px rgba(212, 145, 90, 0.2);
 }
 
 /* Buttons */
@@ -4154,7 +4139,7 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="fireside"] .btn--secondary:hover:not(:disabled) {
-  background: rgba(230, 126, 34, 0.1);
+  background: rgba(212, 145, 90, 0.1);
   border-color: var(--color-primary-light);
 }
 
@@ -4166,7 +4151,7 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="fireside"] .sound-option:hover {
-  background: rgba(230, 126, 34, 0.1);
+  background: rgba(212, 145, 90, 0.1);
 }
 
 [data-theme="fireside"] .sound-option.active {
@@ -4177,7 +4162,7 @@ body.focus-mode .timer-container {
 /* Goal progress */
 [data-theme="fireside"] .goal-progress-bar {
   background: linear-gradient(90deg, var(--color-primary-dark), var(--color-primary));
-  box-shadow: 0 0 8px rgba(230, 126, 34, 0.3);
+  box-shadow: 0 0 8px rgba(212, 145, 90, 0.3);
 }
 
 [data-theme="fireside"] .goal-progress.goal-complete .goal-progress-bar {
@@ -4202,12 +4187,12 @@ body.focus-mode .timer-container {
 
 /* Stats cards */
 [data-theme="fireside"] .stat-card {
-  background: rgba(230, 126, 34, 0.06);
+  background: rgba(212, 145, 90, 0.06);
   border: 1px solid var(--color-border);
 }
 
 [data-theme="fireside"] .streak-card {
-  background: rgba(230, 126, 34, 0.06);
+  background: rgba(212, 145, 90, 0.06);
   border: 1px solid var(--color-border);
 }
 
@@ -4235,12 +4220,12 @@ body.focus-mode .timer-container {
 
 [data-theme="fireside"] .task-item:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 0 8px rgba(230, 126, 34, 0.15);
+  box-shadow: 0 0 8px rgba(212, 145, 90, 0.15);
 }
 
 [data-theme="fireside"] .task-item.next-task {
   border-color: var(--color-primary);
-  background: rgba(230, 126, 34, 0.06);
+  background: rgba(212, 145, 90, 0.06);
 }
 
 [data-theme="fireside"] .task-item.active-task {
@@ -4262,7 +4247,7 @@ body.focus-mode .timer-container {
 [data-theme="fireside"] .add-task-input:focus,
 [data-theme="fireside"] .add-task-estimate:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 8px rgba(230, 126, 34, 0.15);
+  box-shadow: 0 0 8px rgba(212, 145, 90, 0.15);
 }
 
 [data-theme="fireside"] .add-task-btn {
@@ -4280,7 +4265,7 @@ body.focus-mode .timer-container {
 [data-theme="fireside"] .stats-btn:hover svg,
 [data-theme="fireside"] .settings-btn:hover svg {
   opacity: 1;
-  filter: drop-shadow(0 0 4px rgba(230, 126, 34, 0.5));
+  filter: drop-shadow(0 0 4px rgba(212, 145, 90, 0.5));
 }
 
 /* Undo toast */
@@ -4292,10 +4277,10 @@ body.focus-mode .timer-container {
 /* Focus mode - subtle ambient pulse */
 @keyframes focus-pulse-fire {
   0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(230, 126, 34, 0.25));
+    filter: drop-shadow(0 0 15px rgba(212, 145, 90, 0.25));
   }
   50% {
-    filter: drop-shadow(0 0 22px rgba(230, 126, 34, 0.35));
+    filter: drop-shadow(0 0 22px rgba(212, 145, 90, 0.35));
   }
 }
 
