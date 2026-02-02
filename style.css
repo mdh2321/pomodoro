@@ -341,51 +341,38 @@ body {
   z-index: -1;
 }
 
-/* Fireside theme body - deep navy to warm amber */
+/* Fireside theme body - background image */
 [data-theme="fireside"] body {
-  background:
-    /* Main vertical gradient - navy to dusty purple to warm brown */
-    linear-gradient(
-      180deg,
-      #0f1525 0%,
-      #1a2035 20%,
-      #2a2540 35%,
-      #3d2d40 50%,
-      #4a3535 65%,
-      #5c3a2a 80%,
-      #6b4025 100%
-    );
+  background: url('assets/fireside-bg.jpg') center center / cover no-repeat fixed;
+  background-color: #0f1525; /* Fallback color */
 }
 
-/* Warm glow from bottom - campfire light effect */
+/* Subtle warm glow overlay from bottom */
 [data-theme="fireside"] body::before {
   content: '';
   position: fixed;
   inset: 0;
   background:
     radial-gradient(
-      ellipse 80% 45% at 50% 100%,
-      rgba(230, 126, 34, 0.5) 0%,
-      rgba(211, 84, 0, 0.35) 20%,
-      rgba(180, 60, 20, 0.2) 40%,
-      transparent 70%
+      ellipse 70% 40% at 50% 100%,
+      rgba(230, 126, 34, 0.25) 0%,
+      rgba(211, 84, 0, 0.15) 30%,
+      transparent 60%
     );
   pointer-events: none;
   z-index: 0;
 }
 
-/* Subtle top-down darkening for depth */
+/* Subtle vignette */
 [data-theme="fireside"] body::after {
   content: '';
   position: fixed;
   inset: 0;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(15, 21, 37, 0.3) 0%,
-      transparent 40%,
-      transparent 100%
-    );
+  background: radial-gradient(
+    ellipse 80% 80% at 50% 50%,
+    transparent 40%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
   pointer-events: none;
   z-index: 1;
 }
