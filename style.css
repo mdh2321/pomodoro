@@ -168,31 +168,31 @@
 
 /* Fireside Theme Colors */
 [data-theme="fireside"] {
-  /* Warm amber/copper tones */
-  --color-primary: #d4845f;
-  --color-primary-dark: #b86b4a;
-  --color-primary-light: #e8a882;
+  /* Vibrant ember orange */
+  --color-primary: #e67e22;
+  --color-primary-dark: #d35400;
+  --color-primary-light: #f39c12;
 
-  --color-work: #d4845f;
-  --color-break: #6b9e8a;
-  --color-break-dark: #4d7d6a;
+  --color-work: #e67e22;
+  --color-break: #27ae60;
+  --color-break-dark: #1e8449;
 
-  /* Deep navy base with warm undertones */
-  --color-background: #0d1117;
-  --color-surface: rgba(30, 25, 35, 0.85);
-  --color-surface-elevated: rgba(45, 38, 50, 0.9);
+  /* Deep navy base */
+  --color-background: #151a2e;
+  --color-surface: rgba(25, 30, 50, 0.9);
+  --color-surface-elevated: rgba(35, 40, 60, 0.95);
 
-  /* Warm cream/off-white text */
-  --color-text-primary: #f0e6dc;
-  --color-text-secondary: #b8a99a;
-  --color-text-muted: #7a6e62;
+  /* Warm cream text */
+  --color-text-primary: #f5ebe0;
+  --color-text-secondary: #c4b5a5;
+  --color-text-muted: #8a7b6b;
 
-  --color-border: rgba(212, 132, 95, 0.2);
-  --color-border-focus: #d4845f;
+  --color-border: rgba(230, 126, 34, 0.25);
+  --color-border-focus: #e67e22;
 
-  /* Subtle warm glows */
-  --glow-fire: 0 0 30px rgba(212, 132, 95, 0.25);
-  --glow-ember: 0 0 20px rgba(184, 107, 74, 0.3);
+  /* Warm glows */
+  --glow-fire: 0 0 25px rgba(230, 126, 34, 0.3);
+  --glow-ember: 0 0 15px rgba(211, 84, 0, 0.35);
 }
 
 /* Reset & Base Styles */
@@ -344,63 +344,50 @@ body {
 /* Fireside theme body - deep navy to warm amber */
 [data-theme="fireside"] body {
   background:
-    /* Warm glow from bottom center - like campfire light */
-    radial-gradient(
-      ellipse 120% 60% at 50% 105%,
-      rgba(180, 100, 60, 0.35) 0%,
-      rgba(140, 70, 45, 0.2) 25%,
-      rgba(80, 45, 35, 0.1) 45%,
-      transparent 70%
-    ),
-    /* Subtle side warmth */
-    radial-gradient(
-      ellipse 50% 80% at 0% 100%,
-      rgba(120, 60, 40, 0.15) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse 50% 80% at 100% 100%,
-      rgba(120, 60, 40, 0.15) 0%,
-      transparent 50%
-    ),
-    /* Main gradient - deep navy to warm charcoal */
+    /* Main vertical gradient - navy to dusty purple to warm brown */
     linear-gradient(
       180deg,
-      #0d1117 0%,
-      #131820 30%,
-      #1a1c24 50%,
-      #1e1a1c 70%,
-      #201816 100%
+      #0f1525 0%,
+      #1a2035 20%,
+      #2a2540 35%,
+      #3d2d40 50%,
+      #4a3535 65%,
+      #5c3a2a 80%,
+      #6b4025 100%
     );
 }
 
-/* Soft ambient warmth overlay */
+/* Warm glow from bottom - campfire light effect */
 [data-theme="fireside"] body::before {
   content: '';
   position: fixed;
   inset: 0;
   background:
     radial-gradient(
-      ellipse 100% 50% at 50% 100%,
-      rgba(212, 132, 95, 0.08) 0%,
-      transparent 60%
+      ellipse 80% 45% at 50% 100%,
+      rgba(230, 126, 34, 0.5) 0%,
+      rgba(211, 84, 0, 0.35) 20%,
+      rgba(180, 60, 20, 0.2) 40%,
+      transparent 70%
     );
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
 }
 
-/* Subtle vignette for depth */
+/* Subtle top-down darkening for depth */
 [data-theme="fireside"] body::after {
   content: '';
   position: fixed;
   inset: 0;
-  background: radial-gradient(
-    ellipse 80% 80% at 50% 50%,
-    transparent 30%,
-    rgba(8, 10, 14, 0.4) 100%
-  );
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15, 21, 37, 0.3) 0%,
+      transparent 40%,
+      transparent 100%
+    );
   pointer-events: none;
-  z-index: 998;
+  z-index: 1;
 }
 
 /* Header */
@@ -607,15 +594,39 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  width: 20px;
+  height: 20px;
 }
 
+/* Campfire icon - main flame */
 .theme-icon--fireside::before {
   content: '';
+  position: absolute;
+  bottom: 3px;
   width: 8px;
-  height: 12px;
-  background: linear-gradient(180deg, #e8a882 0%, #d4845f 50%, #b86b4a 100%);
+  height: 11px;
+  background: linear-gradient(0deg, #d35400 0%, #e67e22 40%, #f39c12 100%);
   border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-  position: relative;
+  box-shadow:
+    /* Left flame */
+    -5px 2px 0 -1px #e67e22,
+    /* Right flame */
+    5px 2px 0 -1px #e67e22;
+}
+
+/* Campfire logs */
+.theme-icon--fireside::after {
+  content: '';
+  position: absolute;
+  bottom: 1px;
+  width: 14px;
+  height: 3px;
+  background: linear-gradient(90deg, #8b4513 0%, #654321 50%, #8b4513 100%);
+  border-radius: 1px;
+  box-shadow:
+    /* Crossed log */
+    0 0 0 0 transparent;
 }
 
 @keyframes flame-flicker {
@@ -4079,9 +4090,9 @@ body.focus-mode .timer-container {
    Fireside Theme Styles
    ============================================ */
 
-/* Timer ring - static warm glow by default */
+/* Timer ring - ember orange glow */
 [data-theme="fireside"] .progress-ring__progress {
-  filter: drop-shadow(0 0 6px rgba(212, 132, 95, 0.4));
+  filter: drop-shadow(0 0 8px rgba(230, 126, 34, 0.5));
 }
 
 /* Subtle flicker ONLY during active work session */
@@ -4090,29 +4101,29 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="fireside"] .progress-ring__progress.break-mode {
-  filter: drop-shadow(0 0 5px rgba(107, 158, 138, 0.35));
+  filter: drop-shadow(0 0 6px rgba(39, 174, 96, 0.4));
   animation: none;
 }
 
 /* Very subtle, slow ember-like glow variation */
 @keyframes ember-glow {
   0%, 100% {
-    filter: drop-shadow(0 0 6px rgba(212, 132, 95, 0.4));
+    filter: drop-shadow(0 0 8px rgba(230, 126, 34, 0.5));
   }
   30% {
-    filter: drop-shadow(0 0 8px rgba(212, 132, 95, 0.45));
+    filter: drop-shadow(0 0 10px rgba(230, 126, 34, 0.55));
   }
   60% {
-    filter: drop-shadow(0 0 5px rgba(184, 107, 74, 0.38));
+    filter: drop-shadow(0 0 6px rgba(211, 84, 0, 0.45));
   }
   80% {
-    filter: drop-shadow(0 0 7px rgba(212, 132, 95, 0.42));
+    filter: drop-shadow(0 0 9px rgba(230, 126, 34, 0.52));
   }
 }
 
-/* Timer display - subtle warm tint */
+/* Timer display - warm tint */
 [data-theme="fireside"] .timer-time {
-  text-shadow: 0 0 30px rgba(212, 132, 95, 0.15);
+  text-shadow: 0 0 25px rgba(230, 126, 34, 0.2);
 }
 
 /* Buttons */
@@ -4134,66 +4145,66 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="fireside"] .btn--secondary:hover:not(:disabled) {
-  background: rgba(212, 132, 95, 0.1);
+  background: rgba(230, 126, 34, 0.1);
   border-color: var(--color-primary-light);
 }
 
 /* Sound dropdown */
 [data-theme="fireside"] .sound-dropdown {
-  background: rgba(13, 17, 23, 0.97);
+  background: rgba(21, 26, 46, 0.97);
   border: 1px solid var(--color-border);
   backdrop-filter: blur(10px);
 }
 
 [data-theme="fireside"] .sound-option:hover {
-  background: rgba(212, 132, 95, 0.1);
+  background: rgba(230, 126, 34, 0.1);
 }
 
 [data-theme="fireside"] .sound-option.active {
   background: var(--color-primary);
-  color: #0d1117;
+  color: #151a2e;
 }
 
 /* Goal progress */
 [data-theme="fireside"] .goal-progress-bar {
   background: linear-gradient(90deg, var(--color-primary-dark), var(--color-primary));
-  box-shadow: 0 0 8px rgba(212, 132, 95, 0.3);
+  box-shadow: 0 0 8px rgba(230, 126, 34, 0.3);
 }
 
 [data-theme="fireside"] .goal-progress.goal-complete .goal-progress-bar {
-  background: linear-gradient(90deg, #4d7d6a, #6b9e8a);
-  box-shadow: 0 0 8px rgba(107, 158, 138, 0.3);
+  background: linear-gradient(90deg, #1e8449, #27ae60);
+  box-shadow: 0 0 8px rgba(39, 174, 96, 0.3);
 }
 
 [data-theme="fireside"] .goal-progress.goal-complete .goal-progress-bar-container {
-  border-color: #6b9e8a;
+  border-color: #27ae60;
 }
 
 [data-theme="fireside"] .goal-progress.goal-complete .goal-progress-text {
-  color: #6b9e8a;
+  color: #27ae60;
 }
 
 /* Modals */
 [data-theme="fireside"] .modal {
-  background: rgba(13, 17, 23, 0.97);
+  background: rgba(21, 26, 46, 0.97);
   border: 1px solid var(--color-border);
   backdrop-filter: blur(10px);
 }
 
 /* Stats cards */
 [data-theme="fireside"] .stat-card {
-  background: rgba(212, 132, 95, 0.05);
+  background: rgba(230, 126, 34, 0.06);
   border: 1px solid var(--color-border);
 }
 
 [data-theme="fireside"] .streak-card {
-  background: rgba(212, 132, 95, 0.05);
+  background: rgba(230, 126, 34, 0.06);
   border: 1px solid var(--color-border);
 }
 
 /* Task sidebar */
 [data-theme="fireside"] .sidebar-tab {
-  background: rgba(13, 17, 23, 0.9);
+  background: rgba(21, 26, 46, 0.9);
   border: 1px solid var(--color-border);
 }
 
@@ -4203,7 +4214,7 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="fireside"] .sidebar-panel {
-  background: rgba(13, 17, 23, 0.97);
+  background: rgba(21, 26, 46, 0.97);
   border: 1px solid var(--color-border);
   backdrop-filter: blur(10px);
 }
@@ -4215,12 +4226,12 @@ body.focus-mode .timer-container {
 
 [data-theme="fireside"] .task-item:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 0 8px rgba(212, 132, 95, 0.15);
+  box-shadow: 0 0 8px rgba(230, 126, 34, 0.15);
 }
 
 [data-theme="fireside"] .task-item.next-task {
   border-color: var(--color-primary);
-  background: rgba(212, 132, 95, 0.05);
+  background: rgba(230, 126, 34, 0.06);
 }
 
 [data-theme="fireside"] .task-item.active-task {
@@ -4242,12 +4253,12 @@ body.focus-mode .timer-container {
 [data-theme="fireside"] .add-task-input:focus,
 [data-theme="fireside"] .add-task-estimate:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 8px rgba(212, 132, 95, 0.15);
+  box-shadow: 0 0 8px rgba(230, 126, 34, 0.15);
 }
 
 [data-theme="fireside"] .add-task-btn {
   background: var(--color-primary);
-  color: #0d1117;
+  color: #151a2e;
 }
 
 /* Stats & Settings buttons */
@@ -4260,22 +4271,22 @@ body.focus-mode .timer-container {
 [data-theme="fireside"] .stats-btn:hover svg,
 [data-theme="fireside"] .settings-btn:hover svg {
   opacity: 1;
-  filter: drop-shadow(0 0 3px rgba(212, 132, 95, 0.4));
+  filter: drop-shadow(0 0 4px rgba(230, 126, 34, 0.5));
 }
 
 /* Undo toast */
 [data-theme="fireside"] .undo-toast {
   background: var(--color-primary);
-  color: #0d1117;
+  color: #151a2e;
 }
 
-/* Focus mode - very subtle ambient pulse */
+/* Focus mode - subtle ambient pulse */
 @keyframes focus-pulse-fire {
   0%, 100% {
-    filter: drop-shadow(0 0 12px rgba(212, 132, 95, 0.2));
+    filter: drop-shadow(0 0 15px rgba(230, 126, 34, 0.25));
   }
   50% {
-    filter: drop-shadow(0 0 18px rgba(212, 132, 95, 0.28));
+    filter: drop-shadow(0 0 22px rgba(230, 126, 34, 0.35));
   }
 }
 
