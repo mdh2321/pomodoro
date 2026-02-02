@@ -3554,7 +3554,7 @@ function setStatsView(view) {
 // Theme Management
 // ============================================
 
-const THEMES = ['light', 'dark', 'synthwave', 'lofi', 'terminal'];
+const THEMES = ['light', 'dark', 'synthwave', 'lofi', 'terminal', 'fireside'];
 
 function cycleTheme() {
   const currentIndex = THEMES.indexOf(state.theme);

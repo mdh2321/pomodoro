@@ -166,6 +166,32 @@
   --glow-terminal: 0 0 10px rgba(0, 255, 0, 0.5);
 }
 
+/* Fireside Theme Colors */
+[data-theme="fireside"] {
+  --color-primary: #e67e22;
+  --color-primary-dark: #d35400;
+  --color-primary-light: #f39c12;
+
+  --color-work: #e67e22;
+  --color-break: #27ae60;
+  --color-break-dark: #1e8449;
+
+  --color-background: #1a1410;
+  --color-surface: #2d2319;
+  --color-surface-elevated: #3d3025;
+
+  --color-text-primary: #f5e6d3;
+  --color-text-secondary: #c9b8a5;
+  --color-text-muted: #8b7a66;
+
+  --color-border: #4a3c2e;
+  --color-border-focus: #e67e22;
+
+  /* Warm glow effects */
+  --glow-fire: 0 0 20px rgba(230, 126, 34, 0.4);
+  --glow-ember: 0 0 15px rgba(211, 84, 0, 0.5);
+}
+
 /* Reset & Base Styles */
 *,
 *::before,
@@ -310,6 +336,58 @@ body {
   );
   pointer-events: none;
   z-index: -1;
+}
+
+/* Fireside theme body - warm ambient glow */
+[data-theme="fireside"] body {
+  background: linear-gradient(
+    180deg,
+    #1a1410 0%,
+    #2d1f14 50%,
+    #1a1410 100%
+  );
+}
+
+/* Fireside subtle smoke effect */
+[data-theme="fireside"] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 80% 50% at 50% 100%,
+      rgba(230, 126, 34, 0.08) 0%,
+      transparent 60%
+    );
+  pointer-events: none;
+  z-index: -1;
+  animation: smoke-drift 15s ease-in-out infinite;
+}
+
+/* Warm vignette */
+[data-theme="fireside"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 40%,
+    rgba(10, 8, 6, 0.6) 100%
+  );
+  pointer-events: none;
+  z-index: 998;
+}
+
+/* Smoke drift animation */
+@keyframes smoke-drift {
+  0%, 100% {
+    opacity: 0.6;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-10px);
+  }
 }
 
 /* Header */
@@ -503,13 +581,59 @@ body {
   color: currentColor;
 }
 
+/* Fireside theme - show flame icon */
+[data-theme="fireside"] .theme-icon--light,
+[data-theme="fireside"] .theme-icon--dark,
+[data-theme="fireside"] .theme-icon--synthwave,
+[data-theme="fireside"] .theme-icon--lofi,
+[data-theme="fireside"] .theme-icon--terminal {
+  display: none;
+}
+
+[data-theme="fireside"] .theme-icon--fireside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-icon--fireside::before {
+  content: '';
+  width: 8px;
+  height: 12px;
+  background: linear-gradient(180deg, #f39c12 0%, #e67e22 50%, #d35400 100%);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  position: relative;
+  animation: flame-flicker 1.5s ease-in-out infinite;
+}
+
+@keyframes flame-flicker {
+  0%, 100% {
+    transform: scaleY(1) scaleX(1);
+    opacity: 1;
+  }
+  25% {
+    transform: scaleY(1.1) scaleX(0.95);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scaleY(0.95) scaleX(1.05);
+    opacity: 1;
+  }
+  75% {
+    transform: scaleY(1.05) scaleX(0.98);
+    opacity: 0.95;
+  }
+}
+
 /* Dark theme icon visibility */
 [data-theme="dark"] .theme-toggle,
 [data-theme="dark"] .sound-toggle,
 [data-theme="synthwave"] .theme-toggle,
 [data-theme="synthwave"] .sound-toggle,
 [data-theme="terminal"] .theme-toggle,
-[data-theme="terminal"] .sound-toggle {
+[data-theme="terminal"] .sound-toggle,
+[data-theme="fireside"] .theme-toggle,
+[data-theme="fireside"] .sound-toggle {
   color: var(--color-text-secondary);
 }
 
@@ -518,13 +642,16 @@ body {
 [data-theme="synthwave"] .theme-toggle:hover,
 [data-theme="synthwave"] .sound-toggle:hover,
 [data-theme="terminal"] .theme-toggle:hover,
-[data-theme="terminal"] .sound-toggle:hover {
+[data-theme="terminal"] .sound-toggle:hover,
+[data-theme="fireside"] .theme-toggle:hover,
+[data-theme="fireside"] .sound-toggle:hover {
   color: var(--color-text-primary);
 }
 
 [data-theme="synthwave"] .sound-toggle.active,
 [data-theme="dark"] .sound-toggle.active,
-[data-theme="terminal"] .sound-toggle.active {
+[data-theme="terminal"] .sound-toggle.active,
+[data-theme="fireside"] .sound-toggle.active {
   color: var(--color-primary);
 }
 
@@ -1552,6 +1679,11 @@ body {
 
 [data-theme="terminal"] .sound-option--nature {
   display: none;
+}
+
+/* Fireside theme shows nature sounds (campfire, rain, forest) */
+[data-theme="fireside"] .sound-option--nature {
+  display: flex;
 }
 
 /* Volume control in dropdown */
@@ -3929,4 +4061,204 @@ body.focus-mode .timer-container {
   94% { opacity: 1; }
   95% { opacity: 0.9; }
   96% { opacity: 1; }
+}
+
+/* ============================================
+   Fireside Theme Styles
+   ============================================ */
+
+/* Timer ring with subtle flickering glow */
+[data-theme="fireside"] .progress-ring__progress {
+  filter: drop-shadow(0 0 8px rgba(230, 126, 34, 0.6));
+  animation: fire-glow 3s ease-in-out infinite;
+}
+
+[data-theme="fireside"] .progress-ring__progress.break-mode {
+  filter: drop-shadow(0 0 8px rgba(39, 174, 96, 0.5));
+  animation: none;
+}
+
+@keyframes fire-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(230, 126, 34, 0.6));
+  }
+  25% {
+    filter: drop-shadow(0 0 12px rgba(243, 156, 18, 0.7));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(211, 84, 0, 0.5));
+  }
+  75% {
+    filter: drop-shadow(0 0 10px rgba(230, 126, 34, 0.65));
+  }
+}
+
+/* Timer display with warm glow */
+[data-theme="fireside"] .timer-time {
+  text-shadow: 0 0 20px rgba(230, 126, 34, 0.3);
+}
+
+/* Buttons */
+[data-theme="fireside"] .btn--primary {
+  background: var(--color-primary);
+  color: #1a1410;
+  border: none;
+}
+
+[data-theme="fireside"] .btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  box-shadow: var(--glow-fire);
+}
+
+[data-theme="fireside"] .btn--secondary {
+  background: transparent;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+[data-theme="fireside"] .btn--secondary:hover:not(:disabled) {
+  background: rgba(230, 126, 34, 0.1);
+  border-color: var(--color-primary-light);
+}
+
+/* Sound dropdown */
+[data-theme="fireside"] .sound-dropdown {
+  background: rgba(26, 20, 16, 0.95);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="fireside"] .sound-option:hover {
+  background: rgba(230, 126, 34, 0.1);
+}
+
+[data-theme="fireside"] .sound-option.active {
+  background: var(--color-primary);
+  color: #1a1410;
+}
+
+/* Goal progress */
+[data-theme="fireside"] .goal-progress-bar {
+  background: linear-gradient(90deg, var(--color-primary-dark), var(--color-primary));
+  box-shadow: 0 0 10px rgba(230, 126, 34, 0.4);
+}
+
+[data-theme="fireside"] .goal-progress.goal-complete .goal-progress-bar {
+  background: linear-gradient(90deg, #27ae60, #2ecc71);
+  box-shadow: 0 0 10px rgba(46, 204, 113, 0.4);
+}
+
+[data-theme="fireside"] .goal-progress.goal-complete .goal-progress-bar-container {
+  border-color: #27ae60;
+}
+
+[data-theme="fireside"] .goal-progress.goal-complete .goal-progress-text {
+  color: #2ecc71;
+}
+
+/* Modals */
+[data-theme="fireside"] .modal {
+  background: rgba(26, 20, 16, 0.98);
+  border: 1px solid var(--color-border);
+}
+
+/* Stats cards */
+[data-theme="fireside"] .stat-card {
+  background: rgba(230, 126, 34, 0.06);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="fireside"] .streak-card {
+  background: rgba(230, 126, 34, 0.06);
+  border: 1px solid var(--color-border);
+}
+
+/* Task sidebar */
+[data-theme="fireside"] .sidebar-tab {
+  background: rgba(26, 20, 16, 0.9);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="fireside"] .sidebar-tab:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--glow-fire);
+}
+
+[data-theme="fireside"] .sidebar-panel {
+  background: rgba(26, 20, 16, 0.98);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="fireside"] .task-item {
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="fireside"] .task-item:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 10px rgba(230, 126, 34, 0.2);
+}
+
+[data-theme="fireside"] .task-item.next-task {
+  border-color: var(--color-primary);
+  background: rgba(230, 126, 34, 0.05);
+}
+
+[data-theme="fireside"] .task-item.active-task {
+  box-shadow: var(--glow-fire);
+}
+
+[data-theme="fireside"] .task-item-checkbox:hover,
+[data-theme="fireside"] .task-item.completed .task-item-checkbox {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+[data-theme="fireside"] .add-task-input,
+[data-theme="fireside"] .add-task-estimate {
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="fireside"] .add-task-input:focus,
+[data-theme="fireside"] .add-task-estimate:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 10px rgba(230, 126, 34, 0.2);
+}
+
+[data-theme="fireside"] .add-task-btn {
+  background: var(--color-primary);
+  color: #1a1410;
+}
+
+/* Stats & Settings buttons */
+[data-theme="fireside"] .stats-btn svg,
+[data-theme="fireside"] .settings-btn svg {
+  color: var(--color-primary);
+  opacity: 0.7;
+}
+
+[data-theme="fireside"] .stats-btn:hover svg,
+[data-theme="fireside"] .settings-btn:hover svg {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(230, 126, 34, 0.6));
+}
+
+/* Undo toast */
+[data-theme="fireside"] .undo-toast {
+  background: var(--color-primary);
+  color: #1a1410;
+}
+
+/* Focus mode with enhanced fire glow */
+@keyframes focus-pulse-fire {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(230, 126, 34, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 35px rgba(243, 156, 18, 0.7));
+  }
+}
+
+[data-theme="fireside"] body.focus-mode .timer-container {
+  animation: focus-pulse-fire 4s ease-in-out infinite;
 }
