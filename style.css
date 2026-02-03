@@ -1136,6 +1136,45 @@ body {
   transform: rotate(-45deg);
 }
 
+/* Current Task Display (during active sessions) */
+.current-task-display {
+  width: 100%;
+  max-width: 300px;
+  text-align: center;
+  padding: var(--spacing-md) 0;
+}
+
+.current-task-text {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Theme-specific current task colors */
+[data-theme="dark"] .current-task-text {
+  color: var(--color-text-primary);
+}
+
+[data-theme="synthwave"] .current-task-text {
+  color: #0f1a22;
+}
+
+[data-theme="lofi"] .current-task-text {
+  color: var(--color-text-primary);
+}
+
+[data-theme="terminal"] .current-task-text {
+  color: var(--color-primary);
+}
+
+[data-theme="fireside"] .current-task-text {
+  color: var(--color-text-primary);
+}
+
 /* Control Buttons */
 .controls {
   display: flex;

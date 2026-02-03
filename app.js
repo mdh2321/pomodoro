@@ -98,6 +98,10 @@ const elements = {
   progressRing: document.getElementById('progressRing'),
   timerContainer: document.querySelector('.timer-container'),
 
+  // Current task display (during active sessions)
+  currentTaskDisplay: document.getElementById('currentTaskDisplay'),
+  currentTaskText: document.getElementById('currentTaskText'),
+
   // Timer inline arrows
   decreaseBtn: document.getElementById('decreaseBtn'),
   increaseBtn: document.getElementById('increaseBtn'),
@@ -651,6 +655,20 @@ function updateUI() {
   updateStepperButtons();
   updateFocusMode();
   updateTaskDraggable();
+  updateCurrentTaskDisplay();
+}
+
+// Update current task display (shown during active/paused work sessions)
+function updateCurrentTaskDisplay() {
+  const isActiveWorkSession = state.mode === 'work' && (state.status === 'running' || state.status === 'paused');
+  const nextTask = getNextIncompleteTask();
+
+  if (isActiveWorkSession && nextTask) {
+    elements.currentTaskText.textContent = nextTask.name;
+    elements.currentTaskDisplay.hidden = false;
+  } else {
+    elements.currentTaskDisplay.hidden = true;
+  }
 }
 
 // Update draggable state of tasks based on timer status
