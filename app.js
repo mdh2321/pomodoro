@@ -3671,6 +3671,7 @@ function completeTaskById(taskId) {
 
   saveToStorage();
   renderTasks();
+  updateCurrentTaskDisplay();
 }
 
 // Uncomplete a task
@@ -3681,6 +3682,7 @@ function uncompleteTaskById(taskId) {
   task.completed = false;
   saveToStorage();
   renderTasks();
+  updateCurrentTaskDisplay();
 }
 
 // Undo delete state
