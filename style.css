@@ -3632,10 +3632,10 @@ body.focus-mode .timer-container {
   margin-top: var(--spacing-md);
 }
 
-/* Synthwave sidebar styles - dark teal with subtle pink overlay */
+/* Synthwave sidebar styles - 20% darker than main background */
 [data-theme="synthwave"] .sidebar-tab {
-  background: rgba(30, 60, 75, 0.95);
-  border-color: rgba(216, 137, 163, 0.3);
+  background: rgba(45, 95, 120, 0.95);
+  border-color: rgba(216, 137, 163, 0.4);
 }
 
 [data-theme="synthwave"] .sidebar-tab:hover {
@@ -3644,28 +3644,56 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="synthwave"] .sidebar-panel {
-  background:
-    linear-gradient(180deg, rgba(216, 137, 163, 0.06) 0%, rgba(216, 137, 163, 0.04) 100%),
-    linear-gradient(180deg, #1a3845 0%, #152d38 100%);
-  border-color: rgba(216, 137, 163, 0.25);
+  background: #2d6078;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.25);
+  position: relative;
 }
 
-[data-theme="synthwave"] .sidebar-panel,
-[data-theme="synthwave"] .sidebar-panel .task-item-name,
+/* Noise texture for sidebar */
+[data-theme="synthwave"] .sidebar-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.035;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure sidebar content is above noise */
+[data-theme="synthwave"] .sidebar-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Sidebar header - Tasks title and X button */
+[data-theme="synthwave"] .sidebar-panel .sidebar-header,
+[data-theme="synthwave"] .sidebar-panel .sidebar-title,
+[data-theme="synthwave"] .sidebar-panel .sidebar-close {
+  color: #ffffff;
+}
+
+[data-theme="synthwave"] .sidebar-panel .sidebar-close:hover {
+  color: #d889a3;
+}
+
+/* Section titles */
 [data-theme="synthwave"] .sidebar-panel .section-title {
-  color: #e8f0f4;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 [data-theme="synthwave"] .add-task-input,
 [data-theme="synthwave"] .add-task-estimate {
-  background: rgba(20, 45, 55, 0.9);
-  border-color: rgba(216, 137, 163, 0.3);
-  color: #e8f0f4;
+  background: rgba(35, 75, 95, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 [data-theme="synthwave"] .add-task-input::placeholder,
 [data-theme="synthwave"] .add-task-estimate::placeholder {
-  color: rgba(232, 240, 244, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 [data-theme="synthwave"] .add-task-input:focus,
@@ -3680,24 +3708,37 @@ body.focus-mode .timer-container {
   box-shadow: var(--glow-primary);
 }
 
+/* Task cards - slightly lighter than sidebar */
 [data-theme="synthwave"] .task-item {
-  background: rgba(25, 50, 62, 0.8);
-  border-color: rgba(216, 137, 163, 0.2);
-  color: #e8f0f4;
+  background: rgba(55, 110, 138, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+/* Task item text - bright and visible */
+[data-theme="synthwave"] .task-item .task-item-name {
+  color: #ffffff;
+}
+
+[data-theme="synthwave"] .task-item .task-item-estimate {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 [data-theme="synthwave"] .task-item:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(216, 137, 163, 0.2);
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(60, 115, 145, 0.8);
 }
 
+/* Top task (next-task) - pink outline */
 [data-theme="synthwave"] .task-item.next-task {
-  background: rgba(216, 137, 163, 0.12);
-  border-color: var(--color-primary);
+  background: rgba(65, 120, 150, 0.8);
+  border: 1.5px solid #d889a3;
+  box-shadow: 0 0 8px rgba(216, 137, 163, 0.25);
 }
 
 [data-theme="synthwave"] .task-item.active-task {
-  background: rgba(216, 137, 163, 0.15);
+  background: rgba(70, 125, 155, 0.85);
+  border-color: #d889a3;
   box-shadow: var(--glow-primary);
 }
 
@@ -3708,9 +3749,9 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="synthwave"] .settings-select {
-  background: rgba(20, 45, 55, 0.9);
-  border-color: rgba(216, 137, 163, 0.3);
-  color: #e8f0f4;
+  background: rgba(35, 75, 95, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 /* Mobile responsive sidebar */
