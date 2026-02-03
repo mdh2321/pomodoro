@@ -1318,6 +1318,8 @@ body {
 
 [data-theme="synthwave"] .goal-progress-bar {
   background: linear-gradient(90deg, #d889a3, #e8adc0);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: inherit;
 }
 
 [data-theme="synthwave"] .goal-progress.goal-complete .goal-progress-bar {
@@ -3721,6 +3723,12 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="synthwave"] .task-item .task-item-estimate {
+  color: #ffffff;
+}
+
+/* Task time/estimate text - white for visibility */
+[data-theme="synthwave"] .task-item-time,
+[data-theme="synthwave"] .task-item-estimate-select {
   color: #ffffff;
 }
 
