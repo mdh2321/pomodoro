@@ -90,30 +90,30 @@
   --color-break: #34d399;
 }
 
-/* Synthwave Theme Colors - Miami Vice inspired (light blue + pink) */
+/* Synthwave Theme Colors - Miami Vice (sky blue + pink) */
 [data-theme="synthwave"] {
   --color-primary: #e879a0;
   --color-primary-dark: #d45d88;
   --color-primary-light: #f0a0bb;
 
   --color-work: #e879a0;
-  --color-break: #7dd3c0;
-  --color-break-dark: #5bbfaa;
+  --color-break: #5bbfaa;
+  --color-break-dark: #4aa897;
 
-  --color-background: #1a2a3a;
-  --color-surface: rgba(40, 70, 90, 0.9);
-  --color-surface-elevated: rgba(50, 85, 105, 0.95);
+  --color-background: #4a90b0;
+  --color-surface: rgba(60, 115, 145, 0.95);
+  --color-surface-elevated: rgba(70, 125, 155, 0.98);
 
-  --color-text-primary: #f0f4f8;
-  --color-text-secondary: #b8d4e8;
-  --color-text-muted: #7a9ab8;
+  --color-text-primary: #1a2a35;
+  --color-text-secondary: #2a4055;
+  --color-text-muted: #4a6a85;
 
-  --color-border: rgba(232, 121, 160, 0.25);
+  --color-border: rgba(26, 42, 53, 0.2);
   --color-border-focus: #e879a0;
 
   /* Subtle glow effects */
-  --glow-primary: 0 0 15px rgba(232, 121, 160, 0.25);
-  --glow-accent: 0 0 12px rgba(125, 211, 192, 0.2);
+  --glow-primary: 0 0 15px rgba(232, 121, 160, 0.3);
+  --glow-accent: 0 0 12px rgba(91, 191, 170, 0.25);
 }
 
 /* Lo-fi Café Theme Colors */
@@ -248,18 +248,18 @@ body {
       #f0e8db 100%);
 }
 
-/* Synthwave Background - Miami Vice light blue */
+/* Synthwave Background - Miami Vice sky blue */
 [data-theme="synthwave"] body {
   background:
     /* Subtle pink glow at bottom */
-    radial-gradient(ellipse 50% 25% at 50% 100%,
-      rgba(232, 121, 160, 0.12) 0%, transparent 60%),
-    /* Light blue gradient */
+    radial-gradient(ellipse 50% 30% at 50% 100%,
+      rgba(232, 121, 160, 0.15) 0%, transparent 60%),
+    /* Sky blue gradient */
     linear-gradient(180deg,
-      #1a2a3a 0%,
-      #1e3545 30%,
-      #234050 60%,
-      #284858 100%);
+      #3a85a8 0%,
+      #4590b5 40%,
+      #4a95b8 70%,
+      #4090b0 100%);
 }
 
 /* Terminal Background */
@@ -465,25 +465,11 @@ body {
   justify-content: center;
 }
 
+/* Palm tree icon for Miami Vice theme */
 .theme-icon--synthwave::before {
-  content: '';
-  width: 16px;
-  height: 12px;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      currentColor 0px,
-      currentColor 2px,
-      transparent 2px,
-      transparent 5px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      currentColor 0px,
-      currentColor 2px,
-      transparent 2px,
-      transparent 5px
-    );
+  content: '🌴';
+  font-size: 16px;
+  filter: saturate(0) brightness(0.7) sepia(1) hue-rotate(290deg) saturate(3);
 }
 
 /* Lo-fi theme - show coffee cup icon */
@@ -1312,7 +1298,7 @@ body {
 /* Synthwave theme goal progress */
 [data-theme="synthwave"] .goal-progress-bar-container {
   background: rgba(26, 10, 46, 0.6);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .goal-progress-bar {
@@ -2875,7 +2861,7 @@ body.focus-mode .timer-container {
 [data-theme="synthwave"] .undo-toast {
   background: rgba(45, 27, 78, 0.95);
   color: var(--color-text-primary);
-  border: 1px solid rgba(155, 77, 202, 0.5);
+  border: 1px solid rgba(60, 130, 160, 0.5);
   box-shadow: 0 0 20px rgba(232, 121, 160, 0.3);
 }
 
@@ -2960,14 +2946,14 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="synthwave"] .btn--primary.break-mode {
-  background: linear-gradient(135deg, #c77dff, #9b4dca);
+  background: linear-gradient(135deg, #7dd3c0, #5bbfaa);
   box-shadow: var(--glow-accent);
 }
 
 /* Secondary buttons */
 [data-theme="synthwave"] .btn--secondary {
   background: rgba(45, 27, 78, 0.8);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .btn--secondary:hover:not(:disabled) {
@@ -2985,7 +2971,7 @@ body.focus-mode .timer-container {
 /* Settings stepper buttons - synthwave */
 [data-theme="synthwave"] .stepper-btn {
   background: rgba(26, 10, 46, 0.6);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .stepper-btn:hover {
@@ -2996,7 +2982,7 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .sound-dropdown {
   background: rgba(45, 27, 78, 0.95);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), var(--glow-accent);
 }
 
@@ -3011,7 +2997,7 @@ body.focus-mode .timer-container {
 
 /* Task intent - synthwave */
 [data-theme="synthwave"] .task-trigger {
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .task-trigger:hover {
@@ -3021,13 +3007,13 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .task-modal {
   background: var(--color-surface);
-  border: 1px solid rgba(155, 77, 202, 0.5);
+  border: 1px solid rgba(60, 130, 160, 0.5);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(232, 121, 160, 0.1);
 }
 
 [data-theme="synthwave"] .task-modal-input {
   background: rgba(26, 10, 46, 0.8);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .task-modal-input:focus {
@@ -3037,7 +3023,7 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .task-card {
   background: rgba(45, 27, 78, 0.8);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .task-check {
@@ -3053,7 +3039,7 @@ body.focus-mode .timer-container {
 /* Stats & Settings buttons - SVG glow effect */
 [data-theme="synthwave"] .stats-btn svg,
 [data-theme="synthwave"] .settings-btn svg {
-  color: rgba(155, 77, 202, 0.8);
+  color: rgba(60, 130, 160, 0.8);
 }
 
 [data-theme="synthwave"] .stats-btn:hover svg,
@@ -3065,8 +3051,8 @@ body.focus-mode .timer-container {
 /* Modal styling */
 [data-theme="synthwave"] .modal {
   background: linear-gradient(180deg, #2d1b4e, #1a0a2e);
-  border: 1px solid rgba(155, 77, 202, 0.5);
-  box-shadow: 0 0 30px rgba(155, 77, 202, 0.3);
+  border: 1px solid rgba(60, 130, 160, 0.5);
+  box-shadow: 0 0 30px rgba(60, 130, 160, 0.3);
 }
 
 /* Volume slider */
@@ -3625,7 +3611,7 @@ body.focus-mode .timer-container {
 /* Synthwave sidebar styles */
 [data-theme="synthwave"] .sidebar-tab {
   background: rgba(45, 27, 78, 0.95);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .sidebar-tab:hover {
@@ -3635,13 +3621,13 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .sidebar-panel {
   background: linear-gradient(180deg, #2d1b4e, #1a0a2e);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .add-task-input,
 [data-theme="synthwave"] .add-task-estimate {
   background: rgba(26, 10, 46, 0.8);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 [data-theme="synthwave"] .add-task-input:focus,
@@ -3657,7 +3643,7 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .task-item {
   background: rgba(45, 27, 78, 0.6);
-  border-color: rgba(155, 77, 202, 0.3);
+  border-color: rgba(60, 130, 160, 0.3);
 }
 
 [data-theme="synthwave"] .task-item:hover {
@@ -3683,7 +3669,7 @@ body.focus-mode .timer-container {
 
 [data-theme="synthwave"] .settings-select {
   background: rgba(26, 10, 46, 0.8);
-  border-color: rgba(155, 77, 202, 0.5);
+  border-color: rgba(60, 130, 160, 0.5);
 }
 
 /* Mobile responsive sidebar */
