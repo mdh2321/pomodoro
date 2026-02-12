@@ -380,10 +380,26 @@ async function validateTodoistToken(token) {
         'Authorization': `Bearer ${token}`
       }
     });
-    return response.ok;
+
+    if (response.ok) {
+      return { valid: true };
+    }
+
+    // Return specific error messages based on status
+    if (response.status === 401) {
+      return { valid: false, error: 'Invalid API token' };
+    } else if (response.status === 403) {
+      return { valid: false, error: 'Token does not have required permissions' };
+    } else if (response.status === 429) {
+      return { valid: false, error: 'Rate limited - please try again later' };
+    } else if (response.status >= 500) {
+      return { valid: false, error: 'Todoist server error - please try again later' };
+    } else {
+      return { valid: false, error: `Todoist API error (${response.status})` };
+    }
   } catch (error) {
     console.error('Todoist token validation failed:', error);
-    return false;
+    return { valid: false, error: 'Could not connect to Todoist - check your internet connection' };
   }
 }
 
@@ -4667,14 +4683,14 @@ function initTodoistSettings() {
           state.todoist.syncStatus = 'syncing';
           updateTodoistStatusUI();
 
-          const valid = await validateTodoistToken(token);
-          if (valid) {
+          const result = await validateTodoistToken(token);
+          if (result.valid) {
             state.todoist.apiToken = token;
             saveToStorage();
             syncWithTodoist();
           } else {
             state.todoist.syncStatus = 'error';
-            state.todoist.lastError = 'Invalid token';
+            state.todoist.lastError = result.error;
             updateTodoistStatusUI();
           }
         } else {
