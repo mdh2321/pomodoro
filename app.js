@@ -371,7 +371,7 @@ function getDateInAEST(date) {
 // ============================================
 
 // Using CORS proxy for browser-based requests
-const TODOIST_API_BASE = 'https://corsproxy.io/?https://api.todoist.com/rest/v2';
+const TODOIST_API_BASE = 'https://corsproxy.org/?https://api.todoist.com/rest/v2';
 
 // Validate API token by fetching projects
 async function validateTodoistToken(token) {
