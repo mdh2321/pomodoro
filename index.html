@@ -415,6 +415,53 @@
             </label>
           </div>
         </div>
+        <div class="settings-group">
+          <h3 class="settings-group-title">Todoist Integration</h3>
+          <div class="settings-row">
+            <span class="settings-label">Enable Todoist sync</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="todoistEnabledToggle">
+              <span class="settings-toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row todoist-token-row" id="todoistTokenRow" hidden>
+            <div class="todoist-token-container">
+              <label class="settings-label" for="todoistTokenInput">API Token</label>
+              <div class="todoist-token-input-wrapper">
+                <input
+                  type="password"
+                  class="todoist-token-input"
+                  id="todoistTokenInput"
+                  placeholder="Paste your Todoist API token"
+                  autocomplete="off"
+                >
+                <button type="button" class="todoist-token-toggle" id="todoistTokenToggle" aria-label="Show/hide token">
+                  <span class="token-eye-icon">👁</span>
+                </button>
+              </div>
+              <a href="https://todoist.com/app/settings/integrations/developer"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="todoist-token-help">
+                Get your API token
+              </a>
+            </div>
+          </div>
+          <div class="settings-row" id="todoistStatusRow" hidden>
+            <span class="settings-label">Status</span>
+            <div class="todoist-status">
+              <span class="todoist-status-indicator" id="todoistStatusIndicator"></span>
+              <span class="todoist-status-text" id="todoistStatusText">Not synced</span>
+            </div>
+          </div>
+          <div class="settings-row" id="todoistSyncRow" hidden>
+            <span class="settings-label">Sync now</span>
+            <button type="button" class="btn btn--small" id="todoistSyncBtn">
+              <span class="sync-icon" id="syncIcon">↻</span>
+              Sync
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

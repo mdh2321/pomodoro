@@ -73,7 +73,16 @@ const state = {
 
   // Summary tracking
   summaryShownDate: null, // Date when summary was last shown (YYYY-MM-DD)
-  tasksCompletedYesterday: 0 // Track tasks completed for summary
+  tasksCompletedYesterday: 0, // Track tasks completed for summary
+
+  // Todoist Integration
+  todoist: {
+    enabled: false,           // Whether integration is active
+    apiToken: null,           // User's Todoist API token
+    lastSyncAt: null,         // ISO timestamp of last successful sync
+    syncStatus: 'idle',       // 'idle' | 'syncing' | 'error'
+    lastError: null           // Last error message for display
+  }
 };
 
 // Audio context and nodes for ambient sounds
@@ -294,6 +303,14 @@ function loadFromStorage() {
       if (data.summaryShownDate) {
         state.summaryShownDate = data.summaryShownDate;
       }
+
+      // Restore Todoist config
+      if (data.todoist) {
+        state.todoist.enabled = data.todoist.enabled || false;
+        state.todoist.apiToken = data.todoist.apiToken || null;
+        state.todoist.lastSyncAt = data.todoist.lastSyncAt || null;
+        // Note: syncStatus and lastError are NOT persisted - transient state
+      }
     }
   } catch (e) {
     console.warn('Failed to load from storage:', e);
@@ -326,6 +343,12 @@ function saveToStorage() {
       includeWeekends: state.includeWeekends,
       // Summary
       summaryShownDate: state.summaryShownDate,
+      // Todoist Integration (only persist config, not transient state)
+      todoist: {
+        enabled: state.todoist.enabled,
+        apiToken: state.todoist.apiToken,
+        lastSyncAt: state.todoist.lastSyncAt
+      },
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -341,6 +364,291 @@ function getTodayDate() {
 // Get date string (YYYY-MM-DD) in AEST/AEDT timezone
 function getDateInAEST(date) {
   return date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+}
+
+// ============================================
+// Todoist Integration
+// ============================================
+
+const TODOIST_API_BASE = 'https://api.todoist.com/rest/v2';
+
+// Validate API token by fetching projects
+async function validateTodoistToken(token) {
+  try {
+    const response = await fetch(`${TODOIST_API_BASE}/projects`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Todoist token validation failed:', error);
+    return false;
+  }
+}
+
+// Fetch today's tasks from Todoist
+async function fetchTodoistTasks() {
+  if (!state.todoist.enabled || !state.todoist.apiToken) {
+    return [];
+  }
+
+  const response = await fetch(
+    `${TODOIST_API_BASE}/tasks?filter=${encodeURIComponent('today | no due date')}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${state.todoist.apiToken}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Invalid API token');
+    }
+    throw new Error(`Todoist API error: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+// Complete a task in Todoist
+async function completeTodoistTask(todoistId) {
+  if (!state.todoist.enabled || !state.todoist.apiToken || !todoistId) {
+    return false;
+  }
+
+  const response = await fetch(
+    `${TODOIST_API_BASE}/tasks/${todoistId}/close`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${state.todoist.apiToken}`
+      }
+    }
+  );
+
+  return response.ok;
+}
+
+// Reopen a task in Todoist
+async function reopenTodoistTask(todoistId) {
+  if (!state.todoist.enabled || !state.todoist.apiToken || !todoistId) {
+    return false;
+  }
+
+  const response = await fetch(
+    `${TODOIST_API_BASE}/tasks/${todoistId}/reopen`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${state.todoist.apiToken}`
+      }
+    }
+  );
+
+  return response.ok;
+}
+
+// Main sync function - pulls tasks from Todoist
+async function syncWithTodoist() {
+  if (!state.todoist.enabled || !state.todoist.apiToken) {
+    return;
+  }
+
+  // Prevent concurrent syncs
+  if (state.todoist.syncStatus === 'syncing') {
+    return;
+  }
+
+  state.todoist.syncStatus = 'syncing';
+  state.todoist.lastError = null;
+  updateTodoistStatusUI();
+
+  try {
+    // Fetch remote tasks
+    const remoteTasks = await fetchTodoistTasks();
+
+    // Build lookup maps
+    const remoteById = new Map(remoteTasks.map(t => [t.id, t]));
+    const localTodoistTasks = state.tasks.filter(t => t.todoistId);
+    const localByTodoistId = new Map(localTodoistTasks.map(t => [t.todoistId, t]));
+
+    // Process remote tasks (add new, update existing)
+    for (const remote of remoteTasks) {
+      const local = localByTodoistId.get(remote.id);
+
+      if (local) {
+        // Task exists locally - update name if changed (Todoist wins)
+        if (local.name !== remote.content) {
+          local.name = remote.content;
+        }
+        local.todoistSyncedAt = new Date().toISOString();
+      } else {
+        // New task from Todoist - add locally
+        const newTask = {
+          id: generateTaskId(),
+          name: remote.content,
+          estimatedMinutes: null,
+          actualSeconds: 0,
+          completed: false,
+          createdAt: Date.now(),
+          notes: '',
+          todoistId: remote.id,
+          todoistSyncedAt: new Date().toISOString(),
+          isLocalOnly: false
+        };
+        state.tasks.push(newTask);
+      }
+    }
+
+    // Handle deletions (tasks removed from Todoist)
+    const tasksToRemove = [];
+    for (const local of localTodoistTasks) {
+      if (!remoteById.has(local.todoistId)) {
+        tasksToRemove.push(local.id);
+      }
+    }
+    state.tasks = state.tasks.filter(t => !tasksToRemove.includes(t.id));
+
+    // Update sync metadata
+    state.todoist.lastSyncAt = new Date().toISOString();
+    state.todoist.syncStatus = 'idle';
+
+    saveToStorage();
+    renderTasks();
+    updateTodoistStatusUI();
+
+  } catch (error) {
+    console.error('Todoist sync failed:', error);
+    state.todoist.syncStatus = 'error';
+    state.todoist.lastError = error.message || 'Sync failed';
+
+    // If token is invalid, disable integration
+    if (error.message === 'Invalid API token') {
+      state.todoist.enabled = false;
+      state.todoist.apiToken = null;
+      saveToStorage();
+      updateTodoistSettingsUI();
+    }
+
+    updateTodoistStatusUI();
+  }
+}
+
+// Sync completion status to Todoist (fire-and-forget)
+async function syncTaskCompletionToTodoist(task) {
+  if (!task.todoistId || !state.todoist.enabled) {
+    return;
+  }
+
+  try {
+    if (task.completed) {
+      await completeTodoistTask(task.todoistId);
+    } else {
+      await reopenTodoistTask(task.todoistId);
+    }
+  } catch (error) {
+    console.error('Failed to sync completion to Todoist:', error);
+    // Don't show error to user - local action succeeded
+  }
+}
+
+// Debounced sync for rate limiting
+let todoistSyncDebounceTimer = null;
+function debouncedTodoistSync(delayMs = 2000) {
+  if (todoistSyncDebounceTimer) {
+    clearTimeout(todoistSyncDebounceTimer);
+  }
+  todoistSyncDebounceTimer = setTimeout(() => {
+    syncWithTodoist();
+  }, delayMs);
+}
+
+// Update Todoist status UI in settings modal
+function updateTodoistStatusUI() {
+  const statusIndicator = document.getElementById('todoistStatusIndicator');
+  const statusText = document.getElementById('todoistStatusText');
+
+  if (!statusIndicator || !statusText) return;
+
+  statusIndicator.className = 'todoist-status-indicator';
+
+  if (state.todoist.syncStatus === 'syncing') {
+    statusIndicator.classList.add('syncing');
+    statusText.textContent = 'Syncing...';
+  } else if (state.todoist.syncStatus === 'error') {
+    statusIndicator.classList.add('error');
+    statusText.textContent = state.todoist.lastError || 'Sync error';
+  } else if (state.todoist.lastSyncAt) {
+    statusIndicator.classList.add('success');
+    const syncTime = new Date(state.todoist.lastSyncAt);
+    statusText.textContent = `Synced ${formatRelativeTime(syncTime)}`;
+  } else {
+    statusText.textContent = 'Not synced';
+  }
+}
+
+// Format relative time (e.g., "2 min ago")
+function formatRelativeTime(date) {
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins === 1) return '1 min ago';
+  if (diffMins < 60) return `${diffMins} min ago`;
+
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours === 1) return '1 hour ago';
+  if (diffHours < 24) return `${diffHours} hours ago`;
+
+  return 'over a day ago';
+}
+
+// Update Todoist settings UI visibility
+function updateTodoistSettingsUI() {
+  const tokenRow = document.getElementById('todoistTokenRow');
+  const statusRow = document.getElementById('todoistStatusRow');
+  const syncRow = document.getElementById('todoistSyncRow');
+  const enabledToggle = document.getElementById('todoistEnabledToggle');
+  const tokenInput = document.getElementById('todoistTokenInput');
+
+  if (!tokenRow || !statusRow || !syncRow || !enabledToggle) return;
+
+  enabledToggle.checked = state.todoist.enabled;
+
+  if (state.todoist.enabled) {
+    tokenRow.hidden = false;
+    statusRow.hidden = false;
+    syncRow.hidden = false;
+    if (tokenInput && state.todoist.apiToken) {
+      tokenInput.value = state.todoist.apiToken;
+    }
+  } else {
+    tokenRow.hidden = true;
+    statusRow.hidden = true;
+    syncRow.hidden = true;
+  }
+
+  updateTodoistStatusUI();
+}
+
+// Handle online/offline events
+function initTodoistOnlineHandlers() {
+  window.addEventListener('online', () => {
+    if (state.todoist.enabled && state.todoist.apiToken) {
+      syncWithTodoist();
+    }
+  });
+
+  window.addEventListener('offline', () => {
+    if (state.todoist.enabled) {
+      state.todoist.syncStatus = 'idle';
+      state.todoist.lastError = 'Offline';
+      updateTodoistStatusUI();
+    }
+  });
 }
 
 // ============================================
@@ -3635,7 +3943,12 @@ function addTask(name, estimatedMinutes = null) {
     estimatedMinutes: estimatedMinutes,
     actualSeconds: 0,
     completed: false,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    notes: '',
+    // Todoist fields - local tasks are never synced to Todoist
+    todoistId: null,
+    todoistSyncedAt: null,
+    isLocalOnly: true
   };
 
   state.tasks.push(task);
@@ -3649,6 +3962,9 @@ function completeTaskById(taskId) {
   if (!task) return;
 
   task.completed = true;
+
+  // Sync to Todoist (fire-and-forget)
+  syncTaskCompletionToTodoist(task);
 
   // Play ding sound
   playCompletionDing();
@@ -3680,6 +3996,10 @@ function uncompleteTaskById(taskId) {
   if (!task) return;
 
   task.completed = false;
+
+  // Sync to Todoist (fire-and-forget)
+  syncTaskCompletionToTodoist(task);
+
   saveToStorage();
   renderTasks();
   updateCurrentTaskDisplay();
@@ -3941,11 +4261,15 @@ function renderTasks() {
     // Note indicator
     const hasNotes = task.notes && task.notes.trim().length > 0;
 
+    // Todoist badge for synced tasks
+    const todoistBadge = task.todoistId ? '<span class="task-todoist-badge" title="Synced with Todoist">T</span>' : '';
+
     taskEl.innerHTML = `
       <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
       <div class="task-item-content" data-has-notes="${hasNotes}">
         <div class="task-item-name-row">
           <div class="task-item-name" contenteditable="false">${escapeHtml(task.name)}</div>
+          ${todoistBadge}
           ${hasNotes ? '<span class="task-note-dot" title="Has notes"></span>' : ''}
         </div>
         <div class="task-item-time">
@@ -4278,6 +4602,116 @@ function initTaskSettings() {
   if (elements.undoBtn) {
     elements.undoBtn.addEventListener('click', undoDelete);
   }
+
+  // Initialize Todoist settings
+  initTodoistSettings();
+}
+
+// Initialize Todoist integration settings UI
+function initTodoistSettings() {
+  const enabledToggle = document.getElementById('todoistEnabledToggle');
+  const tokenRow = document.getElementById('todoistTokenRow');
+  const tokenInput = document.getElementById('todoistTokenInput');
+  const tokenToggle = document.getElementById('todoistTokenToggle');
+  const statusRow = document.getElementById('todoistStatusRow');
+  const syncRow = document.getElementById('todoistSyncRow');
+  const syncBtn = document.getElementById('todoistSyncBtn');
+
+  if (!enabledToggle) return;
+
+  // Initialize toggle state
+  enabledToggle.checked = state.todoist.enabled;
+
+  // Show/hide dependent rows based on enabled state
+  const updateVisibility = () => {
+    const show = state.todoist.enabled;
+    if (tokenRow) tokenRow.hidden = !show;
+    if (statusRow) statusRow.hidden = !show;
+    if (syncRow) syncRow.hidden = !show;
+  };
+  updateVisibility();
+
+  // Restore token if exists
+  if (tokenInput && state.todoist.apiToken) {
+    tokenInput.value = state.todoist.apiToken;
+  }
+
+  // Enable toggle handler
+  enabledToggle.addEventListener('change', async (e) => {
+    state.todoist.enabled = e.target.checked;
+    updateVisibility();
+
+    if (state.todoist.enabled && state.todoist.apiToken) {
+      // Validate and sync
+      syncWithTodoist();
+    } else if (!state.todoist.enabled) {
+      // Clear sync status when disabled
+      state.todoist.syncStatus = 'idle';
+      state.todoist.lastError = null;
+    }
+
+    saveToStorage();
+    updateTodoistStatusUI();
+  });
+
+  // Token input handler
+  if (tokenInput) {
+    let tokenDebounceTimer = null;
+    tokenInput.addEventListener('input', (e) => {
+      const token = e.target.value.trim();
+
+      // Debounce validation
+      if (tokenDebounceTimer) clearTimeout(tokenDebounceTimer);
+      tokenDebounceTimer = setTimeout(async () => {
+        if (token) {
+          state.todoist.syncStatus = 'syncing';
+          updateTodoistStatusUI();
+
+          const valid = await validateTodoistToken(token);
+          if (valid) {
+            state.todoist.apiToken = token;
+            saveToStorage();
+            syncWithTodoist();
+          } else {
+            state.todoist.syncStatus = 'error';
+            state.todoist.lastError = 'Invalid token';
+            updateTodoistStatusUI();
+          }
+        } else {
+          state.todoist.apiToken = null;
+          state.todoist.syncStatus = 'idle';
+          state.todoist.lastError = null;
+          saveToStorage();
+          updateTodoistStatusUI();
+        }
+      }, 500);
+    });
+  }
+
+  // Token visibility toggle
+  if (tokenToggle && tokenInput) {
+    tokenToggle.addEventListener('click', () => {
+      const isPassword = tokenInput.type === 'password';
+      tokenInput.type = isPassword ? 'text' : 'password';
+      tokenToggle.querySelector('.token-eye-icon').textContent = isPassword ? '🙈' : '👁';
+    });
+  }
+
+  // Sync button handler
+  if (syncBtn) {
+    syncBtn.addEventListener('click', () => {
+      if (state.todoist.enabled && state.todoist.apiToken) {
+        const syncIcon = document.getElementById('syncIcon');
+        if (syncIcon) syncIcon.classList.add('spinning');
+        syncWithTodoist().finally(() => {
+          if (syncIcon) syncIcon.classList.remove('spinning');
+        });
+      }
+    });
+  }
+
+  // Update status UI
+  updateTodoistStatusUI();
 }
 
 // Initialize task sidebar event listeners
@@ -4543,6 +4977,14 @@ function init() {
 
   // Check if we need to show yesterday's summary
   checkAndShowSummary();
+
+  // Initialize Todoist online/offline handlers
+  initTodoistOnlineHandlers();
+
+  // Auto-sync with Todoist on page load if enabled
+  if (state.todoist.enabled && state.todoist.apiToken) {
+    syncWithTodoist();
+  }
 
   console.log('🍅 Pomo initialized. Keyboard shortcuts: Space (start/pause/continue), D (done - work), S (skip - break), Esc (abandon), T (theme)');
 }
