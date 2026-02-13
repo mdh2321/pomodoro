@@ -371,14 +371,17 @@ function getDateInAEST(date) {
 // ============================================
 
 // Using CORS proxy for browser-based requests
-const TODOIST_API_BASE = 'https://corsproxy.org/?https://api.todoist.com/rest/v2';
+// corsproxy.io is more reliable than corsproxy.org
+const TODOIST_API_BASE = 'https://corsproxy.io/?https://api.todoist.com/rest/v2';
 
 // Validate API token by fetching projects
 async function validateTodoistToken(token) {
   try {
     const response = await fetch(`${TODOIST_API_BASE}/projects`, {
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     });
 
@@ -414,7 +417,9 @@ async function fetchTodoistTasks() {
     `${TODOIST_API_BASE}/tasks?filter=${encodeURIComponent('today | no due date')}`,
     {
       headers: {
-        'Authorization': `Bearer ${state.todoist.apiToken}`
+        'Authorization': `Bearer ${state.todoist.apiToken}`,
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     }
   );
@@ -440,7 +445,9 @@ async function completeTodoistTask(todoistId) {
     {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${state.todoist.apiToken}`
+        'Authorization': `Bearer ${state.todoist.apiToken}`,
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     }
   );
@@ -459,7 +466,9 @@ async function reopenTodoistTask(todoistId) {
     {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${state.todoist.apiToken}`
+        'Authorization': `Bearer ${state.todoist.apiToken}`,
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     }
   );
