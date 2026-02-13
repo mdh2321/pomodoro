@@ -371,17 +371,70 @@ function getDateInAEST(date) {
 // ============================================
 
 // Using CORS proxy for browser-based requests
-// corsproxy.io is more reliable than corsproxy.org
-const TODOIST_API_BASE = 'https://corsproxy.io/?https://api.todoist.com/rest/v2';
+// Multiple proxies for fallback reliability
+const CORS_PROXIES = [
+  { name: 'allorigins', format: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+  { name: 'corsproxy.io', format: (url) => `https://corsproxy.io/?${url}` },
+  { name: 'cors.sh', format: (url) => `https://cors.sh/${url}` }
+];
+const TODOIST_API_URL = 'https://api.todoist.com/rest/v2';
+
+// Track which proxy is currently working
+let currentProxyIndex = 0;
+
+// Make a request with automatic proxy fallback
+async function todoistFetch(endpoint, options = {}) {
+  const url = `${TODOIST_API_URL}${endpoint}`;
+  let lastError = null;
+
+  // Try each proxy starting from the current known-working one
+  for (let attempt = 0; attempt < CORS_PROXIES.length; attempt++) {
+    const proxyIndex = (currentProxyIndex + attempt) % CORS_PROXIES.length;
+    const proxy = CORS_PROXIES[proxyIndex];
+    const proxiedUrl = proxy.format(url);
+
+    try {
+      const response = await fetch(proxiedUrl, {
+        ...options,
+        headers: {
+          ...options.headers,
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+
+      // If we get a response (even an error from Todoist), proxy is working
+      // 410 from proxy means proxy is down, not Todoist
+      if (response.status === 410 || response.status === 502 || response.status === 503) {
+        console.warn(`CORS proxy ${proxy.name} returned ${response.status}, trying next...`);
+        lastError = new Error(`Proxy ${proxy.name} unavailable`);
+        continue;
+      }
+
+      // This proxy worked, remember it for next time
+      if (proxyIndex !== currentProxyIndex) {
+        console.log(`Switched to CORS proxy: ${proxy.name}`);
+        currentProxyIndex = proxyIndex;
+      }
+
+      return response;
+    } catch (error) {
+      console.warn(`CORS proxy ${proxy.name} failed:`, error.message);
+      lastError = error;
+      continue;
+    }
+  }
+
+  // All proxies failed
+  throw lastError || new Error('All CORS proxies failed');
+}
 
 // Validate API token by fetching projects
 async function validateTodoistToken(token) {
   try {
-    const response = await fetch(`${TODOIST_API_BASE}/projects`, {
+    const response = await todoistFetch('/projects', {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+        'Content-Type': 'application/json'
       }
     });
 
@@ -413,13 +466,12 @@ async function fetchTodoistTasks() {
     return [];
   }
 
-  const response = await fetch(
-    `${TODOIST_API_BASE}/tasks?filter=${encodeURIComponent('today | no due date')}`,
+  const response = await todoistFetch(
+    `/tasks?filter=${encodeURIComponent('today | no due date')}`,
     {
       headers: {
         'Authorization': `Bearer ${state.todoist.apiToken}`,
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+        'Content-Type': 'application/json'
       }
     }
   );
@@ -440,14 +492,13 @@ async function completeTodoistTask(todoistId) {
     return false;
   }
 
-  const response = await fetch(
-    `${TODOIST_API_BASE}/tasks/${todoistId}/close`,
+  const response = await todoistFetch(
+    `/tasks/${todoistId}/close`,
     {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${state.todoist.apiToken}`,
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+        'Content-Type': 'application/json'
       }
     }
   );
@@ -461,14 +512,13 @@ async function reopenTodoistTask(todoistId) {
     return false;
   }
 
-  const response = await fetch(
-    `${TODOIST_API_BASE}/tasks/${todoistId}/reopen`,
+  const response = await todoistFetch(
+    `/tasks/${todoistId}/reopen`,
     {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${state.todoist.apiToken}`,
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+        'Content-Type': 'application/json'
       }
     }
   );
