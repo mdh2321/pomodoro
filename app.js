@@ -16,6 +16,13 @@ const TIME_VALUES = {
   break: [5, 10, 15, 20, 25, 30]
 };
 
+// Goal colors (max 3 goals = 3 colors)
+const GOAL_COLORS = [
+  { name: 'coral',  value: '#f87171' },
+  { name: 'amber',  value: '#fbbf24' },
+  { name: 'violet', value: '#a78bfa' },
+];
+
 const state = {
   // Timer state
   mode: 'work', // 'work' | 'break'
@@ -42,8 +49,11 @@ const state = {
   // Task intent (legacy - keeping for compatibility)
   currentTask: '',
 
+  // Goals system
+  goals: [], // Array of { id, name, colorIndex, completed, totalSeconds, createdAt }
+
   // Tasks system
-  tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt }
+  tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt, goalId }
   activeTaskId: null, // ID of task being worked on during Pomo
 
   // Task settings
@@ -294,6 +304,11 @@ function loadFromStorage() {
       if (data.summaryShownDate) {
         state.summaryShownDate = data.summaryShownDate;
       }
+
+      // Restore goals
+      if (data.goals && Array.isArray(data.goals)) {
+        state.goals = data.goals;
+      }
     }
   } catch (e) {
     console.warn('Failed to load from storage:', e);
@@ -313,6 +328,8 @@ function saveToStorage() {
       history: state.history,
       currentTask: state.currentTask,
       statsView: state.statsView,
+      // Goals
+      goals: state.goals,
       // Tasks
       tasks: state.tasks,
       showCompletedTasks: state.showCompletedTasks,
@@ -3596,6 +3613,334 @@ function requestNotificationPermission() {
 }
 
 // ============================================
+// Goals System
+// ============================================
+
+function generateGoalId() {
+  return 'g_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+function getActiveGoals() {
+  return state.goals.filter(g => !g.completed);
+}
+
+function getNextAvailableColorIndex() {
+  const usedIndices = getActiveGoals().map(g => g.colorIndex);
+  for (let i = 0; i < GOAL_COLORS.length; i++) {
+    if (!usedIndices.includes(i)) return i;
+  }
+  return 0;
+}
+
+function addGoal(name, colorIndex) {
+  if (!name.trim()) return;
+  if (getActiveGoals().length >= 3) return;
+
+  const goal = {
+    id: generateGoalId(),
+    name: name.trim(),
+    colorIndex: colorIndex,
+    completed: false,
+    totalSeconds: 0,
+    createdAt: Date.now()
+  };
+
+  state.goals.push(goal);
+  saveToStorage();
+  renderGoals();
+  updateGoalSelect();
+}
+
+function completeGoal(goalId) {
+  const goal = state.goals.find(g => g.id === goalId);
+  if (!goal) return;
+  goal.completed = true;
+  saveToStorage();
+  renderGoals();
+  renderTasks();
+  updateGoalSelect();
+}
+
+function uncompleteGoal(goalId) {
+  if (getActiveGoals().length >= 3) return;
+  const goal = state.goals.find(g => g.id === goalId);
+  if (!goal) return;
+  goal.completed = false;
+  saveToStorage();
+  renderGoals();
+  renderTasks();
+  updateGoalSelect();
+}
+
+function deleteGoal(goalId) {
+  state.goals = state.goals.filter(g => g.id !== goalId);
+  // Unlink all tasks from this goal
+  state.tasks.forEach(t => {
+    if (t.goalId === goalId) t.goalId = null;
+  });
+  saveToStorage();
+  renderGoals();
+  renderTasks();
+  updateGoalSelect();
+}
+
+function editGoalName(goalId, newName) {
+  if (!newName.trim()) return;
+  const goal = state.goals.find(g => g.id === goalId);
+  if (!goal) return;
+  goal.name = newName.trim();
+  saveToStorage();
+  renderGoals();
+  renderTasks();
+}
+
+function getGoalTime(goalId) {
+  return state.tasks
+    .filter(t => t.goalId === goalId)
+    .reduce((sum, t) => sum + t.actualSeconds, 0);
+}
+
+let editingGoalId = null;
+
+function openGoalForm(goalId) {
+  const form = document.getElementById('goalForm');
+  const input = document.getElementById('goalFormInput');
+  if (!form || !input) return;
+
+  editingGoalId = goalId || null;
+
+  if (goalId) {
+    const goal = state.goals.find(g => g.id === goalId);
+    if (!goal) return;
+    input.value = goal.name;
+    renderGoalColorSwatches(goal.colorIndex);
+  } else {
+    input.value = '';
+    renderGoalColorSwatches(getNextAvailableColorIndex());
+  }
+
+  form.hidden = false;
+  input.focus();
+}
+
+function closeGoalForm() {
+  const form = document.getElementById('goalForm');
+  if (form) form.hidden = true;
+  editingGoalId = null;
+}
+
+function saveGoalForm() {
+  const input = document.getElementById('goalFormInput');
+  if (!input || !input.value.trim()) return;
+
+  const selectedSwatch = document.querySelector('.goal-color-swatch.selected');
+  const colorIndex = selectedSwatch ? parseInt(selectedSwatch.dataset.index) : 0;
+
+  if (editingGoalId) {
+    const goal = state.goals.find(g => g.id === editingGoalId);
+    if (goal) {
+      goal.name = input.value.trim();
+      goal.colorIndex = colorIndex;
+      saveToStorage();
+      renderGoals();
+      renderTasks();
+    }
+  } else {
+    addGoal(input.value.trim(), colorIndex);
+  }
+
+  closeGoalForm();
+}
+
+function renderGoalColorSwatches(selectedIndex) {
+  const container = document.getElementById('goalFormColors');
+  if (!container) return;
+
+  container.innerHTML = GOAL_COLORS.map((color, i) =>
+    `<button type="button" class="goal-color-swatch ${i === selectedIndex ? 'selected' : ''}"
+      style="background: ${color.value}" data-index="${i}" aria-label="${color.name}"></button>`
+  ).join('');
+
+  container.querySelectorAll('.goal-color-swatch').forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      container.querySelectorAll('.goal-color-swatch').forEach(s => s.classList.remove('selected'));
+      swatch.classList.add('selected');
+    });
+  });
+}
+
+function renderGoals() {
+  const list = document.getElementById('goalsList');
+  const addBtn = document.getElementById('goalsAddBtn');
+  if (!list) return;
+
+  const activeGoals = getActiveGoals();
+  const completedGoals = state.goals.filter(g => g.completed);
+
+  if (addBtn) {
+    addBtn.classList.toggle('hidden', activeGoals.length >= 3);
+  }
+
+  if (state.goals.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+
+  // Render active goals first, then completed
+  const allGoals = [...activeGoals, ...completedGoals];
+
+  list.innerHTML = allGoals.map(goal => {
+    const timeDisplay = goal.totalSeconds > 0 ? formatTimeSpent(goal.totalSeconds) : '';
+    const color = GOAL_COLORS[goal.colorIndex] || GOAL_COLORS[0];
+
+    return `
+      <div class="goal-card ${goal.completed ? 'completed' : ''}" data-goal-id="${goal.id}"
+           style="border-left-color: ${color.value}">
+        <button class="goal-card-checkbox" aria-label="${goal.completed ? 'Uncomplete' : 'Complete'} goal"></button>
+        <div class="goal-card-content">
+          <div class="goal-card-name">${escapeHtml(goal.name)}</div>
+          ${timeDisplay ? `<div class="goal-card-time">${timeDisplay}</div>` : ''}
+        </div>
+        <div class="goal-card-actions">
+          <button class="goal-card-action edit" aria-label="Edit goal">✎</button>
+          <button class="goal-card-action delete" aria-label="Delete goal">×</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Attach event listeners
+  list.querySelectorAll('.goal-card').forEach(card => {
+    const goalId = card.dataset.goalId;
+    const goal = state.goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    card.querySelector('.goal-card-checkbox').addEventListener('click', () => {
+      if (goal.completed) {
+        uncompleteGoal(goalId);
+      } else {
+        completeGoal(goalId);
+      }
+    });
+
+    card.querySelector('.goal-card-action.edit').addEventListener('click', () => {
+      openGoalForm(goalId);
+    });
+
+    card.querySelector('.goal-card-action.delete').addEventListener('click', () => {
+      deleteGoal(goalId);
+    });
+  });
+}
+
+function updateGoalSelect() {
+  const select = document.getElementById('addTaskGoal');
+  if (!select) return;
+
+  const activeGoals = getActiveGoals();
+
+  if (activeGoals.length === 0) {
+    select.classList.add('hidden');
+    return;
+  }
+
+  select.classList.remove('hidden');
+  select.innerHTML = '<option value="">Goal</option>' +
+    activeGoals.map(g => {
+      const color = GOAL_COLORS[g.colorIndex] || GOAL_COLORS[0];
+      return `<option value="${g.id}">${escapeHtml(g.name)}</option>`;
+    }).join('');
+}
+
+function linkTaskToGoal(taskId, goalId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.goalId = goalId || null;
+  saveToStorage();
+  renderTasks();
+}
+
+let activeGoalLinkMenu = null;
+
+function showGoalLinkMenu(taskId, anchorEl) {
+  // Remove any existing menu
+  closeGoalLinkMenu();
+
+  const activeGoals = getActiveGoals();
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'goal-link-menu';
+
+  menu.innerHTML = activeGoals.map(g => {
+    const color = GOAL_COLORS[g.colorIndex] || GOAL_COLORS[0];
+    return `<button class="goal-link-option" data-goal-id="${g.id}">
+      <span class="task-goal-dot" style="background:${color.value}"></span>
+      ${escapeHtml(g.name)}
+    </button>`;
+  }).join('') + (task.goalId ? '<button class="goal-link-option unlink" data-goal-id="">Unlink</button>' : '');
+
+  menu.querySelectorAll('.goal-link-option').forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      linkTaskToGoal(taskId, opt.dataset.goalId || null);
+      closeGoalLinkMenu();
+    });
+  });
+
+  // Position relative to anchor
+  const parent = anchorEl.closest('.task-item');
+  if (parent) {
+    parent.style.position = 'relative';
+    parent.appendChild(menu);
+  }
+
+  activeGoalLinkMenu = menu;
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', closeGoalLinkMenu, { once: true });
+  }, 0);
+}
+
+function closeGoalLinkMenu() {
+  if (activeGoalLinkMenu) {
+    activeGoalLinkMenu.remove();
+    activeGoalLinkMenu = null;
+  }
+}
+
+function initGoals() {
+  const addBtn = document.getElementById('goalsAddBtn');
+  const cancelBtn = document.getElementById('goalFormCancel');
+  const saveBtn = document.getElementById('goalFormSave');
+  const formInput = document.getElementById('goalFormInput');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => openGoalForm());
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', closeGoalForm);
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveGoalForm);
+  }
+
+  if (formInput) {
+    formInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveGoalForm();
+      if (e.key === 'Escape') closeGoalForm();
+    });
+  }
+
+  renderGoals();
+  updateGoalSelect();
+}
+
+// ============================================
 // Task Sidebar
 // ============================================
 
@@ -3626,7 +3971,7 @@ function toggleSidebar() {
 }
 
 // Add a new task
-function addTask(name, estimatedMinutes = null) {
+function addTask(name, estimatedMinutes = null, goalId = null) {
   if (!name.trim()) return;
 
   const task = {
@@ -3636,12 +3981,14 @@ function addTask(name, estimatedMinutes = null) {
     actualSeconds: 0,
     completed: false,
     createdAt: Date.now(),
-    notes: ''
+    notes: '',
+    goalId: goalId || null
   };
 
   state.tasks.push(task);
   saveToStorage();
   renderTasks();
+  renderGoals();
 }
 
 // Complete a task
@@ -3943,10 +4290,21 @@ function renderTasks() {
     // Note indicator
     const hasNotes = task.notes && task.notes.trim().length > 0;
 
+    // Goal dot
+    const goalDot = task.goalId ? (() => {
+      const goal = state.goals.find(g => g.id === task.goalId);
+      return goal ? `<span class="task-goal-dot" style="background:${GOAL_COLORS[goal.colorIndex].value}" title="${escapeHtml(goal.name)}"></span>` : '';
+    })() : '';
+
+    // Goal link button (only show when goals exist)
+    const hasActiveGoals = getActiveGoals().length > 0;
+    const goalLinkBtn = hasActiveGoals ? '<button class="task-item-action goal-link" aria-label="Link to goal">⊕</button>' : '';
+
     taskEl.innerHTML = `
       <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
       <div class="task-item-content" data-has-notes="${hasNotes}">
         <div class="task-item-name-row">
+          ${goalDot}
           <div class="task-item-name" contenteditable="false">${escapeHtml(task.name)}</div>
           ${hasNotes ? '<span class="task-note-dot" title="Has notes"></span>' : ''}
         </div>
@@ -3960,6 +4318,7 @@ function renderTasks() {
         </div>
       </div>
       <div class="task-item-actions">
+        ${goalLinkBtn}
         <button class="task-item-action edit" aria-label="Edit task">✎</button>
         <button class="task-item-action delete" aria-label="Delete task">×</button>
       </div>
@@ -4024,6 +4383,15 @@ function renderTasks() {
     deleteBtn.addEventListener('click', () => {
       deleteTask(task.id);
     });
+
+    // Goal link button
+    const goalLinkBtnEl = taskEl.querySelector('.task-item-action.goal-link');
+    if (goalLinkBtnEl) {
+      goalLinkBtnEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showGoalLinkMenu(task.id, goalLinkBtnEl);
+      });
+    }
 
     // Drag and drop (only for incomplete tasks)
     if (!task.completed) {
@@ -4197,13 +4565,19 @@ function trackTaskTime() {
     const task = state.tasks.find(t => t.id === state.activeTaskId);
     if (task && !task.completed) {
       task.actualSeconds += 1;
+      // Also accrue time on linked goal (cumulative, persists across days)
+      if (task.goalId) {
+        const goal = state.goals.find(g => g.id === task.goalId);
+        if (goal) goal.totalSeconds += 1;
+      }
       // Save periodically (every 30 seconds) to avoid too many writes
       if (task.actualSeconds % 30 === 0) {
         saveToStorage();
       }
-      // Update task display every minute to show accrued time
+      // Update task and goal display every minute to show accrued time
       if (task.actualSeconds % 60 === 0) {
         renderTasks();
+        renderGoals();
       }
     }
   }
@@ -4292,10 +4666,13 @@ function initTaskSidebarListeners() {
   const submitNewTask = () => {
     const name = elements.addTaskInput.value.trim();
     const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
+    const goalSelect = document.getElementById('addTaskGoal');
+    const goalId = goalSelect ? goalSelect.value || null : null;
     if (name) {
-      addTask(name, estimate);
+      addTask(name, estimate, goalId);
       elements.addTaskInput.value = '';
       elements.addTaskEstimate.value = '';
+      if (goalSelect) goalSelect.value = '';
     }
   };
 
@@ -4306,6 +4683,13 @@ function initTaskSidebarListeners() {
   elements.addTaskEstimate.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') submitNewTask();
   });
+
+  const addTaskGoalEl = document.getElementById('addTaskGoal');
+  if (addTaskGoalEl) {
+    addTaskGoalEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitNewTask();
+    });
+  }
 
   // Initialize settings
   initTaskSettings();
@@ -4532,6 +4916,9 @@ function init() {
 
   // Initialize task sidebar
   initTaskSidebarListeners();
+
+  // Initialize goals
+  initGoals();
 
   // Initialize break duration display
   updateBreakDisplay();
