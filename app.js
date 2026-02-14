@@ -370,52 +370,92 @@ function getDateInAEST(date) {
 // Todoist Integration
 // ============================================
 
-// Using CORS proxy for browser-based requests
-// Multiple proxies for fallback reliability
-const CORS_PROXIES = [
-  { name: 'allorigins', format: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
-  { name: 'corsproxy.io', format: (url) => `https://corsproxy.io/?${url}` },
-  { name: 'cors.sh', format: (url) => `https://cors.sh/${url}` }
-];
+// Todoist API URL
 const TODOIST_API_URL = 'https://api.todoist.com/rest/v2';
 
-// Track which proxy is currently working
-let currentProxyIndex = 0;
-
-// Make a request with automatic proxy fallback
+// Make a request to Todoist API
+// Note: Direct browser requests to Todoist API are blocked by CORS.
+// This app requires a CORS proxy or backend server to work.
+// For production use, consider setting up your own proxy server.
 async function todoistFetch(endpoint, options = {}) {
   const url = `${TODOIST_API_URL}${endpoint}`;
+
+  // First, try a direct request (works in non-browser environments or with browser extensions)
+  try {
+    const directResponse = await fetch(url, {
+      ...options,
+      mode: 'cors',
+      headers: {
+        ...options.headers
+      }
+    });
+
+    // If we get any response (including errors), direct access works
+    if (directResponse.status !== 0) {
+      console.log('Direct Todoist API access succeeded');
+      return directResponse;
+    }
+  } catch (directError) {
+    // CORS error or network error - this is expected in browsers, try proxies
+    console.log('Direct API access blocked, trying CORS proxies...');
+  }
+
+  // CORS proxies to try - these are free services that may be unreliable
+  // For production, use your own proxy server
+  const corsProxies = [
+    {
+      name: 'corsproxy.io',
+      format: (targetUrl) => `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+      headers: {}
+    },
+    {
+      name: 'allorigins',
+      format: (targetUrl) => `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+      headers: {}
+    },
+    {
+      name: 'cors-anywhere-public',
+      format: (targetUrl) => `https://cors-anywhere.herokuapp.com/${targetUrl}`,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }
+  ];
+
   let lastError = null;
 
-  // Try each proxy starting from the current known-working one
-  for (let attempt = 0; attempt < CORS_PROXIES.length; attempt++) {
-    const proxyIndex = (currentProxyIndex + attempt) % CORS_PROXIES.length;
-    const proxy = CORS_PROXIES[proxyIndex];
+  for (const proxy of corsProxies) {
     const proxiedUrl = proxy.format(url);
 
     try {
+      console.log(`Trying CORS proxy: ${proxy.name}`);
+
       const response = await fetch(proxiedUrl, {
         ...options,
         headers: {
           ...options.headers,
-          'X-Requested-With': 'XMLHttpRequest'
+          ...proxy.headers
         }
       });
 
-      // If we get a response (even an error from Todoist), proxy is working
-      // 410 from proxy means proxy is down, not Todoist
-      if (response.status === 410 || response.status === 502 || response.status === 503) {
+      // Check for proxy-specific error codes that indicate the proxy itself is down
+      if (response.status === 0 || response.status === 410 || response.status === 502 || response.status === 503 || response.status === 504) {
         console.warn(`CORS proxy ${proxy.name} returned ${response.status}, trying next...`);
-        lastError = new Error(`Proxy ${proxy.name} unavailable`);
+        lastError = new Error(`Proxy ${proxy.name} unavailable (${response.status})`);
         continue;
       }
 
-      // This proxy worked, remember it for next time
-      if (proxyIndex !== currentProxyIndex) {
-        console.log(`Switched to CORS proxy: ${proxy.name}`);
-        currentProxyIndex = proxyIndex;
+      // Check if the response is HTML (some proxies return error pages as HTML)
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html') && response.status === 200) {
+        // This might be a proxy error page, check the body
+        const text = await response.clone().text();
+        if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+          console.warn(`CORS proxy ${proxy.name} returned HTML instead of JSON, trying next...`);
+          lastError = new Error(`Proxy ${proxy.name} returned error page`);
+          continue;
+        }
       }
 
+      console.log(`CORS proxy ${proxy.name} succeeded`);
       return response;
     } catch (error) {
       console.warn(`CORS proxy ${proxy.name} failed:`, error.message);
@@ -424,8 +464,9 @@ async function todoistFetch(endpoint, options = {}) {
     }
   }
 
-  // All proxies failed
-  throw lastError || new Error('All CORS proxies failed');
+  // All methods failed
+  console.error('All Todoist API access methods failed');
+  throw lastError || new Error('Could not connect to Todoist API');
 }
 
 // Validate API token by fetching projects
@@ -456,6 +497,11 @@ async function validateTodoistToken(token) {
     }
   } catch (error) {
     console.error('Todoist token validation failed:', error);
+    // Provide more specific error message
+    const errorMsg = error.message || '';
+    if (errorMsg.includes('Proxy') || errorMsg.includes('CORS')) {
+      return { valid: false, error: 'CORS proxy services unavailable - please try again later' };
+    }
     return { valid: false, error: 'Could not connect to Todoist - check your internet connection' };
   }
 }
@@ -598,14 +644,20 @@ async function syncWithTodoist() {
   } catch (error) {
     console.error('Todoist sync failed:', error);
     state.todoist.syncStatus = 'error';
-    state.todoist.lastError = error.message || 'Sync failed';
 
-    // If token is invalid, disable integration
-    if (error.message === 'Invalid API token') {
+    // Provide user-friendly error messages
+    const errorMsg = error.message || '';
+    if (errorMsg.includes('Proxy') || errorMsg.includes('CORS') || errorMsg.includes('Could not connect')) {
+      state.todoist.lastError = 'CORS proxy unavailable - try again later';
+    } else if (errorMsg === 'Invalid API token') {
+      state.todoist.lastError = 'Invalid API token';
+      // Disable integration for invalid token
       state.todoist.enabled = false;
       state.todoist.apiToken = null;
       saveToStorage();
       updateTodoistSettingsUI();
+    } else {
+      state.todoist.lastError = errorMsg || 'Sync failed';
     }
 
     updateTodoistStatusUI();
