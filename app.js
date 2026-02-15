@@ -3648,7 +3648,6 @@ function addGoal(name, colorIndex) {
   state.goals.push(goal);
   saveToStorage();
   renderGoals();
-  updateGoalSelect();
 }
 
 function completeGoal(goalId) {
@@ -3658,7 +3657,6 @@ function completeGoal(goalId) {
   saveToStorage();
   renderGoals();
   renderTasks();
-  updateGoalSelect();
 }
 
 function uncompleteGoal(goalId) {
@@ -3669,7 +3667,6 @@ function uncompleteGoal(goalId) {
   saveToStorage();
   renderGoals();
   renderTasks();
-  updateGoalSelect();
 }
 
 function deleteGoal(goalId) {
@@ -3681,7 +3678,6 @@ function deleteGoal(goalId) {
   saveToStorage();
   renderGoals();
   renderTasks();
-  updateGoalSelect();
 }
 
 function editGoalName(goalId, newName) {
@@ -3692,12 +3688,6 @@ function editGoalName(goalId, newName) {
   saveToStorage();
   renderGoals();
   renderTasks();
-}
-
-function getGoalTime(goalId) {
-  return state.tasks
-    .filter(t => t.goalId === goalId)
-    .reduce((sum, t) => sum + t.actualSeconds, 0);
 }
 
 let editingGoalId = null;
@@ -3756,12 +3746,18 @@ function renderGoalColorSwatches(selectedIndex) {
   const container = document.getElementById('goalFormColors');
   if (!container) return;
 
-  container.innerHTML = GOAL_COLORS.map((color, i) =>
-    `<button type="button" class="goal-color-swatch ${i === selectedIndex ? 'selected' : ''}"
-      style="background: ${color.value}" data-index="${i}" aria-label="${color.name}"></button>`
-  ).join('');
+  // Find colors already used by other active goals (excluding the one being edited)
+  const usedIndices = getActiveGoals()
+    .filter(g => g.id !== editingGoalId)
+    .map(g => g.colorIndex);
 
-  container.querySelectorAll('.goal-color-swatch').forEach(swatch => {
+  container.innerHTML = GOAL_COLORS.map((color, i) => {
+    const isUsed = usedIndices.includes(i);
+    return `<button type="button" class="goal-color-swatch ${i === selectedIndex ? 'selected' : ''} ${isUsed ? 'disabled' : ''}"
+      style="background: ${color.value}" data-index="${i}" aria-label="${color.name}" ${isUsed ? 'disabled' : ''}></button>`;
+  }).join('');
+
+  container.querySelectorAll('.goal-color-swatch:not(.disabled)').forEach(swatch => {
     swatch.addEventListener('click', () => {
       container.querySelectorAll('.goal-color-swatch').forEach(s => s.classList.remove('selected'));
       swatch.classList.add('selected');
@@ -3790,20 +3786,47 @@ function renderGoals() {
   const allGoals = [...activeGoals, ...completedGoals];
 
   list.innerHTML = allGoals.map(goal => {
-    const timeDisplay = goal.totalSeconds > 0 ? formatTimeSpent(goal.totalSeconds) : '';
     const color = GOAL_COLORS[goal.colorIndex] || GOAL_COLORS[0];
+    const linkedTasks = state.tasks.filter(t => t.goalId === goal.id);
+    const totalSecs = linkedTasks.reduce((sum, t) => sum + t.actualSeconds, 0);
+    const completedCount = linkedTasks.filter(t => t.completed).length;
+    const timeDisplay = totalSecs > 0 ? formatTimeSpent(totalSecs) : '0m';
+    const taskSummary = `${completedCount}/${linkedTasks.length} tasks`;
+
+    // Build linked tasks list for the expandable stats panel
+    const linkedTasksHtml = linkedTasks.length > 0
+      ? linkedTasks.map(t =>
+          `<div class="goal-stats-task ${t.completed ? 'completed' : ''}">
+            <span class="goal-stats-task-status">${t.completed ? '✓' : '○'}</span>
+            <span class="goal-stats-task-name">${escapeHtml(t.name)}</span>
+            <span class="goal-stats-task-time">${t.actualSeconds > 0 ? formatTimeSpent(t.actualSeconds) : '0m'}</span>
+          </div>`
+        ).join('')
+      : '<div class="goal-stats-empty">No linked tasks</div>';
 
     return `
       <div class="goal-card ${goal.completed ? 'completed' : ''}" data-goal-id="${goal.id}"
            style="border-left-color: ${color.value}">
-        <button class="goal-card-checkbox" aria-label="${goal.completed ? 'Uncomplete' : 'Complete'} goal"></button>
-        <div class="goal-card-content">
-          <div class="goal-card-name">${escapeHtml(goal.name)}</div>
-          ${timeDisplay ? `<div class="goal-card-time">${timeDisplay}</div>` : ''}
+        <div class="goal-card-main">
+          <button class="goal-card-checkbox" aria-label="${goal.completed ? 'Uncomplete' : 'Complete'} goal"></button>
+          <div class="goal-card-content goal-card-toggle">
+            <div class="goal-card-name">${escapeHtml(goal.name)}</div>
+            <div class="goal-card-meta">
+              <span class="goal-card-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${timeDisplay}</span>
+              <span class="goal-card-task-count"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> ${taskSummary}</span>
+              <span class="goal-card-expand-icon">▸</span>
+            </div>
+          </div>
+          <div class="goal-card-actions">
+            <button class="goal-card-action edit" aria-label="Edit goal">✎</button>
+            <button class="goal-card-action delete" aria-label="Delete goal">×</button>
+          </div>
         </div>
-        <div class="goal-card-actions">
-          <button class="goal-card-action edit" aria-label="Edit goal">✎</button>
-          <button class="goal-card-action delete" aria-label="Delete goal">×</button>
+        <div class="goal-stats-panel" hidden>
+          <div class="goal-stats-header">Linked Tasks</div>
+          <div class="goal-stats-tasks">
+            ${linkedTasksHtml}
+          </div>
         </div>
       </div>
     `;
@@ -3815,7 +3838,8 @@ function renderGoals() {
     const goal = state.goals.find(g => g.id === goalId);
     if (!goal) return;
 
-    card.querySelector('.goal-card-checkbox').addEventListener('click', () => {
+    card.querySelector('.goal-card-checkbox').addEventListener('click', (e) => {
+      e.stopPropagation();
       if (goal.completed) {
         uncompleteGoal(goalId);
       } else {
@@ -3823,34 +3847,31 @@ function renderGoals() {
       }
     });
 
-    card.querySelector('.goal-card-action.edit').addEventListener('click', () => {
+    card.querySelector('.goal-card-action.edit').addEventListener('click', (e) => {
+      e.stopPropagation();
       openGoalForm(goalId);
     });
 
-    card.querySelector('.goal-card-action.delete').addEventListener('click', () => {
+    card.querySelector('.goal-card-action.delete').addEventListener('click', (e) => {
+      e.stopPropagation();
       deleteGoal(goalId);
     });
+
+    // Toggle stats panel on content click
+    const toggleEl = card.querySelector('.goal-card-toggle');
+    const statsPanel = card.querySelector('.goal-stats-panel');
+    const expandIcon = card.querySelector('.goal-card-expand-icon');
+    if (toggleEl && statsPanel) {
+      toggleEl.addEventListener('click', () => {
+        const isExpanded = !statsPanel.hidden;
+        statsPanel.hidden = isExpanded;
+        card.classList.toggle('expanded', !isExpanded);
+        if (expandIcon) expandIcon.textContent = isExpanded ? '▸' : '▾';
+      });
+    }
   });
 }
 
-function updateGoalSelect() {
-  const select = document.getElementById('addTaskGoal');
-  if (!select) return;
-
-  const activeGoals = getActiveGoals();
-
-  if (activeGoals.length === 0) {
-    select.classList.add('hidden');
-    return;
-  }
-
-  select.classList.remove('hidden');
-  select.innerHTML = '<option value="">Goal</option>' +
-    activeGoals.map(g => {
-      const color = GOAL_COLORS[g.colorIndex] || GOAL_COLORS[0];
-      return `<option value="${g.id}">${escapeHtml(g.name)}</option>`;
-    }).join('');
-}
 
 function linkTaskToGoal(taskId, goalId) {
   const task = state.tasks.find(t => t.id === taskId);
@@ -3937,7 +3958,6 @@ function initGoals() {
   }
 
   renderGoals();
-  updateGoalSelect();
 }
 
 // ============================================
@@ -4267,6 +4287,12 @@ function renderTasks() {
     const isNext = task.id === nextTask?.id && !task.completed;
     const isActive = task.id === state.activeTaskId && state.status === 'running';
 
+    // Goal left border color
+    const goalBorderColor = task.goalId ? (() => {
+      const goal = state.goals.find(g => g.id === task.goalId);
+      return goal ? GOAL_COLORS[goal.colorIndex].value : '';
+    })() : '';
+
     const taskEl = document.createElement('div');
     taskEl.className = 'task-item';
     taskEl.dataset.taskId = task.id;
@@ -4276,6 +4302,10 @@ function renderTasks() {
     if (task.completed) taskEl.classList.add('completed');
     if (isNext) taskEl.classList.add('next-task');
     if (isActive) taskEl.classList.add('active-task');
+    if (goalBorderColor) {
+      taskEl.classList.add('has-goal');
+      taskEl.style.borderLeftColor = goalBorderColor;
+    }
 
     // Time display - always show
     const actualTime = task.actualSeconds > 0 ? formatTimeSpent(task.actualSeconds) : '0m';
@@ -4290,12 +4320,6 @@ function renderTasks() {
     // Note indicator
     const hasNotes = task.notes && task.notes.trim().length > 0;
 
-    // Goal dot
-    const goalDot = task.goalId ? (() => {
-      const goal = state.goals.find(g => g.id === task.goalId);
-      return goal ? `<span class="task-goal-dot" style="background:${GOAL_COLORS[goal.colorIndex].value}" title="${escapeHtml(goal.name)}"></span>` : '';
-    })() : '';
-
     // Goal link button (only show when goals exist)
     const hasActiveGoals = getActiveGoals().length > 0;
     const goalLinkBtn = hasActiveGoals ? '<button class="task-item-action goal-link" aria-label="Link to goal">⊕</button>' : '';
@@ -4304,7 +4328,6 @@ function renderTasks() {
       <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
       <div class="task-item-content" data-has-notes="${hasNotes}">
         <div class="task-item-name-row">
-          ${goalDot}
           <div class="task-item-name" contenteditable="false">${escapeHtml(task.name)}</div>
           ${hasNotes ? '<span class="task-note-dot" title="Has notes"></span>' : ''}
         </div>
@@ -4656,23 +4679,44 @@ function initTaskSettings() {
   }
 }
 
+// Sidebar tab switching (Tasks / Goals)
+function switchSidebarTab(tabName) {
+  const tasksView = document.getElementById('tasksView');
+  const goalsView = document.getElementById('goalsView');
+  const tasksTabBtn = document.getElementById('tasksTabBtn');
+  const goalsTabBtn = document.getElementById('goalsTabBtn');
+
+  if (tabName === 'goals') {
+    tasksView.hidden = true;
+    goalsView.hidden = false;
+    tasksTabBtn.classList.remove('active');
+    goalsTabBtn.classList.add('active');
+  } else {
+    tasksView.hidden = false;
+    goalsView.hidden = true;
+    tasksTabBtn.classList.add('active');
+    goalsTabBtn.classList.remove('active');
+  }
+}
+
 // Initialize task sidebar event listeners
 function initTaskSidebarListeners() {
   // Sidebar toggle
   elements.sidebarTab.addEventListener('click', openSidebar);
   elements.sidebarClose.addEventListener('click', closeSidebar);
 
+  // Tab switching
+  document.getElementById('tasksTabBtn').addEventListener('click', () => switchSidebarTab('tasks'));
+  document.getElementById('goalsTabBtn').addEventListener('click', () => switchSidebarTab('goals'));
+
   // Add task form - Enter to add (from either input or estimate dropdown)
   const submitNewTask = () => {
     const name = elements.addTaskInput.value.trim();
     const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
-    const goalSelect = document.getElementById('addTaskGoal');
-    const goalId = goalSelect ? goalSelect.value || null : null;
     if (name) {
-      addTask(name, estimate, goalId);
+      addTask(name, estimate);
       elements.addTaskInput.value = '';
       elements.addTaskEstimate.value = '';
-      if (goalSelect) goalSelect.value = '';
     }
   };
 
@@ -4683,13 +4727,6 @@ function initTaskSidebarListeners() {
   elements.addTaskEstimate.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') submitNewTask();
   });
-
-  const addTaskGoalEl = document.getElementById('addTaskGoal');
-  if (addTaskGoalEl) {
-    addTaskGoalEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') submitNewTask();
-    });
-  }
 
   // Initialize settings
   initTaskSettings();
