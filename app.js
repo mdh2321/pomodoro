@@ -4969,7 +4969,7 @@ function initEventListeners() {
 // Todoist Integration
 // ============================================
 
-const TODOIST_API = 'https://api.todoist.com/rest/v2';
+const TODOIST_API = 'https://api.todoist.com/api/v1';
 
 function todoistFetch(endpoint, options = {}) {
   const headers = {
