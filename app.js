@@ -350,6 +350,12 @@ function getDateInAEST(date) {
 function startTimer() {
   if (state.status === 'running') return;
 
+  // If break just completed, transition to work/idle so user can pick focus time
+  if (state.status === 'completed' && state.mode === 'break') {
+    switchMode();
+    return;
+  }
+
   state.status = 'running';
 
   // Set active task for this Pomo session
