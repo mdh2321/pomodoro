@@ -4974,3 +4974,121 @@ body.focus-mode .timer-container {
 [data-theme="fireside"] body.focus-mode .timer-container {
   animation: focus-pulse-fire 6s ease-in-out infinite;
 }
+
+/* ============================================
+   Todoist Integration Styles
+   ============================================ */
+
+.todoist-token-input-wrap {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.todoist-token-input {
+  flex: 1;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-family: monospace;
+  min-width: 0;
+}
+
+.todoist-token-input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+}
+
+.todoist-token-toggle {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.todoist-token-toggle:hover {
+  background: var(--color-border);
+}
+
+.todoist-sync-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.todoist-sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.todoist-sync-dot[data-status="syncing"] {
+  background: #f59e0b;
+  animation: todoist-pulse 1s ease-in-out infinite;
+}
+
+.todoist-sync-dot[data-status="success"] {
+  background: #10b981;
+}
+
+.todoist-sync-dot[data-status="error"] {
+  background: #ef4444;
+}
+
+@keyframes todoist-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.todoist-sync-btn {
+  font-size: var(--font-size-sm) !important;
+  padding: var(--spacing-xs) var(--spacing-md) !important;
+}
+
+.todoist-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.todoist-help {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-sm);
+  line-height: 1.4;
+}
+
+.todoist-help a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.todoist-help a:hover {
+  text-decoration: underline;
+}
+
+.todoist-settings-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Todoist badge on synced tasks */
+.task-todoist-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: var(--spacing-xs);
+  line-height: 0;
+}
