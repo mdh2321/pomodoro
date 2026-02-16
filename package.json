@@ -1,0 +1,12 @@
+{
+  "name": "pomo",
+  "version": "1.0.0",
+  "description": "Pomo - A minimal, distraction-free pomodoro timer for deep work",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

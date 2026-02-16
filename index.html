@@ -415,6 +415,38 @@
             </label>
           </div>
         </div>
+        <div class="settings-group" id="todoistSettingsGroup">
+          <h3 class="settings-group-title">Todoist</h3>
+          <div class="settings-row">
+            <span class="settings-label">Enable sync</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="todoistEnableToggle">
+              <span class="settings-toggle-slider"></span>
+            </label>
+          </div>
+          <div class="todoist-settings-details" id="todoistDetails" hidden>
+            <div class="settings-row">
+              <span class="settings-label">API token</span>
+              <div class="todoist-token-input-wrap">
+                <input type="password" class="todoist-token-input" id="todoistTokenInput" placeholder="Paste token..." autocomplete="off">
+                <button class="todoist-token-toggle" id="todoistTokenToggle" aria-label="Show/hide token" type="button">Show</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">Status</span>
+              <span class="todoist-sync-status" id="todoistSyncStatus">
+                <span class="todoist-sync-dot" data-status="idle"></span>
+                <span class="todoist-sync-text" id="todoistSyncText">Not synced</span>
+              </span>
+            </div>
+            <div class="settings-row">
+              <button class="btn btn--secondary todoist-sync-btn" id="todoistSyncBtn" type="button">Sync Now</button>
+            </div>
+            <div class="todoist-help">
+              Get your API token at <a href="https://todoist.com/app/settings/integrations/developer" target="_blank" rel="noopener">todoist.com/app/settings/integrations/developer</a>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
