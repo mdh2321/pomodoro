@@ -4969,17 +4969,19 @@ function initEventListeners() {
 // Todoist Integration
 // ============================================
 
+const TODOIST_API = 'https://api.todoist.com/api/v1';
+
 function todoistFetch(endpoint, options = {}) {
   const headers = {
-    'X-Todoist-Token': state.todoist.apiToken,
+    'Authorization': `Bearer ${state.todoist.apiToken}`,
     ...options.headers
   };
-  return fetch(endpoint, { ...options, headers });
+  return fetch(`${TODOIST_API}${endpoint}`, { ...options, headers });
 }
 
 async function todoistCloseTask(todoistId) {
   try {
-    await todoistFetch(`/api/todoist/tasks/${todoistId}/close`, { method: 'POST' });
+    await todoistFetch(`/tasks/${todoistId}/close`, { method: 'POST' });
   } catch (e) {
     console.warn('Failed to close Todoist task:', e);
   }
@@ -4987,7 +4989,7 @@ async function todoistCloseTask(todoistId) {
 
 async function todoistReopenTask(todoistId) {
   try {
-    await todoistFetch(`/api/todoist/tasks/${todoistId}/reopen`, { method: 'POST' });
+    await todoistFetch(`/tasks/${todoistId}/reopen`, { method: 'POST' });
   } catch (e) {
     console.warn('Failed to reopen Todoist task:', e);
   }
@@ -4995,7 +4997,7 @@ async function todoistReopenTask(todoistId) {
 
 async function todoistValidateToken() {
   try {
-    const resp = await todoistFetch('/api/todoist/validate');
+    const resp = await todoistFetch('/projects');
     return resp.ok;
   } catch {
     return false;
@@ -5009,8 +5011,8 @@ async function syncWithTodoist() {
   updateTodoistUI();
 
   try {
-    // 1. Fetch today's tasks from Todoist
-    const resp = await todoistFetch('/api/todoist/tasks');
+    // 1. Fetch today's tasks from Todoist (filter=today|overdue)
+    const resp = await todoistFetch('/tasks?filter=' + encodeURIComponent('today | overdue'));
     if (!resp.ok) {
       const errBody = await resp.json().catch(() => ({}));
       throw new Error(errBody.error || `HTTP ${resp.status}`);
@@ -5037,7 +5039,7 @@ async function syncWithTodoist() {
     const todoistIds = new Set(todoistTasks.map(t => t.id));
     for (const task of state.tasks) {
       if (task.todoistId && task.completed && todoistIds.has(task.todoistId)) {
-        await todoistFetch(`/api/todoist/tasks/${task.todoistId}/close`, { method: 'POST' });
+        await todoistFetch(`/tasks/${task.todoistId}/close`, { method: 'POST' });
       }
     }
 
