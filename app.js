@@ -16,6 +16,13 @@ const TIME_VALUES = {
   break: [5, 10, 15, 20, 25, 30]
 };
 
+// Goal colors (max 3 goals = 3 colors)
+const GOAL_COLORS = [
+  { name: 'coral',  value: '#f87171' },
+  { name: 'amber',  value: '#fbbf24' },
+  { name: 'violet', value: '#a78bfa' },
+];
+
 const state = {
   // Timer state
   mode: 'work', // 'work' | 'break'
@@ -42,8 +49,11 @@ const state = {
   // Task intent (legacy - keeping for compatibility)
   currentTask: '',
 
+  // Goals system
+  goals: [], // Array of { id, name, colorIndex, completed, totalSeconds, createdAt }
+
   // Tasks system
-  tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt }
+  tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt, goalId }
   activeTaskId: null, // ID of task being worked on during Pomo
 
   // Task settings
@@ -304,17 +314,9 @@ function loadFromStorage() {
         state.summaryShownDate = data.summaryShownDate;
       }
 
-      // Restore Todoist settings
-      if (data.todoist) {
-        if (typeof data.todoist.enabled === 'boolean') {
-          state.todoist.enabled = data.todoist.enabled;
-        }
-        if (data.todoist.apiToken) {
-          state.todoist.apiToken = data.todoist.apiToken;
-        }
-        if (data.todoist.lastSyncTime) {
-          state.todoist.lastSyncTime = data.todoist.lastSyncTime;
-        }
+      // Restore goals
+      if (data.goals && Array.isArray(data.goals)) {
+        state.goals = data.goals;
       }
     }
   } catch (e) {
@@ -335,6 +337,8 @@ function saveToStorage() {
       history: state.history,
       currentTask: state.currentTask,
       statsView: state.statsView,
+      // Goals
+      goals: state.goals,
       // Tasks
       tasks: state.tasks,
       showCompletedTasks: state.showCompletedTasks,
@@ -3630,6 +3634,354 @@ function requestNotificationPermission() {
 }
 
 // ============================================
+// Goals System
+// ============================================
+
+function generateGoalId() {
+  return 'g_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+function getActiveGoals() {
+  return state.goals.filter(g => !g.completed);
+}
+
+function getNextAvailableColorIndex() {
+  const usedIndices = getActiveGoals().map(g => g.colorIndex);
+  for (let i = 0; i < GOAL_COLORS.length; i++) {
+    if (!usedIndices.includes(i)) return i;
+  }
+  return 0;
+}
+
+function addGoal(name, colorIndex) {
+  if (!name.trim()) return;
+  if (getActiveGoals().length >= 3) return;
+
+  const goal = {
+    id: generateGoalId(),
+    name: name.trim(),
+    colorIndex: colorIndex,
+    completed: false,
+    totalSeconds: 0,
+    createdAt: Date.now()
+  };
+
+  state.goals.push(goal);
+  saveToStorage();
+  renderGoals();
+}
+
+function completeGoal(goalId) {
+  const goal = state.goals.find(g => g.id === goalId);
+  if (!goal) return;
+  goal.completed = true;
+  saveToStorage();
+  renderGoals();
+  renderTasks();
+}
+
+function uncompleteGoal(goalId) {
+  if (getActiveGoals().length >= 3) return;
+  const goal = state.goals.find(g => g.id === goalId);
+  if (!goal) return;
+  goal.completed = false;
+  saveToStorage();
+  renderGoals();
+  renderTasks();
+}
+
+function deleteGoal(goalId) {
+  state.goals = state.goals.filter(g => g.id !== goalId);
+  // Unlink all tasks from this goal
+  state.tasks.forEach(t => {
+    if (t.goalId === goalId) t.goalId = null;
+  });
+  saveToStorage();
+  renderGoals();
+  renderTasks();
+}
+
+function editGoalName(goalId, newName) {
+  if (!newName.trim()) return;
+  const goal = state.goals.find(g => g.id === goalId);
+  if (!goal) return;
+  goal.name = newName.trim();
+  saveToStorage();
+  renderGoals();
+  renderTasks();
+}
+
+let editingGoalId = null;
+
+function openGoalForm(goalId) {
+  const form = document.getElementById('goalForm');
+  const input = document.getElementById('goalFormInput');
+  if (!form || !input) return;
+
+  editingGoalId = goalId || null;
+
+  if (goalId) {
+    const goal = state.goals.find(g => g.id === goalId);
+    if (!goal) return;
+    input.value = goal.name;
+    renderGoalColorSwatches(goal.colorIndex);
+  } else {
+    input.value = '';
+    renderGoalColorSwatches(getNextAvailableColorIndex());
+  }
+
+  form.hidden = false;
+  input.focus();
+}
+
+function closeGoalForm() {
+  const form = document.getElementById('goalForm');
+  if (form) form.hidden = true;
+  editingGoalId = null;
+}
+
+function saveGoalForm() {
+  const input = document.getElementById('goalFormInput');
+  if (!input || !input.value.trim()) return;
+
+  const selectedSwatch = document.querySelector('.goal-color-swatch.selected');
+  const colorIndex = selectedSwatch ? parseInt(selectedSwatch.dataset.index) : 0;
+
+  if (editingGoalId) {
+    const goal = state.goals.find(g => g.id === editingGoalId);
+    if (goal) {
+      goal.name = input.value.trim();
+      goal.colorIndex = colorIndex;
+      saveToStorage();
+      renderGoals();
+      renderTasks();
+    }
+  } else {
+    addGoal(input.value.trim(), colorIndex);
+  }
+
+  closeGoalForm();
+}
+
+function renderGoalColorSwatches(selectedIndex) {
+  const container = document.getElementById('goalFormColors');
+  if (!container) return;
+
+  // Find colors already used by other active goals (excluding the one being edited)
+  const usedIndices = getActiveGoals()
+    .filter(g => g.id !== editingGoalId)
+    .map(g => g.colorIndex);
+
+  container.innerHTML = GOAL_COLORS.map((color, i) => {
+    const isUsed = usedIndices.includes(i);
+    return `<button type="button" class="goal-color-swatch ${i === selectedIndex ? 'selected' : ''} ${isUsed ? 'disabled' : ''}"
+      style="background: ${color.value}" data-index="${i}" aria-label="${color.name}" ${isUsed ? 'disabled' : ''}></button>`;
+  }).join('');
+
+  container.querySelectorAll('.goal-color-swatch:not(.disabled)').forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      container.querySelectorAll('.goal-color-swatch').forEach(s => s.classList.remove('selected'));
+      swatch.classList.add('selected');
+    });
+  });
+}
+
+function renderGoals() {
+  const list = document.getElementById('goalsList');
+  const addBtn = document.getElementById('goalsAddBtn');
+  if (!list) return;
+
+  const activeGoals = getActiveGoals();
+  const completedGoals = state.goals.filter(g => g.completed);
+
+  if (addBtn) {
+    addBtn.classList.toggle('hidden', activeGoals.length >= 3);
+  }
+
+  if (state.goals.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+
+  // Render active goals first, then completed
+  const allGoals = [...activeGoals, ...completedGoals];
+
+  list.innerHTML = allGoals.map(goal => {
+    const color = GOAL_COLORS[goal.colorIndex] || GOAL_COLORS[0];
+    const linkedTasks = state.tasks.filter(t => t.goalId === goal.id);
+    const totalSecs = linkedTasks.reduce((sum, t) => sum + t.actualSeconds, 0);
+    const completedCount = linkedTasks.filter(t => t.completed).length;
+    const timeDisplay = totalSecs > 0 ? formatTimeSpent(totalSecs) : '0m';
+    const taskSummary = `${completedCount}/${linkedTasks.length} tasks`;
+
+    // Build linked tasks list for the expandable stats panel
+    const linkedTasksHtml = linkedTasks.length > 0
+      ? linkedTasks.map(t =>
+          `<div class="goal-stats-task ${t.completed ? 'completed' : ''}">
+            <span class="goal-stats-task-status">${t.completed ? '✓' : '○'}</span>
+            <span class="goal-stats-task-name">${escapeHtml(t.name)}</span>
+            <span class="goal-stats-task-time">${t.actualSeconds > 0 ? formatTimeSpent(t.actualSeconds) : '0m'}</span>
+          </div>`
+        ).join('')
+      : '<div class="goal-stats-empty">No linked tasks</div>';
+
+    return `
+      <div class="goal-card ${goal.completed ? 'completed' : ''}" data-goal-id="${goal.id}"
+           style="border-left-color: ${color.value}">
+        <div class="goal-card-main">
+          <button class="goal-card-checkbox" aria-label="${goal.completed ? 'Uncomplete' : 'Complete'} goal"></button>
+          <div class="goal-card-content goal-card-toggle">
+            <div class="goal-card-name">${escapeHtml(goal.name)}</div>
+            <div class="goal-card-meta">
+              <span class="goal-card-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${timeDisplay}</span>
+              <span class="goal-card-task-count"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> ${taskSummary}</span>
+              <span class="goal-card-expand-icon">▸</span>
+            </div>
+          </div>
+          <div class="goal-card-actions">
+            <button class="goal-card-action edit" aria-label="Edit goal">✎</button>
+            <button class="goal-card-action delete" aria-label="Delete goal">×</button>
+          </div>
+        </div>
+        <div class="goal-stats-panel" hidden>
+          <div class="goal-stats-header">Linked Tasks</div>
+          <div class="goal-stats-tasks">
+            ${linkedTasksHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Attach event listeners
+  list.querySelectorAll('.goal-card').forEach(card => {
+    const goalId = card.dataset.goalId;
+    const goal = state.goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    card.querySelector('.goal-card-checkbox').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (goal.completed) {
+        uncompleteGoal(goalId);
+      } else {
+        completeGoal(goalId);
+      }
+    });
+
+    card.querySelector('.goal-card-action.edit').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openGoalForm(goalId);
+    });
+
+    card.querySelector('.goal-card-action.delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteGoal(goalId);
+    });
+
+    // Toggle stats panel on content click
+    const toggleEl = card.querySelector('.goal-card-toggle');
+    const statsPanel = card.querySelector('.goal-stats-panel');
+    const expandIcon = card.querySelector('.goal-card-expand-icon');
+    if (toggleEl && statsPanel) {
+      toggleEl.addEventListener('click', () => {
+        const isExpanded = !statsPanel.hidden;
+        statsPanel.hidden = isExpanded;
+        card.classList.toggle('expanded', !isExpanded);
+        if (expandIcon) expandIcon.textContent = isExpanded ? '▸' : '▾';
+      });
+    }
+  });
+}
+
+
+function linkTaskToGoal(taskId, goalId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.goalId = goalId || null;
+  saveToStorage();
+  renderTasks();
+}
+
+let activeGoalLinkMenu = null;
+
+function showGoalLinkMenu(taskId, anchorEl) {
+  // Remove any existing menu
+  closeGoalLinkMenu();
+
+  const activeGoals = getActiveGoals();
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'goal-link-menu';
+
+  menu.innerHTML = activeGoals.map(g => {
+    const color = GOAL_COLORS[g.colorIndex] || GOAL_COLORS[0];
+    return `<button class="goal-link-option" data-goal-id="${g.id}">
+      <span class="task-goal-dot" style="background:${color.value}"></span>
+      ${escapeHtml(g.name)}
+    </button>`;
+  }).join('') + (task.goalId ? '<button class="goal-link-option unlink" data-goal-id="">Unlink</button>' : '');
+
+  menu.querySelectorAll('.goal-link-option').forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      linkTaskToGoal(taskId, opt.dataset.goalId || null);
+      closeGoalLinkMenu();
+    });
+  });
+
+  // Position relative to anchor
+  const parent = anchorEl.closest('.task-item');
+  if (parent) {
+    parent.style.position = 'relative';
+    parent.appendChild(menu);
+  }
+
+  activeGoalLinkMenu = menu;
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', closeGoalLinkMenu, { once: true });
+  }, 0);
+}
+
+function closeGoalLinkMenu() {
+  if (activeGoalLinkMenu) {
+    activeGoalLinkMenu.remove();
+    activeGoalLinkMenu = null;
+  }
+}
+
+function initGoals() {
+  const addBtn = document.getElementById('goalsAddBtn');
+  const cancelBtn = document.getElementById('goalFormCancel');
+  const saveBtn = document.getElementById('goalFormSave');
+  const formInput = document.getElementById('goalFormInput');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => openGoalForm());
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', closeGoalForm);
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveGoalForm);
+  }
+
+  if (formInput) {
+    formInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveGoalForm();
+      if (e.key === 'Escape') closeGoalForm();
+    });
+  }
+
+  renderGoals();
+}
+
+// ============================================
 // Task Sidebar
 // ============================================
 
@@ -3660,7 +4012,7 @@ function toggleSidebar() {
 }
 
 // Add a new task
-function addTask(name, estimatedMinutes = null) {
+function addTask(name, estimatedMinutes = null, goalId = null) {
   if (!name.trim()) return;
 
   const task = {
@@ -3669,12 +4021,15 @@ function addTask(name, estimatedMinutes = null) {
     estimatedMinutes: estimatedMinutes,
     actualSeconds: 0,
     completed: false,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    notes: '',
+    goalId: goalId || null
   };
 
   state.tasks.push(task);
   saveToStorage();
   renderTasks();
+  renderGoals();
 }
 
 // Complete a task
@@ -3719,11 +4074,6 @@ function uncompleteTaskById(taskId) {
   if (!task) return;
 
   task.completed = false;
-
-  // Sync reopening to Todoist (fire-and-forget)
-  if (task.todoistId && state.todoist.enabled && state.todoist.apiToken) {
-    todoistReopenTask(task.todoistId);
-  }
 
   saveToStorage();
   renderTasks();
@@ -3963,6 +4313,12 @@ function renderTasks() {
     const isNext = task.id === nextTask?.id && !task.completed;
     const isActive = task.id === state.activeTaskId && state.status === 'running';
 
+    // Goal left border color
+    const goalBorderColor = task.goalId ? (() => {
+      const goal = state.goals.find(g => g.id === task.goalId);
+      return goal ? GOAL_COLORS[goal.colorIndex].value : '';
+    })() : '';
+
     const taskEl = document.createElement('div');
     taskEl.className = 'task-item';
     taskEl.dataset.taskId = task.id;
@@ -3972,6 +4328,10 @@ function renderTasks() {
     if (task.completed) taskEl.classList.add('completed');
     if (isNext) taskEl.classList.add('next-task');
     if (isActive) taskEl.classList.add('active-task');
+    if (goalBorderColor) {
+      taskEl.classList.add('has-goal');
+      taskEl.style.borderLeftColor = goalBorderColor;
+    }
 
     // Time display - always show
     const actualTime = task.actualSeconds > 0 ? formatTimeSpent(task.actualSeconds) : '0m';
@@ -3985,6 +4345,10 @@ function renderTasks() {
 
     // Note indicator
     const hasNotes = task.notes && task.notes.trim().length > 0;
+
+    // Goal link button (only show when goals exist)
+    const hasActiveGoals = getActiveGoals().length > 0;
+    const goalLinkBtn = hasActiveGoals ? '<button class="task-item-action goal-link" aria-label="Link to goal">⊕</button>' : '';
 
     taskEl.innerHTML = `
       <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
@@ -4004,6 +4368,7 @@ function renderTasks() {
         </div>
       </div>
       <div class="task-item-actions">
+        ${goalLinkBtn}
         <button class="task-item-action edit" aria-label="Edit task">✎</button>
         <button class="task-item-action delete" aria-label="Delete task">×</button>
       </div>
@@ -4068,6 +4433,15 @@ function renderTasks() {
     deleteBtn.addEventListener('click', () => {
       deleteTask(task.id);
     });
+
+    // Goal link button
+    const goalLinkBtnEl = taskEl.querySelector('.task-item-action.goal-link');
+    if (goalLinkBtnEl) {
+      goalLinkBtnEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showGoalLinkMenu(task.id, goalLinkBtnEl);
+      });
+    }
 
     // Drag and drop (only for incomplete tasks)
     if (!task.completed) {
@@ -4241,13 +4615,19 @@ function trackTaskTime() {
     const task = state.tasks.find(t => t.id === state.activeTaskId);
     if (task && !task.completed) {
       task.actualSeconds += 1;
+      // Also accrue time on linked goal (cumulative, persists across days)
+      if (task.goalId) {
+        const goal = state.goals.find(g => g.id === task.goalId);
+        if (goal) goal.totalSeconds += 1;
+      }
       // Save periodically (every 30 seconds) to avoid too many writes
       if (task.actualSeconds % 30 === 0) {
         saveToStorage();
       }
-      // Update task display every minute to show accrued time
+      // Update task and goal display every minute to show accrued time
       if (task.actualSeconds % 60 === 0) {
         renderTasks();
+        renderGoals();
       }
     }
   }
@@ -4326,11 +4706,35 @@ function initTaskSettings() {
   }
 }
 
+// Sidebar tab switching (Tasks / Goals)
+function switchSidebarTab(tabName) {
+  const tasksView = document.getElementById('tasksView');
+  const goalsView = document.getElementById('goalsView');
+  const tasksTabBtn = document.getElementById('tasksTabBtn');
+  const goalsTabBtn = document.getElementById('goalsTabBtn');
+
+  if (tabName === 'goals') {
+    tasksView.hidden = true;
+    goalsView.hidden = false;
+    tasksTabBtn.classList.remove('active');
+    goalsTabBtn.classList.add('active');
+  } else {
+    tasksView.hidden = false;
+    goalsView.hidden = true;
+    tasksTabBtn.classList.add('active');
+    goalsTabBtn.classList.remove('active');
+  }
+}
+
 // Initialize task sidebar event listeners
 function initTaskSidebarListeners() {
   // Sidebar toggle
   elements.sidebarTab.addEventListener('click', openSidebar);
   elements.sidebarClose.addEventListener('click', closeSidebar);
+
+  // Tab switching
+  document.getElementById('tasksTabBtn').addEventListener('click', () => switchSidebarTab('tasks'));
+  document.getElementById('goalsTabBtn').addEventListener('click', () => switchSidebarTab('goals'));
 
   // Add task form - Enter to add (from either input or estimate dropdown)
   const submitNewTask = () => {
@@ -4778,6 +5182,9 @@ function init() {
 
   // Initialize task sidebar
   initTaskSidebarListeners();
+
+  // Initialize goals
+  initGoals();
 
   // Initialize break duration display
   updateBreakDisplay();
