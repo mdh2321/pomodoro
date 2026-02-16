@@ -5017,7 +5017,8 @@ async function syncWithTodoist() {
       const errBody = await resp.json().catch(() => ({}));
       throw new Error(errBody.error || `HTTP ${resp.status}`);
     }
-    const todoistTasks = await resp.json();
+    const data = await resp.json();
+    const todoistTasks = Array.isArray(data) ? data : (data.results || data.items || []);
 
     // 2. Import new Todoist tasks
     for (const tt of todoistTasks) {
