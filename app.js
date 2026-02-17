@@ -3809,7 +3809,7 @@ function renderGoals() {
   list.innerHTML = allGoals.map(goal => {
     const color = GOAL_COLORS[goal.colorIndex] || GOAL_COLORS[0];
     const linkedTasks = state.tasks.filter(t => t.goalId === goal.id);
-    const totalSecs = linkedTasks.reduce((sum, t) => sum + t.actualSeconds, 0);
+    const totalSecs = goal.totalSeconds || 0;
     const completedCount = linkedTasks.filter(t => t.completed).length;
     const timeDisplay = totalSecs > 0 ? formatTimeSpent(totalSecs) : '0m';
     const taskSummary = `${completedCount}/${linkedTasks.length} tasks`;
@@ -3900,6 +3900,7 @@ function linkTaskToGoal(taskId, goalId) {
   task.goalId = goalId || null;
   saveToStorage();
   renderTasks();
+  renderGoals();
 }
 
 let activeGoalLinkMenu = null;
@@ -4182,15 +4183,15 @@ function reorderTasks(fromIndex, toIndex) {
 // Clear tasks for new day (respects keepIncompleteTasks setting)
 function clearTasksForNewDay() {
   if (state.keepIncompleteTasks) {
-    // Only clear completed tasks
-    state.tasks = state.tasks.filter(t => !t.completed);
+    // Remove completed tasks that aren't linked to a goal
+    state.tasks = state.tasks.filter(t => !t.completed || t.goalId);
   } else {
-    // Clear all tasks
-    state.tasks = [];
+    // Remove tasks that aren't linked to a goal
+    state.tasks = state.tasks.filter(t => t.goalId);
   }
-  // Reset actual time on remaining tasks for the new day
+  // Reset actual time on remaining tasks for the new day (only unlinked tasks)
   state.tasks.forEach(t => {
-    t.actualSeconds = 0;
+    if (!t.goalId) t.actualSeconds = 0;
   });
   saveToStorage();
   renderTasks();
