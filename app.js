@@ -5011,14 +5011,32 @@ async function syncWithTodoist() {
   updateTodoistUI();
 
   try {
-    // 1. Fetch today's tasks from Todoist (filter=today|overdue)
-    const resp = await todoistFetch('/tasks?filter=' + encodeURIComponent('today | overdue'));
-    if (!resp.ok) {
-      const errBody = await resp.json().catch(() => ({}));
-      throw new Error(errBody.error || `HTTP ${resp.status}`);
+    // 1. Fetch tasks from Todoist with pagination
+    let allTasks = [];
+    let cursor = null;
+    while (true) {
+      const url = '/tasks' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : '');
+      const resp = await todoistFetch(url);
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody.error || `HTTP ${resp.status}`);
+      }
+      const data = await resp.json();
+      const page = Array.isArray(data) ? data : (data.results || data.items || []);
+      allTasks = allTasks.concat(page);
+      cursor = data.next_cursor || null;
+      if (!cursor || page.length === 0) break;
     }
-    const data = await resp.json();
-    const todoistTasks = Array.isArray(data) ? data : (data.results || data.items || []);
+
+    // Filter to today and overdue tasks (Australia/Sydney timezone)
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+    const todoistTasks = allTasks.filter(t => {
+      const dueDate = t.due?.date?.split('T')[0];
+      const deadlineDate = t.deadline?.date?.split('T')[0];
+      if (dueDate && dueDate <= today) return true;
+      if (deadlineDate && deadlineDate <= today) return true;
+      return false;
+    });
 
     // 2. Import new Todoist tasks
     for (const tt of todoistTasks) {
