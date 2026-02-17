@@ -4076,6 +4076,11 @@ function uncompleteTaskById(taskId) {
 
   task.completed = false;
 
+  // Sync reopen to Todoist
+  if (task.todoistId && state.todoist.enabled && state.todoist.apiToken) {
+    todoistReopenTask(task.todoistId);
+  }
+
   saveToStorage();
   renderTasks();
   updateCurrentTaskDisplay();
@@ -5063,9 +5068,13 @@ async function syncWithTodoist() {
       }
     }
 
-    // 4. Reopen tasks that were uncompleted locally but completed in Todoist
-    // (Todoist returns only open tasks, so if a local task with todoistId is not completed
-    //  but doesn't appear in the response, it may have been completed in Todoist — leave it)
+    // 4. Mark locally incomplete tasks as completed if they're no longer open in Todoist
+    const allOpenIds = new Set(allTasks.map(t => t.id));
+    for (const task of state.tasks) {
+      if (task.todoistId && !task.completed && !allOpenIds.has(task.todoistId)) {
+        task.completed = true;
+      }
+    }
 
     state.todoist.syncStatus = 'success';
     state.todoist.lastError = null;
