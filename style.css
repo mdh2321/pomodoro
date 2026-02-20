@@ -2991,6 +2991,22 @@ body.focus-mode .timer-container {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+/* Overflow / flow mode styles */
+@keyframes overflow-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
+}
+
+.timer-time.overflow-display {
+  color: var(--color-work);
+  animation: overflow-pulse 2s ease-in-out infinite;
+}
+
+.progress-ring__progress.overflow-mode {
+  stroke: var(--color-work);
+  animation: overflow-pulse 2s ease-in-out infinite;
+}
+
 /* Focus visible for accessibility */
 :focus:not(:focus-visible) {
   outline: none;

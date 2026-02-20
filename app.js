@@ -26,7 +26,7 @@ const GOAL_COLORS = [
 const state = {
   // Timer state
   mode: 'work', // 'work' | 'break'
-  status: 'idle', // 'idle' | 'running' | 'paused' | 'completed'
+  status: 'idle', // 'idle' | 'running' | 'paused' | 'completed' | 'overflow'
 
   // Time tracking
   totalSeconds: 25 * 60,
@@ -35,6 +35,11 @@ const state = {
   // Work/break durations (in minutes)
   workMinutes: 25,
   breakMinutes: 5,
+
+  // Flow / overtime state
+  timerEndBehavior: 'stop', // 'stop' | 'continue'
+  overflowSeconds: 0,       // seconds accrued past pomo end in flow mode
+  pausedFromOverflow: false, // true when paused while in overflow
 
   // Session tracking
   sessionCount: 1,
@@ -174,6 +179,7 @@ const elements = {
   showCompletedToggle: document.getElementById('showCompletedToggle'),
   taskCompletionSelect: document.getElementById('taskCompletionSelect'),
   keepIncompleteTasksToggle: document.getElementById('keepIncompleteTasksToggle'),
+  timerEndBehaviorSelect: document.getElementById('timerEndBehaviorSelect'),
 
   // Undo toast
   undoToast: document.getElementById('undoToast'),
@@ -295,6 +301,11 @@ function loadFromStorage() {
         state.lastVisitDate = data.lastVisitDate;
       }
 
+      // Restore timer end behavior
+      if (data.timerEndBehavior) {
+        state.timerEndBehavior = data.timerEndBehavior;
+      }
+
       // Restore daily goal & streaks
       if (typeof data.dailyGoalMinutes === 'number') {
         state.dailyGoalMinutes = data.dailyGoalMinutes;
@@ -329,6 +340,7 @@ function saveToStorage() {
     const data = {
       workMinutes: state.workMinutes,
       breakMinutes: state.breakMinutes,
+      timerEndBehavior: state.timerEndBehavior,
       sessionCount: state.sessionCount,
       totalFocusedMinutes: state.totalFocusedMinutes,
       theme: state.theme,
@@ -380,7 +392,7 @@ function getDateInAEST(date) {
 // ============================================
 
 function startTimer() {
-  if (state.status === 'running') return;
+  if (state.status === 'running' || state.status === 'overflow') return;
 
   // If break just completed, transition to work/idle so user can pick focus time
   if (state.status === 'completed' && state.mode === 'break') {
@@ -421,10 +433,11 @@ function startTimer() {
 }
 
 function pauseTimer() {
-  if (state.status !== 'running') return;
+  if (state.status !== 'running' && state.status !== 'overflow') return;
 
   clearInterval(state.intervalId);
   state.intervalId = null;
+  state.pausedFromOverflow = state.status === 'overflow';
   state.status = 'paused';
   stopAmbientSound();
   updateSoundControlVisibility();
@@ -471,14 +484,34 @@ function continueTimer() {
   // Resume from paused state
   if (state.status !== 'paused') return;
 
-  state.status = 'running';
-  updateSoundControlVisibility();
-  updateUI();
-
   // Resume ambient sound if one was selected
   if (state.currentSound !== 'off') {
     playAmbientSound(state.currentSound);
   }
+
+  // If we were in overflow when paused, resume overflow counting
+  if (state.pausedFromOverflow) {
+    state.status = 'overflow';
+    state.pausedFromOverflow = false;
+    updateSoundControlVisibility();
+    updateUI();
+
+    state.intervalId = setInterval(() => {
+      state.overflowSeconds++;
+      trackTaskTime();
+      updateTimerDisplay();
+      updateProgressRing();
+      updateBrowserTab();
+      if (state.overflowSeconds % 30 === 0) {
+        saveToStorage();
+      }
+    }, 1000);
+    return;
+  }
+
+  state.status = 'running';
+  updateSoundControlVisibility();
+  updateUI();
 
   state.intervalId = setInterval(() => {
     state.remainingSeconds--;
@@ -497,15 +530,24 @@ function continueTimer() {
 }
 
 function doneTimer() {
-  // End work early with partial credit
-  if (state.status !== 'paused' || state.mode !== 'work') return;
+  // End work early with partial credit, or end an overflow session
+  const isOverflow = state.status === 'overflow' || (state.status === 'paused' && state.pausedFromOverflow);
+  if (state.status !== 'paused' && state.status !== 'overflow') return;
+  if (state.mode !== 'work') return;
 
   clearInterval(state.intervalId);
   state.intervalId = null;
 
-  // Calculate partial minutes worked
-  const elapsedSeconds = state.totalSeconds - state.remainingSeconds;
-  const partialMinutes = Math.floor(elapsedSeconds / 60);
+  // If ending from overflow, record the extra time beyond the base session
+  // (base session minutes were already recorded when pomo ended)
+  // If ending early (pre-completion), calculate partial minutes from the countdown
+  let partialMinutes;
+  if (isOverflow) {
+    partialMinutes = Math.floor(state.overflowSeconds / 60);
+  } else {
+    const elapsedSeconds = state.totalSeconds - state.remainingSeconds;
+    partialMinutes = Math.floor(elapsedSeconds / 60);
+  }
 
   // Only record if at least 1 minute was worked
   if (partialMinutes > 0) {
@@ -524,6 +566,10 @@ function doneTimer() {
     saveToStorage();
   }
 
+  // Reset overflow state
+  state.overflowSeconds = 0;
+  state.pausedFromOverflow = false;
+
   // Stop ambient sounds and hide control
   stopAmbientSound();
   updateSoundControlVisibility();
@@ -539,10 +585,14 @@ function doneTimer() {
 
 function abandonTimer() {
   // Full reset, no stats recorded
-  if (state.status !== 'paused') return;
+  if (state.status !== 'paused' && state.status !== 'overflow') return;
 
   clearInterval(state.intervalId);
   state.intervalId = null;
+
+  // Reset overflow state
+  state.overflowSeconds = 0;
+  state.pausedFromOverflow = false;
 
   // Stop ambient sounds and hide control
   stopAmbientSound();
@@ -561,11 +611,6 @@ function completeTimer() {
   clearInterval(state.intervalId);
   state.intervalId = null;
   state.remainingSeconds = 0;
-  state.status = 'completed';
-
-  // Stop ambient sounds and hide control
-  stopAmbientSound();
-  updateSoundControlVisibility();
 
   // Track completed work session
   if (state.mode === 'work') {
@@ -578,7 +623,6 @@ function completeTimer() {
     if (!state.history[today]) {
       state.history[today] = { sessions: 0, minutes: 0, dailyGoal: state.dailyGoalMinutes };
     }
-    // Update dailyGoal to current value (tracks most recent goal for the day)
     state.history[today].dailyGoal = state.dailyGoalMinutes;
     state.history[today].sessions++;
     state.history[today].minutes += minutes;
@@ -590,7 +634,45 @@ function completeTimer() {
   playNotificationSound();
   showBrowserNotification();
 
+  // If flow mode is on and this was a work session, count up instead of stopping
+  if (state.timerEndBehavior === 'continue' && state.mode === 'work') {
+    startOverflow();
+    return;
+  }
+
+  state.status = 'completed';
+
+  // Stop ambient sounds and hide control
+  stopAmbientSound();
+  updateSoundControlVisibility();
+
   updateUI();
+}
+
+function startOverflow() {
+  state.status = 'overflow';
+  state.overflowSeconds = 0;
+  state.pausedFromOverflow = false;
+
+  // Keep sound playing and control visible
+  updateSoundControlVisibility();
+  updateUI();
+
+  state.intervalId = setInterval(() => {
+    state.overflowSeconds++;
+
+    // Track time on active task
+    trackTaskTime();
+
+    updateTimerDisplay();
+    updateProgressRing();
+    updateBrowserTab();
+
+    // Periodic save
+    if (state.overflowSeconds % 30 === 0) {
+      saveToStorage();
+    }
+  }, 1000);
 }
 
 function switchMode() {
@@ -698,7 +780,8 @@ function updateUI() {
 
 // Update current task display (shown during active/paused work sessions)
 function updateCurrentTaskDisplay() {
-  const isActiveWorkSession = state.mode === 'work' && (state.status === 'running' || state.status === 'paused');
+  const isActiveWorkSession = state.mode === 'work' &&
+    (state.status === 'running' || state.status === 'paused' || state.status === 'overflow');
   const nextTask = getNextIncompleteTask();
 
   if (isActiveWorkSession && nextTask) {
@@ -719,30 +802,57 @@ function updateTaskDraggable() {
 }
 
 function updateFocusMode() {
-  // Focus mode is active when running a work session (not paused, not break)
-  const isFocused = state.status === 'running' && state.mode === 'work';
+  // Focus mode is active when running a work session (including overflow)
+  const isFocused = (state.status === 'running' || state.status === 'overflow') && state.mode === 'work';
   document.body.classList.toggle('focus-mode', isFocused);
 }
 
 function updateTimerDisplay() {
-  const minutes = Math.floor(state.remainingSeconds / 60);
-  const seconds = state.remainingSeconds % 60;
-  elements.timerDisplay.textContent =
-    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  const isOverflowDisplay = state.status === 'overflow' ||
+    (state.status === 'paused' && state.pausedFromOverflow);
+
+  if (isOverflowDisplay) {
+    const minutes = Math.floor(state.overflowSeconds / 60);
+    const seconds = state.overflowSeconds % 60;
+    elements.timerDisplay.textContent =
+      `+${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    elements.timerDisplay.classList.add('overflow-display');
+  } else {
+    const minutes = Math.floor(state.remainingSeconds / 60);
+    const seconds = state.remainingSeconds % 60;
+    elements.timerDisplay.textContent =
+      `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    elements.timerDisplay.classList.remove('overflow-display');
+  }
 }
 
 function updateProgressRing() {
-  const progress = state.remainingSeconds / state.totalSeconds;
-  const offset = CIRCUMFERENCE * (1 - progress);
-  elements.progressRing.style.strokeDasharray = CIRCUMFERENCE;
-  elements.progressRing.style.strokeDashoffset = offset;
+  const isOverflow = state.status === 'overflow' ||
+    (state.status === 'paused' && state.pausedFromOverflow);
+
+  elements.progressRing.classList.toggle('overflow-mode', isOverflow);
+
+  if (isOverflow) {
+    // Ring stays fully filled during overflow
+    elements.progressRing.style.strokeDasharray = CIRCUMFERENCE;
+    elements.progressRing.style.strokeDashoffset = 0;
+  } else {
+    elements.progressRing.classList.remove('overflow-mode');
+    const progress = state.remainingSeconds / state.totalSeconds;
+    const offset = CIRCUMFERENCE * (1 - progress);
+    elements.progressRing.style.strokeDasharray = CIRCUMFERENCE;
+    elements.progressRing.style.strokeDashoffset = offset;
+  }
 }
 
 function updateStatusDisplay() {
   const statusEl = elements.timerStatus;
   statusEl.classList.remove('working', 'break', 'pulsing');
 
-  if (state.status === 'completed') {
+  if (state.status === 'overflow') {
+    statusEl.textContent = 'In flow...';
+    statusEl.classList.add('working');
+  } else if (state.status === 'completed') {
     if (state.mode === 'work') {
       statusEl.textContent = 'Work complete!';
       statusEl.classList.add('working', 'pulsing');
@@ -768,11 +878,12 @@ function updateStatusDisplay() {
 function updateControlButtons() {
   const { status, mode } = state;
 
-  // Hide all buttons first
+  // Hide all buttons first and reset dynamic labels
   elements.startBtn.hidden = true;
   elements.pauseBtn.hidden = true;
   elements.continueBtn.hidden = true;
   elements.doneBtn.hidden = true;
+  elements.doneBtn.textContent = 'Done';
   elements.abandonBtn.hidden = true;
   elements.skipBtn.hidden = true;
 
@@ -791,14 +902,22 @@ function updateControlButtons() {
     // Only Pause visible
     elements.pauseBtn.hidden = false;
 
+  } else if (status === 'overflow') {
+    // In flow: Pause + Stop (done with credit) + Abandon
+    elements.pauseBtn.hidden = false;
+    elements.doneBtn.hidden = false;
+    elements.doneBtn.textContent = 'Stop';
+    elements.abandonBtn.hidden = false;
+
   } else if (status === 'paused') {
     // Continue is always visible when paused
     elements.continueBtn.hidden = false;
     elements.continueBtn.classList.toggle('break-mode', mode === 'break');
 
     if (mode === 'work') {
-      // Work mode: Continue, Done, Abandon
+      // Work mode: Continue, Done/Stop, Abandon
       elements.doneBtn.hidden = false;
+      elements.doneBtn.textContent = state.pausedFromOverflow ? 'Stop' : 'Done';
       elements.abandonBtn.hidden = false;
     } else {
       // Break mode: Continue, Skip
@@ -845,6 +964,14 @@ function updateGoalProgress() {
 }
 
 function updateBrowserTab() {
+  if (state.status === 'overflow') {
+    const minutes = Math.floor(state.overflowSeconds / 60);
+    const seconds = state.overflowSeconds % 60;
+    const timeStr = `+${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    document.title = `🌊 ${timeStr} - Pomo`;
+    return;
+  }
+
   const minutes = Math.floor(state.remainingSeconds / 60);
   const seconds = state.remainingSeconds % 60;
   const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
@@ -855,7 +982,7 @@ function updateBrowserTab() {
   } else if (state.mode === 'break') {
     emoji = '☕';
   } else if (state.status === 'paused') {
-    emoji = '⏸';
+    emoji = state.pausedFromOverflow ? '🌊' : '⏸';
   }
 
   if (state.status === 'running' || state.status === 'paused') {
@@ -955,8 +1082,8 @@ function createNotification() {
 // ============================================
 
 function updateSoundControlVisibility() {
-  // Show sound control only during active sessions (running or paused)
-  const isActiveSession = state.status === 'running' || state.status === 'paused';
+  // Show sound control only during active sessions (running, overflow, or paused)
+  const isActiveSession = state.status === 'running' || state.status === 'paused' || state.status === 'overflow';
   elements.soundControl.hidden = !isActiveSession;
 
   // Close dropdown when hiding
@@ -4617,7 +4744,7 @@ function playCompletionDing() {
 
 // Track time on active task during Pomo
 function trackTaskTime() {
-  if (state.status === 'running' && state.mode === 'work' && state.activeTaskId) {
+  if ((state.status === 'running' || state.status === 'overflow') && state.mode === 'work' && state.activeTaskId) {
     const task = state.tasks.find(t => t.id === state.activeTaskId);
     if (task && !task.completed) {
       task.actualSeconds += 1;
@@ -4688,6 +4815,15 @@ function initTaskSettings() {
     elements.keepIncompleteTasksToggle.checked = state.keepIncompleteTasks;
     elements.keepIncompleteTasksToggle.addEventListener('change', (e) => {
       state.keepIncompleteTasks = e.target.checked;
+      saveToStorage();
+    });
+  }
+
+  // Timer end behavior select
+  if (elements.timerEndBehaviorSelect) {
+    elements.timerEndBehaviorSelect.value = state.timerEndBehavior;
+    elements.timerEndBehaviorSelect.addEventListener('change', (e) => {
+      state.timerEndBehavior = e.target.value;
       saveToStorage();
     });
   }
