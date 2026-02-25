@@ -194,6 +194,28 @@
   --glow-ember: 0 0 10px rgba(168, 104, 57, 0.25);
 }
 
+/* Todoist Theme Colors - Clean productivity aesthetic */
+[data-theme="todoist"] {
+  --color-primary: #dc4c3e;
+  --color-primary-dark: #c53727;
+  --color-primary-light: #e66a5e;
+
+  --color-work: #dc4c3e;
+  --color-break: #058527;
+  --color-break-dark: #04711f;
+
+  --color-background: #fafafa;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+
+  --color-text-primary: #202020;
+  --color-text-secondary: #666666;
+  --color-text-muted: #999999;
+
+  --color-border: #f0f0f0;
+  --color-border-focus: #dc4c3e;
+}
+
 /* Reset & Base Styles */
 *,
 *::before,
@@ -361,6 +383,11 @@ body {
   );
   pointer-events: none;
   z-index: 1;
+}
+
+/* Todoist Background - clean and minimal */
+[data-theme="todoist"] body {
+  background: #fafafa;
 }
 
 /* Header */
@@ -607,6 +634,44 @@ body {
   }
 }
 
+/* Todoist theme - show checkmark icon */
+[data-theme="todoist"] .theme-icon--light,
+[data-theme="todoist"] .theme-icon--dark,
+[data-theme="todoist"] .theme-icon--synthwave,
+[data-theme="todoist"] .theme-icon--lofi,
+[data-theme="todoist"] .theme-icon--terminal,
+[data-theme="todoist"] .theme-icon--fireside {
+  display: none;
+}
+
+[data-theme="todoist"] .theme-icon--todoist {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Todoist checkmark icon */
+.theme-icon--todoist::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border: 2px solid #dc4c3e;
+  border-radius: 50%;
+  position: relative;
+}
+
+.theme-icon--todoist::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 8px;
+  border-right: 2px solid #dc4c3e;
+  border-bottom: 2px solid #dc4c3e;
+  transform: rotate(45deg);
+  top: 4px;
+  left: 7.5px;
+}
+
 /* Dark theme icon visibility */
 [data-theme="dark"] .theme-toggle,
 [data-theme="dark"] .sound-toggle,
@@ -696,6 +761,15 @@ body {
   background: radial-gradient(
     circle at center,
     rgba(76, 217, 100, 0.1) 0%,
+    transparent 70%
+  );
+}
+
+/* Todoist theme ring glow */
+[data-theme="todoist"] .timer-container::before {
+  background: radial-gradient(
+    circle at center,
+    rgba(220, 76, 62, 0.08) 0%,
     transparent 70%
   );
 }
@@ -4989,6 +5063,173 @@ body.focus-mode .timer-container {
 
 [data-theme="fireside"] body.focus-mode .timer-container {
   animation: focus-pulse-fire 6s ease-in-out infinite;
+}
+
+/* ============================================
+   Todoist Theme - Component Overrides
+   ============================================ */
+
+/* Progress ring - clean drop shadow */
+[data-theme="todoist"] .progress-ring__progress {
+  filter: drop-shadow(0 0 4px rgba(220, 76, 62, 0.3));
+}
+
+/* Buttons */
+[data-theme="todoist"] .btn--primary {
+  background: var(--color-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+[data-theme="todoist"] .btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+[data-theme="todoist"] .btn--secondary {
+  background: transparent;
+  border-color: #ddd;
+  color: var(--color-text-primary);
+}
+
+[data-theme="todoist"] .btn--secondary:hover:not(:disabled) {
+  background: rgba(220, 76, 62, 0.05);
+  border-color: var(--color-primary);
+}
+
+[data-theme="todoist"] .btn--danger {
+  color: #dc4c3e;
+}
+
+[data-theme="todoist"] .btn--danger:hover:not(:disabled) {
+  background: rgba(220, 76, 62, 0.08);
+}
+
+/* Task sidebar */
+[data-theme="todoist"] .sidebar-panel {
+  background: #ffffff;
+  border: 1px solid #eee;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="todoist"] .sidebar-tab {
+  background: #ffffff;
+  border: 1px solid #eee;
+}
+
+[data-theme="todoist"] .sidebar-tab:hover {
+  border-color: var(--color-primary);
+}
+
+[data-theme="todoist"] .task-item {
+  background: transparent;
+  border: 1px solid #f0f0f0;
+  border-radius: var(--radius-sm);
+}
+
+[data-theme="todoist"] .task-item:hover {
+  background: rgba(220, 76, 62, 0.03);
+  border-color: #ddd;
+}
+
+[data-theme="todoist"] .task-item.next-task {
+  border-color: var(--color-primary);
+  background: rgba(220, 76, 62, 0.04);
+}
+
+[data-theme="todoist"] .task-item-checkbox:hover,
+[data-theme="todoist"] .task-item.completed .task-item-checkbox {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+[data-theme="todoist"] .add-task-input,
+[data-theme="todoist"] .add-task-estimate,
+[data-theme="todoist"] .add-task-goal {
+  background: #ffffff;
+  border: 1px solid #ddd;
+}
+
+[data-theme="todoist"] .add-task-input:focus,
+[data-theme="todoist"] .add-task-estimate:focus,
+[data-theme="todoist"] .add-task-goal:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(220, 76, 62, 0.15);
+}
+
+[data-theme="todoist"] .add-task-btn {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+/* Sound dropdown */
+[data-theme="todoist"] .sound-dropdown {
+  background: #ffffff;
+  border: 1px solid #eee;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="todoist"] .sound-option:hover {
+  background: rgba(220, 76, 62, 0.05);
+}
+
+[data-theme="todoist"] .sound-option.active {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+/* Goal progress */
+[data-theme="todoist"] .goal-progress-bar {
+  background: linear-gradient(90deg, var(--color-primary-dark), var(--color-primary));
+}
+
+[data-theme="todoist"] .goal-progress.goal-complete .goal-progress-bar {
+  background: linear-gradient(90deg, #058527, #27ae60);
+}
+
+[data-theme="todoist"] .goal-progress.goal-complete .goal-progress-text {
+  color: #058527;
+}
+
+/* Modals */
+[data-theme="todoist"] .modal {
+  background: #ffffff;
+  border: 1px solid #eee;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Stats cards */
+[data-theme="todoist"] .stat-card {
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="todoist"] .streak-card {
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+}
+
+[data-theme="todoist"] .goal-card {
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+}
+
+[data-theme="todoist"] .goal-form-input {
+  background: #ffffff;
+  border: 1px solid #ddd;
+  color: var(--color-text-primary);
+}
+
+[data-theme="todoist"] .goal-link-menu {
+  background: #ffffff;
+  border: 1px solid #eee;
+}
+
+/* Undo toast */
+[data-theme="todoist"] .undo-toast {
+  background: var(--color-primary);
+  color: #ffffff;
 }
 
 /* ============================================
