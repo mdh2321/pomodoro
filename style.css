@@ -1608,6 +1608,22 @@ body {
 
 .sound-options {
   padding: var(--spacing-xs);
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.sound-category-header {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+}
+
+.sound-category-header:first-child {
+  margin-top: 0;
 }
 
 .sound-option {
@@ -1670,220 +1686,6 @@ body {
   transform: rotate(45deg);
 }
 
-/* Rain icon */
-.sound-option-icon--rain::before {
-  content: '';
-  width: 12px;
-  height: 12px;
-  border-radius: 0 50% 50% 50%;
-  border: 2px solid currentColor;
-  transform: rotate(45deg);
-}
-
-/* Fire icon */
-.sound-option-icon--fire::before {
-  content: '';
-  width: 10px;
-  height: 14px;
-  background: currentColor;
-  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-}
-
-/* Forest icon - tree shape */
-.sound-option-icon--forest::before {
-  content: '';
-  width: 0;
-  height: 0;
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-bottom: 12px solid currentColor;
-}
-
-.sound-option-icon--forest::after {
-  content: '';
-  position: absolute;
-  width: 3px;
-  height: 4px;
-  background: currentColor;
-  bottom: 0;
-}
-
-/* Drive icon */
-.sound-option-icon--drive::before {
-  content: '';
-  width: 14px;
-  height: 6px;
-  background: currentColor;
-  border-radius: 3px 3px 0 0;
-}
-
-.sound-option-icon--drive::after {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 3px;
-  background: currentColor;
-  bottom: 2px;
-  border-radius: 2px;
-}
-
-/* Neon icon */
-.sound-option-icon--neon::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  border: 2px solid currentColor;
-  border-radius: 2px;
-  transform: rotate(45deg);
-}
-
-/* Grid icon */
-.sound-option-icon--grid::before {
-  content: '';
-  width: 12px;
-  height: 10px;
-  background:
-    repeating-linear-gradient(90deg, currentColor 0px, currentColor 1px, transparent 1px, transparent 4px),
-    repeating-linear-gradient(0deg, currentColor 0px, currentColor 1px, transparent 1px, transparent 4px);
-}
-
-/* Café icon */
-.sound-option-icon--cafe::before {
-  content: '';
-  width: 10px;
-  height: 8px;
-  background: currentColor;
-  border-radius: 0 0 5px 5px;
-}
-
-.sound-option-icon--cafe::after {
-  content: '';
-  position: absolute;
-  width: 3px;
-  height: 5px;
-  border: 1.5px solid currentColor;
-  border-left: none;
-  border-radius: 0 3px 3px 0;
-  right: 2px;
-}
-
-/* Jazz icon - music note */
-.sound-option-icon--jazz::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  background: currentColor;
-  border-radius: 50%;
-  position: absolute;
-  bottom: 2px;
-  left: 2px;
-}
-
-.sound-option-icon--jazz::after {
-  content: '';
-  position: absolute;
-  width: 2px;
-  height: 10px;
-  background: currentColor;
-  left: 6px;
-  bottom: 5px;
-  border-radius: 1px;
-}
-
-/* Typing icon - keyboard */
-.sound-option-icon--typing::before {
-  content: '';
-  width: 14px;
-  height: 8px;
-  border: 2px solid currentColor;
-  border-radius: 2px;
-}
-
-/* Terminal sound icons */
-.sound-option-icon--hum::before {
-  content: '';
-  width: 14px;
-  height: 10px;
-  border: 2px solid currentColor;
-  border-radius: 2px;
-}
-
-.sound-option-icon--hum::after {
-  content: '';
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  background: currentColor;
-  border-radius: 50%;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.sound-option-icon--keys::before {
-  content: '';
-  width: 14px;
-  height: 10px;
-  background:
-    linear-gradient(90deg,
-      currentColor 2px, transparent 2px, transparent 4px,
-      currentColor 4px, currentColor 6px, transparent 6px, transparent 8px,
-      currentColor 8px, currentColor 10px, transparent 10px
-    );
-  background-size: 100% 3px;
-  background-repeat: no-repeat;
-  background-position: center;
-}
-
-.sound-option-icon--data::before {
-  content: '01';
-  font-family: 'Courier New', monospace;
-  font-size: 8px;
-  font-weight: bold;
-  color: currentColor;
-}
-
-/* Theme-conditional sound options */
-.sound-option--synth {
-  display: none;
-}
-
-.sound-option--lofi {
-  display: none;
-}
-
-.sound-option--terminal {
-  display: none;
-}
-
-[data-theme="synthwave"] .sound-option--synth {
-  display: flex;
-}
-
-[data-theme="synthwave"] .sound-option--nature {
-  display: none;
-}
-
-[data-theme="lofi"] .sound-option--lofi {
-  display: flex;
-}
-
-[data-theme="lofi"] .sound-option--nature {
-  display: none;
-}
-
-[data-theme="terminal"] .sound-option--terminal {
-  display: flex;
-}
-
-[data-theme="terminal"] .sound-option--nature {
-  display: none;
-}
-
-/* Fireside theme shows nature sounds (campfire, rain, forest) */
-[data-theme="fireside"] .sound-option--nature {
-  display: flex;
-}
 
 /* Volume control in dropdown */
 .sound-volume {
