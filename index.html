@@ -62,15 +62,18 @@
             </div>
           </div>
         </div>
-        <button class="theme-toggle" id="themeToggle" aria-label="Cycle theme">
-          <span class="theme-icon theme-icon--light"></span>
-          <span class="theme-icon theme-icon--dark"></span>
-          <span class="theme-icon theme-icon--synthwave"></span>
-          <span class="theme-icon theme-icon--lofi"></span>
-          <span class="theme-icon theme-icon--terminal"></span>
-          <span class="theme-icon theme-icon--fireside"></span>
-          <span class="theme-icon theme-icon--todoist"></span>
-        </button>
+        <div class="theme-toggle-wrap">
+          <button class="theme-toggle" id="themeToggle" aria-label="Cycle theme">
+            <span class="theme-icon theme-icon--light"></span>
+            <span class="theme-icon theme-icon--dark"></span>
+            <span class="theme-icon theme-icon--synthwave"></span>
+            <span class="theme-icon theme-icon--lofi"></span>
+            <span class="theme-icon theme-icon--terminal"></span>
+            <span class="theme-icon theme-icon--fireside"></span>
+            <span class="theme-icon theme-icon--todoist"></span>
+          </button>
+          <span class="theme-label" id="themeLabel"></span>
+        </div>
       </div>
     </div>
 
@@ -108,22 +111,22 @@
 
     <!-- Control Buttons -->
     <div class="controls">
-      <button class="btn btn--primary" id="startBtn" aria-label="Start timer">
+      <button class="btn btn--primary" id="startBtn" aria-label="Start timer" title="Space">
         Start
       </button>
-      <button class="btn btn--secondary" id="pauseBtn" aria-label="Pause timer" hidden>
+      <button class="btn btn--secondary" id="pauseBtn" aria-label="Pause timer" title="Space" hidden>
         Pause
       </button>
-      <button class="btn btn--primary" id="continueBtn" aria-label="Continue timer" hidden>
+      <button class="btn btn--primary" id="continueBtn" aria-label="Continue timer" title="Space" hidden>
         Continue
       </button>
-      <button class="btn btn--secondary" id="doneBtn" aria-label="End session early" hidden>
+      <button class="btn btn--secondary" id="doneBtn" aria-label="End session early" title="D" hidden>
         Done
       </button>
-      <button class="btn btn--secondary btn--danger" id="abandonBtn" aria-label="Abandon session" hidden>
+      <button class="btn btn--secondary btn--danger" id="abandonBtn" aria-label="Abandon session" title="Esc" hidden>
         Abandon
       </button>
-      <button class="btn btn--secondary" id="skipBtn" aria-label="Skip to next session" hidden>
+      <button class="btn btn--secondary" id="skipBtn" aria-label="Skip to next session" title="S" hidden>
         Skip
       </button>
     </div>
@@ -154,6 +157,15 @@
             <circle cx="10" cy="18" r="2" fill="currentColor"/>
           </svg>
         </button>
+        <button class="help-btn" id="helpBtn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">?</button>
+      </div>
+      <div class="shortcuts-popover" id="shortcutsPopover" hidden>
+        <div class="shortcuts-title">Keyboard Shortcuts</div>
+        <div class="shortcut-row"><kbd>Space</kbd><span>Start / Pause / Continue</span></div>
+        <div class="shortcut-row"><kbd>D</kbd><span>Done (during work pause)</span></div>
+        <div class="shortcut-row"><kbd>S</kbd><span>Skip (during break)</span></div>
+        <div class="shortcut-row"><kbd>Esc</kbd><span>Abandon session</span></div>
+        <div class="shortcut-row"><kbd>T</kbd><span>Cycle theme</span></div>
       </div>
     </div>
   </div>

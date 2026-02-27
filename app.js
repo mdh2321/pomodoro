@@ -41,6 +41,13 @@ const state = {
   overflowSeconds: 0,       // seconds accrued past pomo end in flow mode
   pausedFromOverflow: false, // true when paused while in overflow
 
+  // Drift-proof timing
+  startedAt: null,          // Date.now() when timer started/resumed
+  elapsedAtPause: 0,        // seconds elapsed when paused (for resume calc)
+
+  // Abandon confirmation
+  abandonConfirmTimeout: null, // timeout ID for resetting confirm state
+
   // Session tracking
   sessionCount: 1,
   totalFocusedMinutes: 0,
@@ -401,6 +408,8 @@ function startTimer() {
   }
 
   state.status = 'running';
+  state.startedAt = Date.now();
+  state.elapsedAtPause = 0;
 
   // Set active task for this Pomo session
   setActiveTaskForPomo();
@@ -417,7 +426,8 @@ function startTimer() {
   updateUI();
 
   state.intervalId = setInterval(() => {
-    state.remainingSeconds--;
+    const elapsed = Math.floor((Date.now() - state.startedAt) / 1000) + state.elapsedAtPause;
+    state.remainingSeconds = Math.max(0, state.totalSeconds - elapsed);
 
     // Track time on active task
     trackTaskTime();
@@ -437,6 +447,16 @@ function pauseTimer() {
 
   clearInterval(state.intervalId);
   state.intervalId = null;
+
+  // Snapshot elapsed time for drift-proof resume
+  if (state.status === 'overflow') {
+    // For overflow, store accumulated overflow seconds so we can resume from them
+    state.elapsedAtPause = state.overflowSeconds;
+  } else {
+    state.elapsedAtPause = state.totalSeconds - state.remainingSeconds;
+  }
+  state.startedAt = null;
+
   state.pausedFromOverflow = state.status === 'overflow';
   state.status = 'paused';
   stopAmbientSound();
@@ -489,15 +509,19 @@ function continueTimer() {
     playAmbientSound(state.currentSound);
   }
 
+  // Restart drift-proof clock from where we left off
+  state.startedAt = Date.now();
+
   // If we were in overflow when paused, resume overflow counting
   if (state.pausedFromOverflow) {
+    const overflowAtPause = state.elapsedAtPause; // overflow seconds accumulated before pause
     state.status = 'overflow';
     state.pausedFromOverflow = false;
     updateSoundControlVisibility();
     updateUI();
 
     state.intervalId = setInterval(() => {
-      state.overflowSeconds++;
+      state.overflowSeconds = overflowAtPause + Math.floor((Date.now() - state.startedAt) / 1000);
       trackTaskTime();
       updateTimerDisplay();
       updateProgressRing();
@@ -514,7 +538,8 @@ function continueTimer() {
   updateUI();
 
   state.intervalId = setInterval(() => {
-    state.remainingSeconds--;
+    const elapsed = Math.floor((Date.now() - state.startedAt) / 1000) + state.elapsedAtPause;
+    state.remainingSeconds = Math.max(0, state.totalSeconds - elapsed);
 
     // Track time on active task
     trackTaskTime();
@@ -587,6 +612,24 @@ function abandonTimer() {
   // Full reset, no stats recorded
   if (state.status !== 'paused' && state.status !== 'overflow') return;
 
+  // First click: show "Sure?" confirmation
+  if (!state.abandonConfirmTimeout) {
+    elements.abandonBtn.textContent = 'Sure?';
+    elements.abandonBtn.classList.add('confirming');
+    state.abandonConfirmTimeout = setTimeout(() => {
+      elements.abandonBtn.textContent = 'Abandon';
+      elements.abandonBtn.classList.remove('confirming');
+      state.abandonConfirmTimeout = null;
+    }, 2000);
+    return;
+  }
+
+  // Second click: actually abandon
+  clearTimeout(state.abandonConfirmTimeout);
+  state.abandonConfirmTimeout = null;
+  elements.abandonBtn.textContent = 'Abandon';
+  elements.abandonBtn.classList.remove('confirming');
+
   clearInterval(state.intervalId);
   state.intervalId = null;
 
@@ -653,13 +696,15 @@ function startOverflow() {
   state.status = 'overflow';
   state.overflowSeconds = 0;
   state.pausedFromOverflow = false;
+  state.startedAt = Date.now();
+  state.elapsedAtPause = 0;
 
   // Keep sound playing and control visible
   updateSoundControlVisibility();
   updateUI();
 
   state.intervalId = setInterval(() => {
-    state.overflowSeconds++;
+    state.overflowSeconds = Math.floor((Date.now() - state.startedAt) / 1000);
 
     // Track time on active task
     trackTaskTime();
@@ -1848,6 +1893,9 @@ function setStatsView(view) {
 // ============================================
 
 const THEMES = ['light', 'dark', 'synthwave', 'lofi', 'terminal', 'fireside', 'todoist'];
+const THEME_NAMES = { light: 'Light', dark: 'Dark', synthwave: 'Synthwave', lofi: 'Lo-fi', terminal: 'Terminal', fireside: 'Fireside', todoist: 'Todoist' };
+
+let themeLabelTimeout = null;
 
 function cycleTheme() {
   const currentIndex = THEMES.indexOf(state.theme);
@@ -1860,7 +1908,24 @@ function cycleTheme() {
     document.documentElement.setAttribute('data-theme', state.theme);
   }
 
+  // Show theme name indicator
+  showThemeLabel(THEME_NAMES[state.theme]);
+
   saveToStorage();
+}
+
+function showThemeLabel(name) {
+  const label = document.getElementById('themeLabel');
+  if (!label) return;
+  label.textContent = name;
+  label.classList.remove('visible');
+  // Force reflow for re-triggering animation
+  void label.offsetWidth;
+  label.classList.add('visible');
+  clearTimeout(themeLabelTimeout);
+  themeLabelTimeout = setTimeout(() => {
+    label.classList.remove('visible');
+  }, 1500);
 }
 
 // Request notification permission on first interaction
@@ -3110,6 +3175,26 @@ function initEventListeners() {
   const heatmapNext = document.getElementById('heatmapNext');
   if (heatmapPrev) heatmapPrev.addEventListener('click', () => navigateHeatmap(-1));
   if (heatmapNext) heatmapNext.addEventListener('click', () => navigateHeatmap(1));
+
+  // Keyboard shortcuts popover
+  const helpBtn = document.getElementById('helpBtn');
+  const shortcutsPopover = document.getElementById('shortcutsPopover');
+  if (helpBtn && shortcutsPopover) {
+    helpBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      shortcutsPopover.hidden = !shortcutsPopover.hidden;
+    });
+    document.addEventListener('click', (e) => {
+      if (!shortcutsPopover.hidden && !shortcutsPopover.contains(e.target) && e.target !== helpBtn) {
+        shortcutsPopover.hidden = true;
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !shortcutsPopover.hidden) {
+        shortcutsPopover.hidden = true;
+      }
+    });
+  }
 
   // Settings modal
   elements.settingsBtn.addEventListener('click', openSettingsModal);

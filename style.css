@@ -405,6 +405,37 @@ body {
   margin: 0;
 }
 
+/* Theme Toggle Wrapper */
+.theme-toggle-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Theme Name Label */
+.theme-label {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 10;
+}
+
+.theme-label.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* Theme Toggle */
 .theme-toggle {
   display: flex;
@@ -1394,6 +1425,45 @@ body {
   border-color: #fca5a5;
 }
 
+/* Abandon confirm state */
+.btn--danger.confirming {
+  background-color: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+  animation: pulse-danger 0.3s ease;
+}
+
+[data-theme="dark"] .btn--danger.confirming {
+  background-color: #f87171;
+  color: #0c0c0c;
+  border-color: #f87171;
+}
+
+[data-theme="synthwave"] .btn--danger.confirming {
+  background-color: #ff6b6b;
+  color: #1a0a2e;
+  border-color: #ff6b6b;
+  box-shadow: 0 0 15px rgba(255, 107, 107, 0.4);
+}
+
+[data-theme="terminal"] .btn--danger.confirming {
+  background: #f87171;
+  color: #0a0a0a;
+  border-color: #f87171;
+}
+
+[data-theme="fireside"] .btn--danger.confirming {
+  background: #f87171;
+  color: #1a0f0a;
+  border-color: #f87171;
+}
+
+@keyframes pulse-danger {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
 /* Session Info */
 .session-info {
   display: flex;
@@ -1431,7 +1501,7 @@ body {
 .goal-progress-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-hover));
+  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
   border-radius: var(--radius-full);
   transition: width var(--transition-normal);
 }
@@ -1920,7 +1990,7 @@ body {
 .analytics-hero {
   text-align: center;
   padding: var(--spacing-lg) var(--spacing-md);
-  background: rgba(var(--color-primary-rgb, 56, 189, 248), 0.06);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   border-radius: var(--radius-lg);
   margin-bottom: var(--spacing-md);
 }
@@ -2069,7 +2139,7 @@ body {
 .chart-tab.active {
   color: var(--color-primary);
   border-color: var(--color-primary);
-  background: rgba(56, 189, 248, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .chart-container {
@@ -2174,15 +2244,15 @@ body {
 }
 
 .heatmap-cell[data-level="1"] {
-  background: rgba(56, 189, 248, 0.25);
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 .heatmap-cell[data-level="2"] {
-  background: rgba(56, 189, 248, 0.5);
+  background: color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 .heatmap-cell[data-level="3"] {
-  background: rgba(56, 189, 248, 0.75);
+  background: color-mix(in srgb, var(--color-primary) 75%, transparent);
 }
 
 .heatmap-cell[data-level="4"] {
@@ -2218,15 +2288,15 @@ body {
 }
 
 .heatmap-legend-cell[data-level="1"] {
-  background: rgba(56, 189, 248, 0.25);
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 .heatmap-legend-cell[data-level="2"] {
-  background: rgba(56, 189, 248, 0.5);
+  background: color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 .heatmap-legend-cell[data-level="3"] {
-  background: rgba(56, 189, 248, 0.75);
+  background: color-mix(in srgb, var(--color-primary) 75%, transparent);
 }
 
 .heatmap-legend-cell[data-level="4"] {
@@ -2479,7 +2549,6 @@ body {
 [data-theme="synthwave"] .notes-textarea {
   background: transparent;
 }
-}
 
 .modal--settings .modal-header {
   margin-bottom: var(--spacing-md);
@@ -2707,6 +2776,7 @@ body.focus-mode::before {
 body.focus-mode .theme-toggle,
 body.focus-mode .stats-btn,
 body.focus-mode .settings-btn,
+body.focus-mode .help-btn,
 body.focus-mode .goal-progress {
   opacity: 0;
   pointer-events: none;
@@ -2716,6 +2786,7 @@ body.focus-mode .goal-progress {
 .theme-toggle,
 .stats-btn,
 .settings-btn,
+.help-btn,
 .goal-progress {
   transition: opacity 0.1s ease;
 }
@@ -2723,10 +2794,10 @@ body.focus-mode .goal-progress {
 /* Timer pulse animation */
 @keyframes focus-pulse {
   0%, 100% {
-    filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.3));
+    filter: drop-shadow(0 0 20px rgba(13, 148, 136, 0.3));
   }
   50% {
-    filter: drop-shadow(0 0 45px rgba(56, 189, 248, 0.7));
+    filter: drop-shadow(0 0 45px rgba(13, 148, 136, 0.7));
   }
 }
 
@@ -3347,7 +3418,7 @@ body.focus-mode .timer-container {
   border-color: var(--color-primary);
   border-style: dashed;
   border-width: 2px;
-  background: rgba(var(--color-primary-rgb, 56, 189, 248), 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .task-item[draggable="true"] {
@@ -5140,6 +5211,87 @@ body.focus-mode .timer-container {
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+
+/* Help Button & Shortcuts Popover */
+.help-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.help-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.help-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.shortcuts-popover {
+  position: fixed;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  min-width: 240px;
+  animation: popover-in 0.15s ease;
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.shortcuts-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  padding: 4px 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.shortcut-row kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 2px 6px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
 }
 
 /* Todoist badge on synced tasks */
