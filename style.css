@@ -3850,27 +3850,6 @@ body.focus-mode .timer-container {
   word-break: break-word;
 }
 
-.area-card-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  margin-top: var(--spacing-xs);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-.area-card-time,
-.area-card-task-count {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.area-card-time svg,
-.area-card-task-count svg {
-  opacity: 0.6;
-}
-
 .area-card-actions {
   display: flex;
   gap: var(--spacing-xs);
@@ -3908,90 +3887,7 @@ body.focus-mode .timer-container {
   background: rgba(239, 68, 68, 0.08);
 }
 
-/* Goal card toggle */
-.area-card-toggle {
-  cursor: pointer;
-}
-
-.area-card-expand-icon {
-  font-size: 10px;
-  color: var(--color-text-muted);
-  transition: transform var(--transition-fast);
-  margin-left: auto;
-}
-
-/* Goal Stats Panel (expandable) */
-.area-stats-panel {
-  border-top: 1px solid var(--color-border);
-  margin-top: var(--spacing-sm);
-  padding-top: var(--spacing-sm);
-}
-
-.area-stats-panel[hidden] {
-  display: none;
-}
-
-.area-stats-header {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: var(--spacing-xs);
-}
-
-.area-stats-tasks {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.area-stats-task {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-xs) 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-}
-
-.area-stats-task.completed {
-  opacity: 0.5;
-}
-
-.area-stats-task.completed .area-stats-task-name {
-  text-decoration: line-through;
-}
-
-.area-stats-task-status {
-  font-size: 10px;
-  width: 14px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.area-stats-task-name {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.area-stats-task-time {
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  font-size: var(--font-size-xs);
-}
-
-.area-stats-empty {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  font-style: italic;
-  padding: var(--spacing-xs) 0;
-}
-
-/* Goal Form */
+/* Area Form */
 .area-form {
   padding: var(--spacing-sm) 0;
 }

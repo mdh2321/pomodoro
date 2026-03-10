@@ -1968,7 +1968,6 @@ function addArea(name, colorIndex) {
     name: name.trim(),
     colorIndex: colorIndex,
     completed: false,
-    totalSeconds: 0,
     createdAt: Date.now()
   };
 
@@ -2114,45 +2113,18 @@ function renderAreas() {
 
   list.innerHTML = allAreas.map(area => {
     const color = AREA_COLORS[area.colorIndex] || AREA_COLORS[0];
-    const linkedTasks = state.tasks.filter(t => t.goalId === area.id);
-    const totalSecs = area.totalSeconds || 0;
-    const completedCount = linkedTasks.filter(t => t.completed).length;
-    const timeDisplay = totalSecs > 0 ? formatTimeSpent(totalSecs) : '0m';
-    const taskSummary = `${completedCount}/${linkedTasks.length} tasks`;
-
-    // Build linked tasks list for the expandable stats panel
-    const linkedTasksHtml = linkedTasks.length > 0
-      ? linkedTasks.map(t =>
-          `<div class="area-stats-task ${t.completed ? 'completed' : ''}">
-            <span class="area-stats-task-status">${t.completed ? '✓' : '○'}</span>
-            <span class="area-stats-task-name">${escapeHtml(t.name)}</span>
-            <span class="area-stats-task-time">${t.actualSeconds > 0 ? formatTimeSpent(t.actualSeconds) : '0m'}</span>
-          </div>`
-        ).join('')
-      : '<div class="area-stats-empty">No linked tasks</div>';
 
     return `
       <div class="area-card ${area.completed ? 'completed' : ''}" data-area-id="${area.id}"
            style="border-left-color: ${color.value}">
         <div class="area-card-main">
           <button class="area-card-checkbox" aria-label="${area.completed ? 'Uncomplete' : 'Complete'} area"></button>
-          <div class="area-card-content area-card-toggle">
+          <div class="area-card-content">
             <div class="area-card-name">${escapeHtml(area.name)}</div>
-            <div class="area-card-meta">
-              <span class="area-card-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${timeDisplay}</span>
-              <span class="area-card-task-count"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> ${taskSummary}</span>
-              <span class="area-card-expand-icon">▸</span>
-            </div>
           </div>
           <div class="area-card-actions">
             <button class="area-card-action edit" aria-label="Edit area">✎</button>
             <button class="area-card-action delete" aria-label="Delete area">×</button>
-          </div>
-        </div>
-        <div class="area-stats-panel" hidden>
-          <div class="area-stats-header">Linked Tasks</div>
-          <div class="area-stats-tasks">
-            ${linkedTasksHtml}
           </div>
         </div>
       </div>
@@ -2184,18 +2156,6 @@ function renderAreas() {
       deleteArea(areaId);
     });
 
-    // Toggle stats panel on content click
-    const toggleEl = card.querySelector('.area-card-toggle');
-    const statsPanel = card.querySelector('.area-stats-panel');
-    const expandIcon = card.querySelector('.area-card-expand-icon');
-    if (toggleEl && statsPanel) {
-      toggleEl.addEventListener('click', () => {
-        const isExpanded = !statsPanel.hidden;
-        statsPanel.hidden = isExpanded;
-        card.classList.toggle('expanded', !isExpanded);
-        if (expandIcon) expandIcon.textContent = isExpanded ? '▸' : '▾';
-      });
-    }
   });
 }
 
@@ -2927,19 +2887,13 @@ function trackTaskTime() {
     const task = state.tasks.find(t => t.id === state.activeTaskId);
     if (task && !task.completed) {
       task.actualSeconds += 1;
-      // Also accrue time on linked area (cumulative, persists across days)
-      if (task.goalId) {
-        const area = state.areas.find(a => a.id === task.goalId);
-        if (area) area.totalSeconds += 1;
-      }
       // Save periodically (every 30 seconds) to avoid too many writes
       if (task.actualSeconds % 30 === 0) {
         saveToStorage();
       }
-      // Update task and area display every minute to show accrued time
+      // Update task display every minute to show accrued time
       if (task.actualSeconds % 60 === 0) {
         renderTasks();
-        renderAreas();
       }
     }
   }
