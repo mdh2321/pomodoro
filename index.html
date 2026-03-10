@@ -182,7 +182,7 @@
       <div class="sidebar-header">
         <div class="sidebar-tabs">
           <button class="sidebar-tab-btn active" data-tab="tasks" id="tasksTabBtn">Tasks</button>
-          <button class="sidebar-tab-btn" data-tab="goals" id="goalsTabBtn">Goals</button>
+          <button class="sidebar-tab-btn" data-tab="areas" id="areasTabBtn">Areas</button>
         </div>
         <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">×</button>
       </div>
@@ -232,23 +232,23 @@
         </div>
       </div>
 
-      <!-- Goals View -->
-      <div class="sidebar-view" id="goalsView" hidden>
-        <div class="goals-section" id="goalsSection">
-          <div class="goals-header">
-            <span class="goals-title">Goals</span>
-            <button class="goals-add-btn" id="goalsAddBtn" aria-label="Add goal">+</button>
+      <!-- Areas View -->
+      <div class="sidebar-view" id="areasView" hidden>
+        <div class="areas-section" id="areasSection">
+          <div class="areas-header">
+            <span class="areas-title">Areas</span>
+            <button class="areas-add-btn" id="areasAddBtn" aria-label="Add area">+</button>
           </div>
-          <div class="goals-list" id="goalsList">
-            <!-- Goal cards rendered dynamically -->
+          <div class="areas-list" id="areasList">
+            <!-- Area cards rendered dynamically -->
           </div>
-          <div class="goal-form" id="goalForm" hidden>
-            <input type="text" class="goal-form-input" id="goalFormInput"
-                   placeholder="Goal name..." maxlength="60" aria-label="Goal name">
-            <div class="goal-form-colors" id="goalFormColors"></div>
-            <div class="goal-form-actions">
-              <button class="goal-form-cancel" id="goalFormCancel">Cancel</button>
-              <button class="goal-form-save" id="goalFormSave">Save</button>
+          <div class="area-form" id="areaForm" hidden>
+            <input type="text" class="area-form-input" id="areaFormInput"
+                   placeholder="Area name..." maxlength="60" aria-label="Area name">
+            <div class="area-form-colors" id="areaFormColors"></div>
+            <div class="area-form-actions">
+              <button class="area-form-cancel" id="areaFormCancel">Cancel</button>
+              <button class="area-form-save" id="areaFormSave">Save</button>
             </div>
           </div>
         </div>
