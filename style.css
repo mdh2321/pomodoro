@@ -238,21 +238,23 @@ body {
   line-height: 1.5;
   color: var(--color-text-primary);
   background-color: var(--color-background);
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   padding: var(--spacing-lg);
+  overflow: hidden;
 }
 
-/* App Container */
+/* App Container — fills viewport, content always centered */
 .app {
   width: 100%;
   max-width: 400px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-xl);
+  justify-content: center;
+  gap: var(--spacing-lg);
   position: relative;
   z-index: 1;
 }
@@ -524,7 +526,8 @@ body {
 
 /* Synthwave theme - show grid/wave icon */
 [data-theme="synthwave"] .theme-icon--light,
-[data-theme="synthwave"] .theme-icon--dark {
+[data-theme="synthwave"] .theme-icon--dark,
+[data-theme="synthwave"] .theme-icon--oldfashioned {
   display: none;
 }
 
@@ -544,7 +547,8 @@ body {
 /* Lo-fi theme - show coffee cup icon */
 [data-theme="lofi"] .theme-icon--light,
 [data-theme="lofi"] .theme-icon--dark,
-[data-theme="lofi"] .theme-icon--synthwave {
+[data-theme="lofi"] .theme-icon--synthwave,
+[data-theme="lofi"] .theme-icon--oldfashioned {
   display: none;
 }
 
@@ -580,7 +584,8 @@ body {
 [data-theme="terminal"] .theme-icon--light,
 [data-theme="terminal"] .theme-icon--dark,
 [data-theme="terminal"] .theme-icon--synthwave,
-[data-theme="terminal"] .theme-icon--lofi {
+[data-theme="terminal"] .theme-icon--lofi,
+[data-theme="terminal"] .theme-icon--oldfashioned {
   display: none;
 }
 
@@ -603,7 +608,8 @@ body {
 [data-theme="fireside"] .theme-icon--dark,
 [data-theme="fireside"] .theme-icon--synthwave,
 [data-theme="fireside"] .theme-icon--lofi,
-[data-theme="fireside"] .theme-icon--terminal {
+[data-theme="fireside"] .theme-icon--terminal,
+[data-theme="fireside"] .theme-icon--oldfashioned {
   display: none;
 }
 
@@ -671,7 +677,8 @@ body {
 [data-theme="todoist"] .theme-icon--synthwave,
 [data-theme="todoist"] .theme-icon--lofi,
 [data-theme="todoist"] .theme-icon--terminal,
-[data-theme="todoist"] .theme-icon--fireside {
+[data-theme="todoist"] .theme-icon--fireside,
+[data-theme="todoist"] .theme-icon--oldfashioned {
   display: none;
 }
 
@@ -743,75 +750,9 @@ body {
   justify-content: center;
 }
 
-/* Subtle radial glow behind timer ring - theme specific */
+/* Timer container glow - disabled */
 .timer-container::before {
-  content: '';
-  position: absolute;
-  inset: -20px;
-  width: calc(var(--timer-size) + 40px);
-  height: calc(var(--timer-size) + 40px);
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at center,
-    rgba(13, 148, 136, 0.08) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* Dark theme ring glow */
-[data-theme="dark"] .timer-container::before {
-  background: radial-gradient(
-    circle at center,
-    rgba(94, 234, 212, 0.08) 0%,
-    transparent 70%
-  );
-}
-
-/* Synthwave theme ring glow */
-[data-theme="synthwave"] .timer-container::before {
-  background: radial-gradient(
-    circle at center,
-    rgba(216, 137, 163, 0.12) 0%,
-    transparent 70%
-  );
-}
-
-/* Lo-fi theme ring glow */
-[data-theme="lofi"] .timer-container::before {
-  background: radial-gradient(
-    circle at center,
-    rgba(166, 124, 82, 0.1) 0%,
-    transparent 70%
-  );
-}
-
-/* Terminal theme ring glow */
-[data-theme="terminal"] .timer-container::before {
-  background: radial-gradient(
-    circle at center,
-    rgba(76, 217, 100, 0.1) 0%,
-    transparent 70%
-  );
-}
-
-/* Todoist theme ring glow */
-[data-theme="todoist"] .timer-container::before {
-  background: radial-gradient(
-    circle at center,
-    rgba(220, 76, 62, 0.08) 0%,
-    transparent 70%
-  );
-}
-
-/* Fireside theme ring glow - warm ember */
-[data-theme="fireside"] .timer-container::before {
-  background: radial-gradient(
-    circle at center,
-    rgba(199, 123, 74, 0.12) 0%,
-    transparent 70%
-  );
+  content: none;
 }
 
 /* Progress Ring (SVG) */
@@ -1247,18 +1188,93 @@ body {
 .current-task-display {
   width: 100%;
   max-width: 300px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
   padding: var(--spacing-md) 0;
+}
+
+.current-task-display[hidden] {
+  display: none;
+}
+
+.current-task-checkbox {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  padding: 0;
+}
+
+.current-task-checkbox:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.current-task-checkbox::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(-45deg) translateY(-1px);
+  opacity: 0;
+}
+
+.current-task-checkbox:hover::before {
+  opacity: 1;
+}
+
+.current-task-checkbox.checked {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.current-task-checkbox.checked::before {
+  opacity: 1;
+}
+
+/* Strikethrough animation on complete */
+.current-task-display.completing .current-task-text {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+  transition: color 0.3s ease;
+}
+
+.current-task-display.completing .current-task-text::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 1.5px;
+  background: var(--color-text-muted);
+  animation: strikethrough 0.3s ease forwards;
+}
+
+@keyframes strikethrough {
+  from { transform: scaleX(0); transform-origin: left; }
+  to { transform: scaleX(1); transform-origin: left; }
 }
 
 .current-task-text {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
-  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+  position: relative;
 }
 
 /* Theme-specific current task colors */
@@ -2791,54 +2807,33 @@ body.focus-mode .goal-progress {
   transition: opacity 0.1s ease;
 }
 
-/* Timer pulse animation */
-@keyframes focus-pulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 20px rgba(13, 148, 136, 0.3));
-  }
-  50% {
-    filter: drop-shadow(0 0 45px rgba(13, 148, 136, 0.7));
-  }
-}
-
+/* No timer-container pulse — keep vignette only */
 body.focus-mode .timer-container {
-  animation: focus-pulse 4s ease-in-out infinite;
+  animation: none;
 }
 
-/* Dark theme focus mode */
+/* Dark theme focus vignette */
 [data-theme="dark"] body.focus-mode::before {
   background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.5) 100%);
 }
 
-@keyframes focus-pulse-dark {
-  0%, 100% {
-    filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.3));
-  }
-  50% {
-    filter: drop-shadow(0 0 50px rgba(34, 211, 238, 0.8));
-  }
-}
-
-[data-theme="dark"] body.focus-mode .timer-container {
-  animation: focus-pulse-dark 4s ease-in-out infinite;
-}
-
-/* Synthwave theme focus mode */
-@keyframes focus-pulse-synthwave {
-  0%, 100% {
-    filter: drop-shadow(0 0 25px rgba(216, 137, 163, 0.4));
-  }
-  50% {
-    filter: drop-shadow(0 0 60px rgba(216, 137, 163, 0.9));
-  }
-}
-
-[data-theme="synthwave"] body.focus-mode .timer-container {
-  animation: focus-pulse-synthwave 4s ease-in-out infinite;
-}
-
+/* Synthwave theme focus vignette */
 [data-theme="synthwave"] body.focus-mode::before {
   background: radial-gradient(ellipse at center, transparent 25%, rgba(10, 5, 20, 0.6) 100%);
+}
+
+/* Fireside focus vignette (body::before is used for ambient glow, so restore vignette) */
+[data-theme="fireside"] body.focus-mode::before {
+  content: '';
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.5) 100%);
+  z-index: 50;
+}
+
+/* Old Fashioned focus vignette (body::before is disabled, so restore vignette) */
+[data-theme="oldfashioned"] body.focus-mode::before {
+  content: '';
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.5) 100%);
+  z-index: 50;
 }
 
 /* ============================================
@@ -2984,11 +2979,11 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="synthwave"] .progress-ring__progress {
-  filter: drop-shadow(0 0 8px rgba(216, 137, 163, 0.6));
+  filter: none;
 }
 
 [data-theme="synthwave"] .progress-ring__progress.break-mode {
-  filter: drop-shadow(0 0 8px rgba(91, 191, 170, 0.5));
+  filter: none;
 }
 
 /* Primary button styling */
@@ -4206,11 +4201,11 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="lofi"] .progress-ring__progress {
-  filter: drop-shadow(0 0 4px rgba(196, 149, 106, 0.3));
+  filter: none;
 }
 
 [data-theme="lofi"] .progress-ring__progress.break-mode {
-  filter: drop-shadow(0 0 4px rgba(143, 188, 143, 0.3));
+  filter: none;
 }
 
 /* Primary button styling */
@@ -4363,20 +4358,6 @@ body.focus-mode .timer-container {
   color: var(--color-background);
 }
 
-/* Focus mode pulse for lo-fi theme */
-@keyframes focus-pulse-lofi {
-  0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(196, 149, 106, 0.3));
-  }
-  50% {
-    filter: drop-shadow(0 0 35px rgba(196, 149, 106, 0.6));
-  }
-}
-
-[data-theme="lofi"] body.focus-mode .timer-container {
-  animation: focus-pulse-lofi 4s ease-in-out infinite;
-}
-
 [data-theme="lofi"] body.focus-mode::before {
   background: radial-gradient(ellipse at center, transparent 30%, rgba(61, 50, 41, 0.3) 100%);
 }
@@ -4398,11 +4379,11 @@ body.focus-mode .timer-container {
 }
 
 [data-theme="terminal"] .progress-ring__progress {
-  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6));
+  filter: none;
 }
 
 [data-theme="terminal"] .progress-ring__progress.break-mode {
-  filter: drop-shadow(0 0 8px rgba(94, 234, 212, 0.6));
+  filter: none;
 }
 
 /* Buttons */
@@ -4584,20 +4565,6 @@ body.focus-mode .timer-container {
   color: #0a0a0a;
 }
 
-/* Focus mode */
-@keyframes focus-pulse-terminal {
-  0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(74, 222, 128, 0.4));
-  }
-  50% {
-    filter: drop-shadow(0 0 40px rgba(74, 222, 128, 0.8));
-  }
-}
-
-[data-theme="terminal"] body.focus-mode .timer-container {
-  animation: focus-pulse-terminal 4s ease-in-out infinite;
-}
-
 /* Subtle flicker animation */
 @keyframes terminal-flicker {
   0%, 100% { opacity: 1; }
@@ -4612,40 +4579,17 @@ body.focus-mode .timer-container {
    Fireside Theme Styles
    ============================================ */
 
-/* Timer ring - ember orange glow */
 [data-theme="fireside"] .progress-ring__progress {
-  filter: drop-shadow(0 0 8px rgba(212, 145, 90, 0.5));
-}
-
-/* Subtle flicker ONLY during active work session */
-[data-theme="fireside"] body.focus-mode .progress-ring__progress {
-  animation: ember-glow 8s ease-in-out infinite;
+  filter: none;
 }
 
 [data-theme="fireside"] .progress-ring__progress.break-mode {
-  filter: drop-shadow(0 0 6px rgba(39, 174, 96, 0.4));
-  animation: none;
-}
-
-/* Very subtle, slow ember-like glow variation */
-@keyframes ember-glow {
-  0%, 100% {
-    filter: drop-shadow(0 0 8px rgba(212, 145, 90, 0.5));
-  }
-  30% {
-    filter: drop-shadow(0 0 10px rgba(212, 145, 90, 0.55));
-  }
-  60% {
-    filter: drop-shadow(0 0 6px rgba(184, 122, 74, 0.45));
-  }
-  80% {
-    filter: drop-shadow(0 0 9px rgba(212, 145, 90, 0.52));
-  }
+  filter: none;
 }
 
 /* Timer display - warm tint */
 [data-theme="fireside"] .timer-time {
-  text-shadow: 0 0 25px rgba(212, 145, 90, 0.2);
+  text-shadow: none;
 }
 
 /* Buttons */
@@ -4820,27 +4764,13 @@ body.focus-mode .timer-container {
   color: #151a2e;
 }
 
-/* Focus mode - subtle ambient pulse */
-@keyframes focus-pulse-fire {
-  0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(212, 145, 90, 0.25));
-  }
-  50% {
-    filter: drop-shadow(0 0 22px rgba(212, 145, 90, 0.35));
-  }
-}
-
-[data-theme="fireside"] body.focus-mode .timer-container {
-  animation: focus-pulse-fire 6s ease-in-out infinite;
-}
 
 /* ============================================
    Todoist Theme - Component Overrides
    ============================================ */
 
-/* Progress ring - clean drop shadow */
 [data-theme="todoist"] .progress-ring__progress {
-  filter: drop-shadow(0 0 4px rgba(220, 76, 62, 0.3));
+  filter: none;
 }
 
 /* Buttons */
@@ -5000,6 +4930,309 @@ body.focus-mode .timer-container {
   background: var(--color-primary);
   color: #ffffff;
 }
+
+/* ============================================
+   Old Fashioned Theme
+   ============================================ */
+
+[data-theme="oldfashioned"] {
+  --color-primary: #d4943a;
+  --color-primary-dark: #b07a2e;
+  --color-primary-light: #e0a84e;
+
+  --color-work: #d4943a;
+  --color-break: #5d9e6e;
+  --color-break-dark: #4a8458;
+
+  --color-background: #151013;
+  --color-surface: rgba(30, 22, 25, 0.95);
+  --color-surface-elevated: rgba(42, 31, 34, 0.95);
+
+  --color-text-primary: #e8ddd0;
+  --color-text-secondary: #b8a898;
+  --color-text-muted: #6e5c54;
+
+  --color-border: rgba(212, 148, 58, 0.15);
+  --color-border-focus: #d4943a;
+
+  --glow-bourbon: 0 0 15px rgba(212, 148, 58, 0.2);
+  --glow-amber: 0 0 10px rgba(176, 122, 46, 0.25);
+}
+
+/* Dark walnut bar background with subtle warm gradient */
+[data-theme="oldfashioned"] body {
+  background: linear-gradient(
+    180deg,
+    #110c0f 0%,
+    #151013 30%,
+    #181215 60%,
+    #1a1418 100%
+  );
+}
+
+/* No bottom glow */
+[data-theme="oldfashioned"] body::before {
+  content: none;
+}
+
+/* Deep vignette — dim speakeasy corners */
+[data-theme="oldfashioned"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 75% 75% at 50% 50%,
+    transparent 35%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Theme icon — hide others, show Old Fashioned */
+[data-theme="oldfashioned"] .theme-icon--light,
+[data-theme="oldfashioned"] .theme-icon--dark,
+[data-theme="oldfashioned"] .theme-icon--synthwave,
+[data-theme="oldfashioned"] .theme-icon--lofi,
+[data-theme="oldfashioned"] .theme-icon--terminal,
+[data-theme="oldfashioned"] .theme-icon--fireside,
+[data-theme="oldfashioned"] .theme-icon--todoist {
+  display: none;
+}
+
+[data-theme="oldfashioned"] .theme-icon--oldfashioned {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+
+/* Rocks glass icon */
+.theme-icon--oldfashioned::before {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 12px;
+  height: 10px;
+  background: linear-gradient(180deg, rgba(212, 148, 58, 0.6) 0%, rgba(176, 122, 46, 0.8) 100%);
+  border-radius: 1px 1px 3px 3px;
+  border-left: 2px solid rgba(212, 148, 58, 0.4);
+  border-right: 2px solid rgba(212, 148, 58, 0.4);
+  border-bottom: 2px solid rgba(212, 148, 58, 0.5);
+}
+
+/* Orange peel garnish */
+.theme-icon--oldfashioned::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border: 2px solid #c46a2e;
+  border-radius: 50%;
+  background: transparent;
+}
+
+/* Toggle & sound buttons */
+[data-theme="oldfashioned"] .theme-toggle,
+[data-theme="oldfashioned"] .sound-toggle {
+  color: var(--color-text-secondary);
+}
+
+[data-theme="oldfashioned"] .theme-toggle:hover,
+[data-theme="oldfashioned"] .sound-toggle:hover {
+  color: var(--color-text-primary);
+}
+
+[data-theme="oldfashioned"] .sound-toggle.active {
+  color: var(--color-primary);
+}
+
+
+
+/* Timer display */
+[data-theme="oldfashioned"] .timer-time {
+  text-shadow: none;
+}
+
+/* Buttons */
+[data-theme="oldfashioned"] .btn--primary {
+  background: var(--color-primary);
+  color: #151013;
+  border: none;
+}
+
+[data-theme="oldfashioned"] .btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  box-shadow: var(--glow-bourbon);
+}
+
+[data-theme="oldfashioned"] .btn--secondary {
+  background: transparent;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+[data-theme="oldfashioned"] .btn--secondary:hover:not(:disabled) {
+  background: rgba(212, 148, 58, 0.1);
+  border-color: var(--color-primary-light);
+}
+
+/* Sound dropdown */
+[data-theme="oldfashioned"] .sound-dropdown {
+  background: rgba(21, 16, 19, 0.97);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(10px);
+}
+
+[data-theme="oldfashioned"] .sound-option:hover {
+  background: rgba(212, 148, 58, 0.1);
+}
+
+[data-theme="oldfashioned"] .sound-option.active {
+  background: var(--color-primary);
+  color: #151013;
+}
+
+/* Goal progress bar */
+[data-theme="oldfashioned"] .goal-progress-bar {
+  background: linear-gradient(90deg, var(--color-primary-dark), var(--color-primary));
+  box-shadow: 0 0 8px rgba(212, 148, 58, 0.3);
+}
+
+[data-theme="oldfashioned"] .goal-progress.goal-complete .goal-progress-bar {
+  background: linear-gradient(90deg, #1e8449, #27ae60);
+  box-shadow: 0 0 8px rgba(39, 174, 96, 0.3);
+}
+
+[data-theme="oldfashioned"] .goal-progress.goal-complete .goal-progress-bar-container {
+  border-color: #27ae60;
+}
+
+[data-theme="oldfashioned"] .goal-progress.goal-complete .goal-progress-text {
+  color: #27ae60;
+}
+
+/* Modal & cards */
+[data-theme="oldfashioned"] .modal {
+  background: rgba(21, 16, 19, 0.97);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(10px);
+}
+
+[data-theme="oldfashioned"] .stat-card {
+  background: rgba(212, 148, 58, 0.05);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="oldfashioned"] .streak-card {
+  background: rgba(212, 148, 58, 0.05);
+  border: 1px solid var(--color-border);
+}
+
+/* Sidebar */
+[data-theme="oldfashioned"] .sidebar-tab {
+  background: rgba(21, 16, 19, 0.9);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="oldfashioned"] .sidebar-tab:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--glow-bourbon);
+}
+
+[data-theme="oldfashioned"] .sidebar-panel {
+  background: rgba(21, 16, 19, 0.97);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(10px);
+}
+
+/* Task items */
+[data-theme="oldfashioned"] .task-item {
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="oldfashioned"] .task-item:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 8px rgba(212, 148, 58, 0.12);
+}
+
+[data-theme="oldfashioned"] .task-item.next-task {
+  border-color: var(--color-primary);
+  background: rgba(212, 148, 58, 0.05);
+}
+
+[data-theme="oldfashioned"] .task-item.active-task {
+  box-shadow: var(--glow-bourbon);
+}
+
+[data-theme="oldfashioned"] .task-item-checkbox:hover,
+[data-theme="oldfashioned"] .task-item.completed .task-item-checkbox {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Task inputs */
+[data-theme="oldfashioned"] .add-task-input,
+[data-theme="oldfashioned"] .add-task-estimate,
+[data-theme="oldfashioned"] .add-task-goal {
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="oldfashioned"] .add-task-input:focus,
+[data-theme="oldfashioned"] .add-task-estimate:focus,
+[data-theme="oldfashioned"] .add-task-goal:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 8px rgba(212, 148, 58, 0.15);
+}
+
+[data-theme="oldfashioned"] .add-task-btn {
+  background: var(--color-primary);
+  color: #151013;
+}
+
+/* Area components */
+[data-theme="oldfashioned"] .area-form-input {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+[data-theme="oldfashioned"] .area-card {
+  background: rgba(212, 148, 58, 0.04);
+  border-color: var(--color-border);
+}
+
+[data-theme="oldfashioned"] .area-link-menu {
+  background: #151013;
+  border-color: var(--color-border);
+}
+
+/* Stats & settings icons */
+[data-theme="oldfashioned"] .stats-btn svg,
+[data-theme="oldfashioned"] .settings-btn svg {
+  color: var(--color-primary);
+  opacity: 0.7;
+}
+
+[data-theme="oldfashioned"] .stats-btn:hover svg,
+[data-theme="oldfashioned"] .settings-btn:hover svg {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(212, 148, 58, 0.5));
+}
+
+/* Undo toast */
+[data-theme="oldfashioned"] .undo-toast {
+  background: var(--color-primary);
+  color: #151013;
+}
+
+
 
 /* ============================================
    Todoist Integration Styles

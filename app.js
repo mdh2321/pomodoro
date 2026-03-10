@@ -134,6 +134,7 @@ const elements = {
   // Current task display (during active sessions)
   currentTaskDisplay: document.getElementById('currentTaskDisplay'),
   currentTaskText: document.getElementById('currentTaskText'),
+  currentTaskCheckbox: document.getElementById('currentTaskCheckbox'),
 
   // Timer inline arrows
   decreaseBtn: document.getElementById('decreaseBtn'),
@@ -339,6 +340,19 @@ function loadFromStorage() {
         state.areas = data.areas;
       } else if (data.goals && Array.isArray(data.goals)) {
         state.areas = data.goals;
+      }
+
+      // Restore Todoist settings
+      if (data.todoist) {
+        if (typeof data.todoist.enabled === 'boolean') {
+          state.todoist.enabled = data.todoist.enabled;
+        }
+        if (data.todoist.apiToken) {
+          state.todoist.apiToken = data.todoist.apiToken;
+        }
+        if (data.todoist.lastSyncTime) {
+          state.todoist.lastSyncTime = data.todoist.lastSyncTime;
+        }
       }
     }
   } catch (e) {
@@ -836,9 +850,41 @@ function updateCurrentTaskDisplay() {
   if (isActiveWorkSession && nextTask) {
     elements.currentTaskText.textContent = nextTask.name;
     elements.currentTaskDisplay.hidden = false;
+
+    // Update activeTaskId to always track the current top incomplete task
+    if (state.activeTaskId !== nextTask.id) {
+      state.activeTaskId = nextTask.id;
+      renderTasks();
+    }
   } else {
     elements.currentTaskDisplay.hidden = true;
   }
+}
+
+// Complete current task from the main display checkbox (with strikethrough animation)
+function completeCurrentTask() {
+  if (!state.activeTaskId) return;
+  const taskId = state.activeTaskId;
+
+  // Prevent double-clicks during animation
+  if (elements.currentTaskDisplay.classList.contains('completing')) return;
+
+  // Animate strikethrough before completing
+  elements.currentTaskDisplay.classList.add('completing');
+  elements.currentTaskCheckbox.classList.add('checked');
+
+  setTimeout(() => {
+    elements.currentTaskDisplay.classList.remove('completing');
+    elements.currentTaskCheckbox.classList.remove('checked');
+    completeTaskById(taskId);
+
+    // Ensure display is hidden if no tasks remain
+    const nextTask = getNextIncompleteTask();
+    if (!nextTask) {
+      elements.currentTaskDisplay.hidden = true;
+      state.activeTaskId = null;
+    }
+  }, 500);
 }
 
 // Update draggable state of tasks based on timer status
@@ -1896,8 +1942,8 @@ function setStatsView(view) {
 // Theme Management
 // ============================================
 
-const THEMES = ['light', 'dark', 'synthwave', 'lofi', 'terminal', 'fireside', 'todoist'];
-const THEME_NAMES = { light: 'Light', dark: 'Dark', synthwave: 'Synthwave', lofi: 'Lo-fi', terminal: 'Terminal', fireside: 'Fireside', todoist: 'Todoist' };
+const THEMES = ['light', 'dark', 'synthwave', 'lofi', 'terminal', 'fireside', 'todoist', 'oldfashioned'];
+const THEME_NAMES = { light: 'Light', dark: 'Dark', synthwave: 'Synthwave', lofi: 'Lo-fi', terminal: 'Terminal', fireside: 'Fireside', todoist: 'Todoist', oldfashioned: 'Old Fashioned' };
 
 let themeLabelTimeout = null;
 
@@ -2315,8 +2361,9 @@ function completeTaskById(taskId) {
   }
 
   // If this was the active task during a Pomo
-  if (state.activeTaskId === taskId && state.status === 'running') {
-    if (state.taskCompletionBehavior === 'endSession') {
+  const isInSession = state.status === 'running' || state.status === 'paused' || state.status === 'overflow';
+  if (state.activeTaskId === taskId && isInSession) {
+    if (state.taskCompletionBehavior === 'endSession' && state.status === 'running') {
       // End the session
       doneTimer();
     } else {
@@ -2447,8 +2494,16 @@ function reorderTasks(fromIndex, toIndex) {
 
   const task = state.tasks.splice(fromIndex, 1)[0];
   state.tasks.splice(toIndex, 0, task);
+
+  // Update active task to the new top incomplete task
+  const nextTask = getNextIncompleteTask();
+  if (nextTask && state.mode === 'work' && (state.status === 'paused' || state.status === 'overflow')) {
+    state.activeTaskId = nextTask.id;
+  }
+
   saveToStorage();
   renderTasks();
+  updateCurrentTaskDisplay();
 }
 
 // Clear tasks for new day (respects keepIncompleteTasks setting)
@@ -2476,6 +2531,10 @@ function checkNewDay() {
     updateStreakForNewDay(state.lastVisitDate);
     // Clear tasks for new day
     clearTasksForNewDay();
+    // Auto-sync Todoist to pick up new "Today" tasks
+    if (state.todoist.enabled && state.todoist.apiToken) {
+      syncWithTodoist();
+    }
   }
   state.lastVisitDate = today;
   saveToStorage();
@@ -3062,6 +3121,7 @@ function initEventListeners() {
   elements.doneBtn.addEventListener('click', doneTimer);
   elements.abandonBtn.addEventListener('click', abandonTimer);
   elements.skipBtn.addEventListener('click', skipTimer);
+  elements.currentTaskCheckbox.addEventListener('click', completeCurrentTask);
 
   // Timer stepper buttons
   elements.decreaseBtn.addEventListener('click', decreaseWorkTime);
@@ -3256,6 +3316,14 @@ function initEventListeners() {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       updateBrowserTab();
+      checkNewDay();
+      // Auto-sync Todoist if enabled and last sync was >5 min ago
+      if (state.todoist.enabled && state.todoist.apiToken) {
+        const fiveMinutes = 5 * 60 * 1000;
+        if (!state.todoist.lastSyncTime || Date.now() - state.todoist.lastSyncTime > fiveMinutes) {
+          syncWithTodoist();
+        }
+      }
     }
   });
 }
