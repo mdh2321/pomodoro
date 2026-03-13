@@ -2508,17 +2508,13 @@ function reorderTasks(fromIndex, toIndex) {
 
 // Clear tasks for new day (respects keepIncompleteTasks setting)
 function clearTasksForNewDay() {
-  if (state.keepIncompleteTasks) {
-    // Remove completed tasks that aren't linked to an area
-    state.tasks = state.tasks.filter(t => !t.completed || t.goalId);
-  } else {
-    // Remove tasks that aren't linked to an area
-    state.tasks = state.tasks.filter(t => t.goalId);
-  }
-  // Reset actual time on remaining tasks for the new day (only unlinked tasks)
-  state.tasks.forEach(t => {
-    if (!t.goalId) t.actualSeconds = 0;
+  // Always remove completed tasks
+  state.tasks = state.tasks.filter(t => {
+    if (t.completed) return false;
+    // For incomplete tasks, keep them if setting is on or they're linked to an area
+    return state.keepIncompleteTasks || t.goalId;
   });
+  // Incomplete tasks rolling over retain their accrued time
   saveToStorage();
   renderTasks();
 }
@@ -2529,6 +2525,8 @@ function checkNewDay() {
   if (state.lastVisitDate && state.lastVisitDate !== today) {
     // Update streak based on yesterday's performance
     updateStreakForNewDay(state.lastVisitDate);
+    // Reset daily focused minutes for the new day
+    state.totalFocusedMinutes = 0;
     // Clear tasks for new day
     clearTasksForNewDay();
     // Auto-sync Todoist to pick up new "Today" tasks
