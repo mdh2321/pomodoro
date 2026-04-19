@@ -229,6 +229,7 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
 }
 
 body {
@@ -243,7 +244,29 @@ body {
   align-items: stretch;
   justify-content: center;
   padding: var(--spacing-lg);
+  padding-top: max(var(--spacing-lg), env(safe-area-inset-top));
+  padding-bottom: max(var(--spacing-lg), env(safe-area-inset-bottom));
+  padding-left: max(var(--spacing-lg), env(safe-area-inset-left));
+  padding-right: max(var(--spacing-lg), env(safe-area-inset-right));
   overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+@supports (height: 100dvh) {
+  body {
+    height: 100dvh;
+  }
+}
+
+button, input, select, textarea, a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.timer-time, .timer-status, .btn, .session-info, .header, .goal-progress {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* App Container — fills viewport, content always centered */
@@ -1319,6 +1342,7 @@ body {
   cursor: pointer;
   transition: all var(--transition-fast);
   min-width: 80px;
+  min-height: 44px;
   flex: 1;
   max-width: 100px;
 }
@@ -1936,6 +1960,8 @@ body {
   flex-direction: column;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-xl);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 .input-group {
@@ -3189,6 +3215,8 @@ body.focus-mode .timer-container {
   flex-direction: column;
   transform: translateX(100%);
   transition: transform var(--transition-normal);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 .task-sidebar.open .sidebar-panel {
@@ -5431,4 +5459,23 @@ body.focus-mode .timer-container {
   flex-shrink: 0;
   margin-left: var(--spacing-xs);
   line-height: 0;
+}
+
+/* iPad — wider layout and larger timer */
+@media (min-width: 768px) {
+  .app {
+    max-width: 500px;
+  }
+
+  :root {
+    --timer-size: 340px;
+    --font-size-timer: 4.5rem;
+  }
+}
+
+/* Standalone mode (Add to Home Screen) */
+@media (display-mode: standalone) {
+  body {
+    padding-top: max(var(--spacing-xl), env(safe-area-inset-top));
+  }
 }

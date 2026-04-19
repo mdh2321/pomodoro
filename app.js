@@ -1233,6 +1233,19 @@ function initAudioContext() {
   return audioContext;
 }
 
+function unlockAudioForIOS() {
+  const ctx = initAudioContext();
+  const buf = ctx.createBuffer(1, 1, 22050);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start();
+  document.removeEventListener('touchstart', unlockAudioForIOS);
+  document.removeEventListener('click', unlockAudioForIOS);
+}
+document.addEventListener('touchstart', unlockAudioForIOS, { once: true });
+document.addEventListener('click', unlockAudioForIOS, { once: true });
+
 function stopAmbientSound() {
   // Stop all sources and nodes
   if (ambientNodes.sources) {
@@ -3310,9 +3323,12 @@ function initEventListeners() {
     }
   });
 
-  // Handle visibility change - update tab when returning
+  // Handle visibility change - update tab when returning (and catch up timer on iOS)
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
+      if (state.status === 'running' || state.status === 'overflow') {
+        updateUI();
+      }
       updateBrowserTab();
       checkNewDay();
       // Auto-sync Todoist if enabled and last sync was >5 min ago

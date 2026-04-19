@@ -1,0 +1,21 @@
+{
+  "name": "Pomo",
+  "short_name": "Pomo",
+  "description": "A minimal, distraction-free pomodoro timer for deep work",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0c0c",
+  "theme_color": "#0d9488",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
