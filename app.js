@@ -57,7 +57,7 @@ const state = {
   // Timer interval reference
   intervalId: null,
 
-  // Theme: 'light' | 'dark' | 'synthwave'
+  // Theme: one of THEMES ('light' | 'dawn' | 'dark' | 'terminal' | 'oldfashioned')
   theme: 'light',
 
   // Task intent (legacy - keeping for compatibility)
@@ -74,6 +74,8 @@ const state = {
   showCompletedTasks: true, // Show struck-out completed tasks
   taskCompletionBehavior: 'nextTask', // 'endSession' | 'nextTask'
   keepIncompleteTasks: true, // Keep incomplete tasks on new day (vs clear all)
+  notNowCollapsed: false, // Hide the Not-Now shelf's tasks
+  doneCollapsed: true, // Hide the Done shelf's tasks
   lastVisitDate: null, // For clearing done tasks on new day
 
   // Sidebar state
@@ -106,7 +108,10 @@ const state = {
     syncStatus: 'idle', // 'idle' | 'syncing' | 'error' | 'success'
     lastError: null,
     lastSyncTime: null
-  }
+  },
+
+  // Todoist projects act as auto-areas: { [projectId]: { name, color } }
+  todoistProjects: {}
 };
 
 // Audio context and nodes for ambient sounds
@@ -152,6 +157,7 @@ const elements = {
   doneBtn: document.getElementById('doneBtn'),
   abandonBtn: document.getElementById('abandonBtn'),
   skipBtn: document.getElementById('skipBtn'),
+  flowBtn: document.getElementById('flowBtn'),
 
   // Goal progress
   goalProgress: document.getElementById('goalProgress'),
@@ -198,7 +204,6 @@ const elements = {
   // Notes modal
   notesOverlay: document.getElementById('notesOverlay'),
   notesCloseBtn: document.getElementById('notesCloseBtn'),
-  notesTaskName: document.getElementById('notesTaskName'),
   notesTextarea: document.getElementById('notesTextarea'),
   notesSaveBtn: document.getElementById('notesSaveBtn'),
 
@@ -261,9 +266,10 @@ function loadFromStorage() {
 
       // Restore theme preference (with backward compatibility)
       if (data.theme) {
-        state.theme = data.theme;
-        if (data.theme !== 'light') {
-          document.documentElement.setAttribute('data-theme', data.theme);
+        state.theme = THEME_MIGRATIONS[data.theme] || data.theme;
+        if (!THEMES.includes(state.theme)) state.theme = 'light';
+        if (state.theme !== 'light') {
+          document.documentElement.setAttribute('data-theme', state.theme);
         }
       } else if (data.darkMode) {
         // Backward compatibility: convert old darkMode boolean
@@ -307,6 +313,12 @@ function loadFromStorage() {
       if (typeof data.keepIncompleteTasks === 'boolean') {
         state.keepIncompleteTasks = data.keepIncompleteTasks;
       }
+      if (typeof data.notNowCollapsed === 'boolean') {
+        state.notNowCollapsed = data.notNowCollapsed;
+      }
+      if (typeof data.doneCollapsed === 'boolean') {
+        state.doneCollapsed = data.doneCollapsed;
+      }
       if (data.lastVisitDate) {
         state.lastVisitDate = data.lastVisitDate;
       }
@@ -340,6 +352,11 @@ function loadFromStorage() {
         state.areas = data.areas;
       } else if (data.goals && Array.isArray(data.goals)) {
         state.areas = data.goals;
+      }
+
+      // Restore Todoist project map (auto-areas)
+      if (data.todoistProjects && typeof data.todoistProjects === 'object') {
+        state.todoistProjects = data.todoistProjects;
       }
 
       // Restore Todoist settings
@@ -381,6 +398,8 @@ function saveToStorage() {
       showCompletedTasks: state.showCompletedTasks,
       taskCompletionBehavior: state.taskCompletionBehavior,
       keepIncompleteTasks: state.keepIncompleteTasks,
+      notNowCollapsed: state.notNowCollapsed,
+      doneCollapsed: state.doneCollapsed,
       lastVisitDate: state.lastVisitDate,
       // Daily goal & streaks
       dailyGoalMinutes: state.dailyGoalMinutes,
@@ -395,6 +414,7 @@ function saveToStorage() {
         apiToken: state.todoist.apiToken,
         lastSyncTime: state.todoist.lastSyncTime
       },
+      todoistProjects: state.todoistProjects,
       date: getTodayDate()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -839,6 +859,18 @@ function updateUI() {
   updateFocusMode();
   updateTaskDraggable();
   updateCurrentTaskDisplay();
+  updateSoundControlVisibility();
+}
+
+// Update the "Xm / Ym" meta beside the current task name
+function updateCurrentTaskMeta() {
+  const metaEl = document.getElementById('currentTaskMeta');
+  if (!metaEl || !state.activeTaskId) return;
+  const task = state.tasks.find(t => t.id === state.activeTaskId);
+  if (!task) return;
+  const actual = task.actualSeconds > 0 ? formatTimeSpent(task.actualSeconds) : '0m';
+  const est = task.estimatedMinutes ? `${task.estimatedMinutes}m` : '–';
+  metaEl.textContent = `${actual} / ${est}`;
 }
 
 // Update current task display (shown during active/paused work sessions)
@@ -850,6 +882,18 @@ function updateCurrentTaskDisplay() {
   if (isActiveWorkSession && nextTask) {
     elements.currentTaskText.textContent = nextTask.name;
     elements.currentTaskDisplay.hidden = false;
+    updateCurrentTaskMeta();
+
+    // Area label beside the session task
+    const areaEl = document.getElementById('currentTaskArea');
+    if (areaEl) {
+      const info = getTaskAreaInfo(nextTask);
+      areaEl.hidden = !info;
+      if (info) {
+        areaEl.textContent = info.name;
+        areaEl.style.color = info.color;
+      }
+    }
 
     // Update activeTaskId to always track the current top incomplete task
     if (state.activeTaskId !== nextTask.id) {
@@ -927,17 +971,27 @@ function updateProgressRing() {
 
   elements.progressRing.classList.toggle('overflow-mode', isOverflow);
 
+  let progress = 1;
   if (isOverflow) {
     // Ring stays fully filled during overflow
     elements.progressRing.style.strokeDasharray = CIRCUMFERENCE;
     elements.progressRing.style.strokeDashoffset = 0;
   } else {
     elements.progressRing.classList.remove('overflow-mode');
-    const progress = state.remainingSeconds / state.totalSeconds;
+    progress = state.remainingSeconds / state.totalSeconds;
     const offset = CIRCUMFERENCE * (1 - progress);
     elements.progressRing.style.strokeDasharray = CIRCUMFERENCE;
     elements.progressRing.style.strokeDashoffset = offset;
   }
+
+  // Leading-edge dot: dash starts at 3 o'clock pre-rotation, so +90°
+  const dot = document.getElementById('progressDot');
+  if (dot) {
+    dot.setAttribute('transform', `rotate(${90 + progress * 360} 100 100) translate(0 -90)`);
+  }
+
+  // At rest the ring dims — an instrument waiting, not a full bar
+  elements.timerContainer.classList.toggle('resting', state.status === 'idle');
 }
 
 function updateStatusDisplay() {
@@ -981,16 +1035,20 @@ function updateControlButtons() {
   elements.doneBtn.textContent = 'Done';
   elements.abandonBtn.hidden = true;
   elements.skipBtn.hidden = true;
+  if (elements.flowBtn) elements.flowBtn.hidden = true;
 
   if (status === 'idle') {
     // Only Start visible
     elements.startBtn.hidden = false;
-    elements.startBtn.textContent = 'Start';
+    elements.startBtn.setAttribute('aria-label', mode === 'work' ? 'Start timer' : 'Start break');
     elements.startBtn.classList.toggle('break-mode', mode === 'break');
 
     // Show skip button when about to start break (after clicking Done)
     if (mode === 'break') {
       elements.skipBtn.hidden = false;
+    } else if (elements.flowBtn) {
+      // Open-ended count-up option alongside Start
+      elements.flowBtn.hidden = false;
     }
 
   } else if (status === 'running') {
@@ -1022,7 +1080,7 @@ function updateControlButtons() {
   } else if (status === 'completed') {
     // Show transition button
     elements.startBtn.hidden = false;
-    elements.startBtn.textContent = mode === 'work' ? 'Start Break' : 'Start Work';
+    elements.startBtn.setAttribute('aria-label', mode === 'work' ? 'Start break' : 'Start work');
     elements.startBtn.classList.toggle('break-mode', mode === 'work');
 
     // Show skip button when about to start break (just finished work)
@@ -1419,7 +1477,8 @@ function openNotesModal(taskId) {
   if (!task) return;
 
   editingNotesTaskId = taskId;
-  elements.notesTaskName.textContent = task.name;
+  const titleEl = document.getElementById('notesTitle');
+  if (titleEl) titleEl.textContent = task.name;
   elements.notesTextarea.value = task.notes || '';
   elements.notesOverlay.classList.add('active');
   elements.notesOverlay.setAttribute('aria-hidden', 'false');
@@ -1955,8 +2014,11 @@ function setStatsView(view) {
 // Theme Management
 // ============================================
 
-const THEMES = ['light', 'dark', 'synthwave', 'lofi', 'terminal', 'fireside', 'todoist', 'oldfashioned'];
-const THEME_NAMES = { light: 'Light', dark: 'Dark', synthwave: 'Synthwave', lofi: 'Lo-fi', terminal: 'Terminal', fireside: 'Fireside', todoist: 'Todoist', oldfashioned: 'Old Fashioned' };
+const THEMES = ['light', 'dawn', 'dark', 'terminal', 'oldfashioned'];
+const THEME_NAMES = { light: 'Light', dawn: 'Dawn', dark: 'Dark', terminal: 'Terminal', oldfashioned: 'Old Fashioned' };
+
+// Retired themes map to their closest survivor
+const THEME_MIGRATIONS = { lofi: 'light', todoist: 'light', synthwave: 'dawn', fireside: 'oldfashioned', aurora: 'dark' };
 
 let themeLabelTimeout = null;
 
@@ -2035,41 +2097,12 @@ function addArea(name, colorIndex) {
   renderAreas();
 }
 
-function completeArea(areaId) {
-  const area = state.areas.find(a => a.id === areaId);
-  if (!area) return;
-  area.completed = true;
-  saveToStorage();
-  renderAreas();
-  renderTasks();
-}
-
-function uncompleteArea(areaId) {
-  if (getActiveAreas().length >= 5) return;
-  const area = state.areas.find(a => a.id === areaId);
-  if (!area) return;
-  area.completed = false;
-  saveToStorage();
-  renderAreas();
-  renderTasks();
-}
-
 function deleteArea(areaId) {
   state.areas = state.areas.filter(a => a.id !== areaId);
   // Unlink all tasks from this area
   state.tasks.forEach(t => {
     if (t.goalId === areaId) t.goalId = null;
   });
-  saveToStorage();
-  renderAreas();
-  renderTasks();
-}
-
-function editAreaName(areaId, newName) {
-  if (!newName.trim()) return;
-  const area = state.areas.find(a => a.id === areaId);
-  if (!area) return;
-  area.name = newName.trim();
   saveToStorage();
   renderAreas();
   renderTasks();
@@ -2162,59 +2195,59 @@ function renderAreas() {
     addBtn.classList.toggle('hidden', activeAreas.length >= 5);
   }
 
-  if (state.areas.length === 0) {
-    list.innerHTML = '';
-    return;
-  }
+  // Todoist projects: show only the ones that actually have imported tasks
+  // (not Todoist's full project list), read-only below the local areas.
+  const importedProjectIds = new Set(
+    state.tasks.filter(t => t.todoistProjectId).map(t => t.todoistProjectId)
+  );
+  const projectEntries = Object.entries(state.todoistProjects)
+    .filter(([id]) => importedProjectIds.has(id));
+  const projectsHtml = (state.todoist.enabled && projectEntries.length > 0) ? `
+    <div class="todoist-projects">
+      <div class="todoist-projects-header">From Todoist</div>
+      ${projectEntries.map(([id, p]) => `
+        <div class="area-row area-row--readonly">
+          <span class="task-area-dot" style="background:${p.color}"></span>
+          <span class="area-row-name">${escapeHtml(p.name)}</span>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
 
-  // Render active areas first, then completed
+  // Local ("bespoke") areas render as simple rows in the same style as the
+  // imported projects — a color dot + name, no task-style tickbox.
   const allAreas = [...activeAreas, ...completedAreas];
-
-  list.innerHTML = allAreas.map(area => {
+  const areasHtml = allAreas.map(area => {
     const color = AREA_COLORS[area.colorIndex] || AREA_COLORS[0];
-
     return `
-      <div class="area-card ${area.completed ? 'completed' : ''}" data-area-id="${area.id}"
-           style="border-left-color: ${color.value}">
-        <div class="area-card-main">
-          <button class="area-card-checkbox" aria-label="${area.completed ? 'Uncomplete' : 'Complete'} area"></button>
-          <div class="area-card-content">
-            <div class="area-card-name">${escapeHtml(area.name)}</div>
-          </div>
-          <div class="area-card-actions">
-            <button class="area-card-action edit" aria-label="Edit area">✎</button>
-            <button class="area-card-action delete" aria-label="Delete area">×</button>
-          </div>
+      <div class="area-row ${area.completed ? 'completed' : ''}" data-area-id="${area.id}">
+        <span class="task-area-dot" style="background:${color.value}"></span>
+        <span class="area-row-name">${escapeHtml(area.name)}</span>
+        <div class="area-row-actions">
+          <button class="area-card-action edit" aria-label="Edit area">✎</button>
+          <button class="area-card-action delete" aria-label="Delete area">×</button>
         </div>
       </div>
     `;
   }).join('');
 
-  // Attach event listeners
-  list.querySelectorAll('.area-card').forEach(card => {
-    const areaId = card.dataset.areaId;
+  list.innerHTML = areasHtml + projectsHtml;
+
+  // Attach event listeners to editable local-area rows
+  list.querySelectorAll('.area-row[data-area-id]').forEach(row => {
+    const areaId = row.dataset.areaId;
     const area = state.areas.find(a => a.id === areaId);
     if (!area) return;
 
-    card.querySelector('.area-card-checkbox').addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (area.completed) {
-        uncompleteArea(areaId);
-      } else {
-        completeArea(areaId);
-      }
-    });
-
-    card.querySelector('.area-card-action.edit').addEventListener('click', (e) => {
+    row.querySelector('.area-card-action.edit')?.addEventListener('click', (e) => {
       e.stopPropagation();
       openAreaForm(areaId);
     });
 
-    card.querySelector('.area-card-action.delete').addEventListener('click', (e) => {
+    row.querySelector('.area-card-action.delete')?.addEventListener('click', (e) => {
       e.stopPropagation();
       deleteArea(areaId);
     });
-
   });
 }
 
@@ -2338,7 +2371,7 @@ function toggleSidebar() {
 }
 
 // Add a new task
-function addTask(name, estimatedMinutes = null, goalId = null) {
+function addTask(name, estimatedMinutes = null, goalId = null, opts = {}) {
   if (!name.trim()) return;
 
   const task = {
@@ -2349,7 +2382,9 @@ function addTask(name, estimatedMinutes = null, goalId = null) {
     completed: false,
     createdAt: Date.now(),
     notes: '',
-    goalId: goalId || null
+    goalId: goalId || null,
+    isBlock: !!opts.isBlock,
+    notNow: false
   };
 
   state.tasks.push(task);
@@ -2376,8 +2411,9 @@ function completeTaskById(taskId) {
   // If this was the active task during a Pomo
   const isInSession = state.status === 'running' || state.status === 'paused' || state.status === 'overflow';
   if (state.activeTaskId === taskId && isInSession) {
-    if (state.taskCompletionBehavior === 'endSession' && state.status === 'running') {
-      // End the session
+    if (state.taskCompletionBehavior === 'endSession' && (state.status === 'running' || state.status === 'overflow')) {
+      // End the session (doneTimer requires paused state)
+      pauseTimer();
       doneTimer();
     } else {
       // Move to next task
@@ -2497,7 +2533,105 @@ function editTaskName(taskId, newName) {
 
 // Get the next incomplete task (first in list)
 function getNextIncompleteTask() {
-  return state.tasks.find(t => !t.completed);
+  return state.tasks.find(t => !t.completed && !t.notNow && !t.isBlock);
+}
+
+// Resolve a task's area: a manually linked local area wins,
+// otherwise the Todoist project it came from.
+function getTaskAreaInfo(task) {
+  if (task.goalId) {
+    const area = state.areas.find(a => a.id === task.goalId);
+    if (area) {
+      return { name: area.name, color: AREA_COLORS[area.colorIndex].value };
+    }
+  }
+  if (task.todoistProjectId && state.todoistProjects[task.todoistProjectId]) {
+    const p = state.todoistProjects[task.todoistProjectId];
+    return { name: p.name, color: p.color };
+  }
+  return null;
+}
+
+// Start a session tied to a specific task: it moves to the top and
+// the timebox is its remaining estimate (falls back to the default).
+function startTaskSession(taskId) {
+  // Only from rest — a paused session must be finished or abandoned first
+  if (state.status !== 'idle' && state.status !== 'completed') return;
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task || task.completed || task.isBlock) return;
+
+  // Bring to the top; it becomes the session's task
+  const idx = state.tasks.indexOf(task);
+  state.tasks.splice(idx, 1);
+  state.tasks.unshift(task);
+  task.notNow = false;
+
+  clearInterval(state.intervalId);
+  state.intervalId = null;
+  state.mode = 'work';
+  state.status = 'idle';
+  state.overflowSeconds = 0;
+  state.pausedFromOverflow = false;
+
+  const remainingEst = task.estimatedMinutes
+    ? Math.max(60, task.estimatedMinutes * 60 - task.actualSeconds)
+    : state.workMinutes * 60;
+  state.totalSeconds = remainingEst;
+  state.remainingSeconds = remainingEst;
+
+  saveToStorage();
+  startTimer();
+}
+
+// Open-ended count-up session (no fixed end; Stop credits the time)
+function startFlowSession() {
+  if (state.status !== 'idle' || state.mode !== 'work') return;
+  setActiveTaskForPomo();
+  if (state.currentSound !== 'off') {
+    state.currentSound = 'off';
+    updateSoundUI();
+  }
+  updateSoundControlVisibility();
+  startOverflow();
+}
+
+// Move a random task to the top — beats start-of-day inertia
+function pickRandomTask() {
+  const pool = state.tasks.filter(t => !t.completed && !t.isBlock && !t.notNow);
+  if (pool.length === 0) return;
+  const current = getNextIncompleteTask();
+  let pick = pool[Math.floor(Math.random() * pool.length)];
+  if (pool.length > 1) {
+    while (pick === current) {
+      pick = pool[Math.floor(Math.random() * pool.length)];
+    }
+  }
+  const idx = state.tasks.indexOf(pick);
+  state.tasks.splice(idx, 1);
+  state.tasks.unshift(pick);
+  saveToStorage();
+  renderTasks();
+  updateCurrentTaskDisplay();
+  requestAnimationFrame(() => {
+    const el = elements.taskList.querySelector(`[data-task-id="${pick.id}"]`);
+    if (el) {
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 900);
+    }
+  });
+}
+
+// Shelve for later today / bring back
+function toggleNotNow(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.notNow = !task.notNow;
+  if (state.activeTaskId === taskId && task.notNow) {
+    state.activeTaskId = null;
+  }
+  saveToStorage();
+  renderTasks();
+  updateCurrentTaskDisplay();
 }
 
 // Reorder tasks (for drag and drop)
@@ -2637,29 +2771,15 @@ function renderTasks() {
   updateDailyProgress();
 
   const nextTask = getNextIncompleteTask();
-  let visibleTasks = [...state.tasks];
+  const visibleTasks = [...state.tasks];
 
-  // Filter out completed tasks if setting is off
-  if (!state.showCompletedTasks) {
-    visibleTasks = visibleTasks.filter(t => !t.completed);
-  } else {
-    // Sort completed tasks to bottom
-    visibleTasks.sort((a, b) => {
-      if (a.completed && !b.completed) return 1;
-      if (!a.completed && b.completed) return -1;
-      return 0;
-    });
-  }
-
-  visibleTasks.forEach((task, index) => {
+  const buildRow = (task) => {
     const isNext = task.id === nextTask?.id && !task.completed;
     const isActive = task.id === state.activeTaskId && state.status === 'running';
 
-    // Area left border color
-    const areaBorderColor = task.goalId ? (() => {
-      const area = state.areas.find(a => a.id === task.goalId);
-      return area ? AREA_COLORS[area.colorIndex].value : '';
-    })() : '';
+    // Area accent (dot next to the checkbox): local area or Todoist project
+    const areaInfo = getTaskAreaInfo(task);
+    const areaColor = areaInfo ? areaInfo.color : '';
 
     const taskEl = document.createElement('div');
     taskEl.className = 'task-item';
@@ -2670,9 +2790,10 @@ function renderTasks() {
     if (task.completed) taskEl.classList.add('completed');
     if (isNext) taskEl.classList.add('next-task');
     if (isActive) taskEl.classList.add('active-task');
-    if (areaBorderColor) {
+    if (task.isBlock) taskEl.classList.add('task-item--block');
+    if (task.notNow) taskEl.classList.add('task-item--later');
+    if (areaColor) {
       taskEl.classList.add('has-area');
-      taskEl.style.borderLeftColor = areaBorderColor;
     }
 
     // Time display - always show
@@ -2693,26 +2814,32 @@ function renderTasks() {
     const areaLinkBtn = hasActiveAreas ? '<button class="task-item-action area-link" aria-label="Link to area">⊕</button>' : '';
 
     taskEl.innerHTML = `
+      ${areaColor ? `<span class="task-area-bar" style="background:${areaColor}"></span>` : ''}
       <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
       <div class="task-item-content" data-has-notes="${hasNotes}">
         <div class="task-item-name-row">
-          <div class="task-item-name" contenteditable="false">${escapeHtml(task.name)}</div>
+          <div class="task-item-name" contenteditable="false" title="${escapeHtml(task.name)}">${escapeHtml(task.name)}</div>
           ${task.todoistId ? '<span class="task-todoist-badge" title="Synced from Todoist"><svg viewBox="0 0 256 256" width="12" height="12"><rect width="256" height="256" rx="32" fill="#E44332"/><path fill="#FFF" d="M54.1 120.8c4.5-2.6 100.4-58.3 102.5-59.6 2.2-1.3 2.3-5.2-.2-6.6l-8.8-5.1a8 8 0 0 0-7.9.1L43.2 99.4c-3.3 1.9-7.3 1.9-10.6 0L0 74v21.6l43.1 25.2c3.8 2.2 7.4 2.1 11 0"/><path fill="#FFF" d="M54.1 161.6c4.5-2.6 100.4-58.3 102.5-59.6 2.2-1.3 2.3-5.2-.2-6.6l-8.8-5.1a8 8 0 0 0-7.9.1l-85.9 49.8c-3.3 1.9-7.3 1.9-10.6 0L0 114.8v21.6l43.1 25.2c3.8 2.2 7.4 2.1 11 0"/><path fill="#FFF" d="M54.1 205c4.5-2.6 100.4-58.3 102.5-59.6 2.2-1.3 2.3-5.2-.2-6.6l-8.8-5.1a8 8 0 0 0-7.9.1l-85.9 49.8c-3.3 1.9-7.3 1.9-10.6 0L0 158.2v21.6l43.1 25.2c3.8 2.2 7.4 2.1 11 0"/></svg></span>' : ''}
-          ${hasNotes ? '<span class="task-note-dot" title="Has notes"></span>' : ''}
+          ${hasNotes ? '<button class="task-note-indicator" aria-label="Open notes" title="Open notes"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 3h8l4 4v14H7z"/><line x1="10" y1="12" x2="16" y2="12"/><line x1="10" y1="16" x2="16" y2="16"/></svg></button>' : ''}
         </div>
-        <div class="task-item-time">
-          <span class="task-item-time-actual">${actualTime}</span>
-          <span class="task-item-time-separator">/</span>
-          <select class="task-item-estimate-select" aria-label="Estimated time">
-            <option value="" ${!task.estimatedMinutes ? 'selected' : ''}>Est: -</option>
+        <div class="task-item-meta">
+          ${areaInfo ? `<span class="task-area-label" style="color:${areaColor}" title="${escapeHtml(areaInfo.name)}">${escapeHtml(areaInfo.name)}</span>` : ''}
+          ${task.isBlock ? '' : `<span class="task-item-time-actual">${actualTime}</span>
+          <span class="task-item-time-separator">/</span>`}
+          <select class="task-item-estimate-select" aria-label="${task.isBlock ? 'Block duration' : 'Estimated time'}">
+            <option value="" ${!task.estimatedMinutes ? 'selected' : ''}>–</option>
             ${optionsHtml}
           </select>
         </div>
       </div>
-      <div class="task-item-actions">
-        ${areaLinkBtn}
-        <button class="task-item-action edit" aria-label="Edit task">✎</button>
-        <button class="task-item-action delete" aria-label="Delete task">×</button>
+      <div class="task-item-trailing">
+        <div class="task-item-actions">
+          ${!task.completed && !task.isBlock ? '<button class="task-item-action play" aria-label="Start this task" title="Start this task"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg></button>' : ''}
+          ${!task.completed && !task.isBlock ? `<button class="task-item-action later" aria-label="${task.notNow ? 'Move back to today' : 'Not now'}" title="${task.notNow ? 'Move back to today' : 'Not now'}">${task.notNow ? '↑' : '↓'}</button>` : ''}
+          ${areaLinkBtn}
+          <button class="task-item-action notes" aria-label="${hasNotes ? 'Edit notes' : 'Add a note'}" title="${hasNotes ? 'Edit notes' : 'Add a note'}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 3h8l4 4v14H7z"/><line x1="10" y1="12" x2="16" y2="12"/><line x1="10" y1="16" x2="16" y2="16"/></svg></button>
+          <button class="task-item-action delete" aria-label="Delete task">×</button>
+        </div>
       </div>
     `;
 
@@ -2726,17 +2853,23 @@ function renderTasks() {
       }
     });
 
+    // Click the name to edit it in place
     const nameEl = taskEl.querySelector('.task-item-name');
-    const editBtn = taskEl.querySelector('.task-item-action.edit');
-    editBtn.addEventListener('click', () => {
+    nameEl.addEventListener('click', (e) => {
+      if (task.completed) return;
+      if (nameEl.contentEditable === 'true') return;
+      e.stopPropagation();
       nameEl.contentEditable = 'true';
       nameEl.focus();
-      // Select all text
-      const range = document.createRange();
-      range.selectNodeContents(nameEl);
+      // Place the caret where the user clicked
       const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
+      if (sel && document.caretRangeFromPoint) {
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (range) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
     });
 
     nameEl.addEventListener('blur', () => {
@@ -2761,20 +2894,43 @@ function renderTasks() {
       editTaskEstimate(task.id, newEstimate);
     });
 
-    // Click on task content to open notes (but not when editing name or using select)
-    const contentEl = taskEl.querySelector('.task-item-content');
-    contentEl.addEventListener('click', (e) => {
-      // Don't open notes if clicking on the select dropdown
-      if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
-      // Don't open notes if the name is being edited
-      if (nameEl.contentEditable === 'true') return;
-      openNotesModal(task.id);
-    });
+    // Notes: hover action always available; indicator shows when notes exist
+    const notesBtn = taskEl.querySelector('.task-item-action.notes');
+    if (notesBtn) {
+      notesBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openNotesModal(task.id);
+      });
+    }
+
+    const noteIndicator = taskEl.querySelector('.task-note-indicator');
+    if (noteIndicator) {
+      noteIndicator.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openNotesModal(task.id);
+      });
+    }
 
     const deleteBtn = taskEl.querySelector('.task-item-action.delete');
     deleteBtn.addEventListener('click', () => {
       deleteTask(task.id);
     });
+
+    const playBtn = taskEl.querySelector('.task-item-action.play');
+    if (playBtn) {
+      playBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startTaskSession(task.id);
+      });
+    }
+
+    const laterBtn = taskEl.querySelector('.task-item-action.later');
+    if (laterBtn) {
+      laterBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleNotNow(task.id);
+      });
+    }
 
     // Area link button
     const areaLinkBtnEl = taskEl.querySelector('.task-item-action.area-link');
@@ -2795,7 +2951,38 @@ function renderTasks() {
     }
 
     taskList.appendChild(taskEl);
-  });
+  };
+
+  // Main list, then the Not-Now shelf, then Done
+  const mainRows = visibleTasks.filter(t => !t.completed && !t.notNow);
+  const laterRows = visibleTasks.filter(t => !t.completed && t.notNow);
+  const doneRows = state.showCompletedTasks ? visibleTasks.filter(t => t.completed) : [];
+
+  const buildShelf = (label, rows, collapsedKey) => {
+    const collapsed = state[collapsedKey];
+    const header = document.createElement('button');
+    header.className = 'not-now-header';
+    header.setAttribute('aria-expanded', String(!collapsed));
+    header.innerHTML = `<span class="not-now-chevron">${collapsed ? '▸' : '▾'}</span> ${label} · ${rows.length}`;
+    header.addEventListener('click', () => {
+      state[collapsedKey] = !state[collapsedKey];
+      saveToStorage();
+      renderTasks();
+    });
+    taskList.appendChild(header);
+    if (!collapsed) {
+      rows.forEach(buildRow);
+    }
+  };
+
+  mainRows.forEach(buildRow);
+
+  if (laterRows.length > 0) {
+    buildShelf('Not now', laterRows, 'notNowCollapsed');
+  }
+  if (doneRows.length > 0) {
+    buildShelf('Done', doneRows, 'doneCollapsed');
+  }
 }
 
 // Edit task estimated time
@@ -2851,7 +3038,24 @@ function updateDailyProgress() {
 
   const completedStr = formatDuration(completedMinutes);
   const totalStr = totalEstimatedMinutes > 0 ? formatDuration(totalEstimatedMinutes) : '-';
-  progressText.textContent = `${completedStr} / ${totalStr}`;
+  let text = `${completedStr} / ${totalStr}`;
+
+  // Projected finish: now + remaining estimates of today's open items
+  // (tasks and blocks; the Not-Now shelf doesn't count)
+  const remainingMinutes = state.tasks
+    .filter(t => !t.completed && !t.notNow && t.estimatedMinutes)
+    .reduce((sum, t) => sum + Math.max(0, t.estimatedMinutes - Math.floor(t.actualSeconds / 60)), 0);
+
+  if (remainingMinutes > 0) {
+    const finish = new Date(Date.now() + remainingMinutes * 60000);
+    const finishStr = finish.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).replace(' ', '');
+    text += ` · ~${finishStr}`;
+    progressText.title = `${formatDuration(remainingMinutes)} of estimated work left — done around ${finishStr}`;
+  } else {
+    progressText.title = '';
+  }
+
+  progressText.textContent = text;
 }
 
 // Escape HTML to prevent XSS
@@ -2964,6 +3168,7 @@ function trackTaskTime() {
       // Update task display every minute to show accrued time
       if (task.actualSeconds % 60 === 0) {
         renderTasks();
+        updateCurrentTaskMeta();
       }
     }
   }
@@ -3082,15 +3287,42 @@ function initTaskSidebarListeners() {
   document.getElementById('areasTabBtn').addEventListener('click', () => switchSidebarTab('areas'));
 
   // Add task form - Enter to add (from either input or estimate dropdown)
+  let addBlockMode = false;
+  const blockToggle = document.getElementById('addBlockToggle');
+
   const submitNewTask = () => {
-    const name = elements.addTaskInput.value.trim();
-    const estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
+    let name = elements.addTaskInput.value.trim();
+    let estimate = elements.addTaskEstimate.value ? parseInt(elements.addTaskEstimate.value) : null;
+
+    // Type-to-estimate: a trailing number is minutes ("Write report 20")
+    if (name && !estimate) {
+      const m = name.match(/^(.*\S)\s+(\d{1,3})m?$/);
+      if (m && parseInt(m[2]) > 0) {
+        name = m[1];
+        estimate = Math.min(600, parseInt(m[2]));
+      }
+    }
+
     if (name) {
-      addTask(name, estimate);
+      addTask(name, estimate, null, { isBlock: addBlockMode });
       elements.addTaskInput.value = '';
       elements.addTaskEstimate.value = '';
     }
   };
+
+  if (blockToggle) {
+    blockToggle.addEventListener('click', () => {
+      addBlockMode = !addBlockMode;
+      blockToggle.classList.toggle('active', addBlockMode);
+      elements.addTaskInput.placeholder = addBlockMode ? 'Add a block…' : 'Add a task…';
+      elements.addTaskInput.focus();
+    });
+  }
+
+  const randomBtn = document.getElementById('randomTaskBtn');
+  if (randomBtn) {
+    randomBtn.addEventListener('click', pickRandomTask);
+  }
 
   elements.addTaskInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') submitNewTask();
@@ -3130,6 +3362,7 @@ function initEventListeners() {
   elements.pauseBtn.addEventListener('click', pauseTimer);
   elements.continueBtn.addEventListener('click', continueTimer);
   elements.doneBtn.addEventListener('click', doneTimer);
+  if (elements.flowBtn) elements.flowBtn.addEventListener('click', startFlowSession);
   elements.abandonBtn.addEventListener('click', abandonTimer);
   elements.skipBtn.addEventListener('click', skipTimer);
   elements.currentTaskCheckbox.addEventListener('click', completeCurrentTask);
@@ -3348,6 +3581,35 @@ function initEventListeners() {
 
 const TODOIST_API = 'https://api.todoist.com/api/v1';
 
+// Todoist's named palette → hex
+const TODOIST_COLORS = {
+  berry_red: '#b8255f', red: '#db4035', orange: '#ff9933', yellow: '#fad000',
+  olive_green: '#afb83b', lime_green: '#7ecc49', green: '#299438', mint_green: '#6accbc',
+  teal: '#158fad', sky_blue: '#14aaf5', light_blue: '#96c3eb', blue: '#4073ff',
+  grape: '#884dff', violet: '#af38eb', lavender: '#eb96ea', magenta: '#e05194',
+  salmon: '#ff8d85', charcoal: '#808080', grey: '#b8b8b8', taupe: '#ccac93'
+};
+
+async function todoistFetchProjects() {
+  let all = [];
+  let cursor = null;
+  while (true) {
+    const url = '/projects' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : '');
+    const resp = await todoistFetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const page = Array.isArray(data) ? data : (data.results || data.items || []);
+    all = all.concat(page);
+    cursor = data.next_cursor || null;
+    if (!cursor || page.length === 0) break;
+  }
+  const map = {};
+  for (const p of all) {
+    map[p.id] = { name: p.name, color: TODOIST_COLORS[p.color] || '#b8b8b8' };
+  }
+  return map;
+}
+
 function todoistFetch(endpoint, options = {}) {
   const headers = {
     'Authorization': `Bearer ${state.todoist.apiToken}`,
@@ -3388,6 +3650,18 @@ async function syncWithTodoist() {
   updateTodoistUI();
 
   try {
+    // 0. Refresh the project map — projects act as auto-areas.
+    //    Only overwrite when the fetch actually returns projects, so a
+    //    transient empty/failed response never wipes the existing list.
+    try {
+      const fetched = await todoistFetchProjects();
+      if (fetched && Object.keys(fetched).length > 0) {
+        state.todoistProjects = fetched;
+      }
+    } catch (e) {
+      console.warn('Todoist projects fetch failed (colors may be stale):', e);
+    }
+
     // 1. Fetch tasks from Todoist with pagination
     let allTasks = [];
     let cursor = null;
@@ -3415,10 +3689,13 @@ async function syncWithTodoist() {
       return false;
     });
 
-    // 2. Import new Todoist tasks
+    // 2. Import new Todoist tasks (carrying their project for area color),
+    //    and refresh the project link on tasks imported earlier
     for (const tt of todoistTasks) {
-      const exists = state.tasks.some(t => t.todoistId === tt.id);
-      if (!exists) {
+      const existing = state.tasks.find(t => t.todoistId === tt.id);
+      if (existing) {
+        existing.todoistProjectId = tt.project_id || existing.todoistProjectId || null;
+      } else {
         state.tasks.push({
           id: generateTaskId(),
           name: tt.content,
@@ -3426,7 +3703,8 @@ async function syncWithTodoist() {
           actualSeconds: 0,
           completed: false,
           createdAt: Date.now(),
-          todoistId: tt.id
+          todoistId: tt.id,
+          todoistProjectId: tt.project_id || null
         });
       }
     }

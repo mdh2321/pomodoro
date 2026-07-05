@@ -75,11 +75,8 @@
           <button class="theme-toggle" id="themeToggle" aria-label="Cycle theme">
             <span class="theme-icon theme-icon--light"></span>
             <span class="theme-icon theme-icon--dark"></span>
-            <span class="theme-icon theme-icon--synthwave"></span>
-            <span class="theme-icon theme-icon--lofi"></span>
+            <span class="theme-icon theme-icon--dawn"></span>
             <span class="theme-icon theme-icon--terminal"></span>
-            <span class="theme-icon theme-icon--fireside"></span>
-            <span class="theme-icon theme-icon--todoist"></span>
             <span class="theme-icon theme-icon--oldfashioned"></span>
           </button>
           <span class="theme-label" id="themeLabel"></span>
@@ -103,6 +100,13 @@
           r="90"
           id="progressRing"
         />
+        <circle
+          class="progress-ring__dot"
+          cx="100"
+          cy="100"
+          r="3.5"
+          id="progressDot"
+        />
       </svg>
       <div class="timer-display" id="timerDisplayContainer">
         <div class="timer-time-row">
@@ -116,28 +120,33 @@
 
     <!-- Current Task Display (visible during active sessions) -->
     <div class="current-task-display" id="currentTaskDisplay" hidden>
+      <span class="current-task-area" id="currentTaskArea" hidden></span>
       <button class="current-task-checkbox" id="currentTaskCheckbox" aria-label="Complete task"></button>
       <span class="current-task-text" id="currentTaskText"></span>
+      <span class="current-task-meta" id="currentTaskMeta"></span>
     </div>
 
     <!-- Control Buttons -->
     <div class="controls">
-      <button class="btn btn--primary" id="startBtn" aria-label="Start timer" title="Space">
-        Start
+      <button class="btn btn--primary btn--circle" id="startBtn" aria-label="Start timer" title="Space">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg>
       </button>
-      <button class="btn btn--secondary" id="pauseBtn" aria-label="Pause timer" title="Space" hidden>
-        Pause
+      <button class="btn btn--primary btn--circle" id="pauseBtn" aria-label="Pause timer" title="Space" hidden>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
       </button>
-      <button class="btn btn--primary" id="continueBtn" aria-label="Continue timer" title="Space" hidden>
-        Continue
+      <button class="btn btn--primary btn--circle" id="continueBtn" aria-label="Continue timer" title="Space" hidden>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg>
       </button>
-      <button class="btn btn--secondary" id="doneBtn" aria-label="End session early" title="D" hidden>
+      <button class="btn btn--ghost" id="flowBtn" aria-label="Start open-ended flow session" title="Count up, no fixed end" hidden>
+        Flow
+      </button>
+      <button class="btn btn--ghost" id="doneBtn" aria-label="End session early" title="D" hidden>
         Done
       </button>
-      <button class="btn btn--secondary btn--danger" id="abandonBtn" aria-label="Abandon session" title="Esc" hidden>
+      <button class="btn btn--ghost btn--danger" id="abandonBtn" aria-label="Abandon session" title="Esc" hidden>
         Abandon
       </button>
-      <button class="btn btn--secondary" id="skipBtn" aria-label="Skip to next session" title="S" hidden>
+      <button class="btn btn--ghost" id="skipBtn" aria-label="Skip to next session" title="S" hidden>
         Skip
       </button>
     </div>
@@ -152,23 +161,27 @@
       </div>
       <div class="session-buttons">
         <button class="stats-btn" id="statsBtn" aria-label="View statistics">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <rect x="4" y="14" width="4" height="7" rx="1"/>
-            <rect x="10" y="9" width="4" height="12" rx="1"/>
-            <rect x="16" y="4" width="4" height="17" rx="1"/>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <line x1="5" y1="20" x2="5" y2="14"/>
+            <line x1="12" y1="20" x2="12" y2="9"/>
+            <line x1="19" y1="20" x2="19" y2="4"/>
           </svg>
         </button>
         <button class="settings-btn" id="settingsBtn" aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <line x1="4" y1="6" x2="20" y2="6"/>
-            <line x1="4" y1="12" x2="20" y2="12"/>
-            <line x1="4" y1="18" x2="20" y2="18"/>
-            <circle cx="8" cy="6" r="2" fill="currentColor"/>
-            <circle cx="16" cy="12" r="2" fill="currentColor"/>
-            <circle cx="10" cy="18" r="2" fill="currentColor"/>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <line x1="4" y1="8" x2="20" y2="8"/>
+            <line x1="4" y1="16" x2="20" y2="16"/>
+            <circle cx="9" cy="8" r="2.4" fill="var(--color-background)"/>
+            <circle cx="15" cy="16" r="2.4" fill="var(--color-background)"/>
           </svg>
         </button>
-        <button class="help-btn" id="helpBtn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">?</button>
+        <button class="help-btn" id="helpBtn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M9.2 9.2a2.8 2.8 0 1 1 3.9 2.6c-.8.35-1.1.9-1.1 1.7"/>
+            <line x1="12" y1="16.8" x2="12" y2="16.9"/>
+          </svg>
+        </button>
       </div>
       <div class="shortcuts-popover" id="shortcutsPopover" hidden>
         <div class="shortcuts-title">Keyboard Shortcuts</div>
@@ -185,7 +198,7 @@
   <div class="task-sidebar" id="taskSidebar">
     <!-- Sidebar Tab (visible when closed) -->
     <button class="sidebar-tab" id="sidebarTab" aria-label="Open task list">
-      <span class="sidebar-tab-icon">☰</span>
+      <span class="sidebar-tab-icon">‹</span>
     </button>
 
     <!-- Sidebar Panel -->
@@ -195,7 +208,12 @@
           <button class="sidebar-tab-btn active" data-tab="tasks" id="tasksTabBtn">Tasks</button>
           <button class="sidebar-tab-btn" data-tab="areas" id="areasTabBtn">Areas</button>
         </div>
-        <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">×</button>
+        <div class="sidebar-header-actions">
+          <button class="add-task-mode" id="randomTaskBtn" aria-label="Pick a random task" title="Can't choose? Pick one for me">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+          </button>
+          <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">×</button>
+        </div>
       </div>
 
       <!-- Tasks View -->
@@ -210,11 +228,14 @@
 
         <!-- Add Task Form -->
         <div class="add-task-form">
+          <button class="add-task-mode" id="addBlockToggle" aria-label="Toggle block mode" title="Add a block (meeting, lunch, gym…)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="9" y1="3" x2="9" y2="7"/><line x1="15" y1="3" x2="15" y2="7"/></svg>
+          </button>
           <input
             type="text"
             class="add-task-input"
             id="addTaskInput"
-            placeholder="Add a task..."
+            placeholder="Add a task…"
             maxlength="100"
             aria-label="New task name"
           >
@@ -529,16 +550,18 @@
   <div class="modal-overlay" id="notesOverlay" aria-hidden="true">
     <div class="modal modal--notes" role="dialog" aria-labelledby="notesTitle" aria-modal="true">
       <div class="modal-header">
-        <h2 class="modal-title" id="notesTitle">Notes</h2>
+        <div class="notes-header-text">
+          <div class="notes-kicker">Notes</div>
+          <h2 class="modal-title" id="notesTitle"></h2>
+        </div>
         <button class="modal-close" id="notesCloseBtn" aria-label="Close">×</button>
       </div>
       <div class="modal-content">
-        <div class="notes-task-name" id="notesTaskName"></div>
         <textarea
           class="notes-textarea"
           id="notesTextarea"
-          placeholder="Add details, links, or thoughts about this task..."
-          rows="8"
+          placeholder="Details, links, next steps…"
+          rows="10"
           aria-label="Task notes"
         ></textarea>
         <div class="notes-hint">⌘/Ctrl + Enter to save</div>
