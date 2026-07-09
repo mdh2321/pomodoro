@@ -126,6 +126,9 @@
       <span class="current-task-meta" id="currentTaskMeta"></span>
     </div>
 
+    <!-- Block manifest: member checklist during a block session -->
+    <div class="block-manifest" id="blockManifest" hidden></div>
+
     <!-- Control Buttons -->
     <div class="controls">
       <button class="btn btn--primary btn--circle" id="startBtn" aria-label="Start timer" title="Space">
@@ -256,6 +259,14 @@
             <option value="90">90m</option>
             <option value="120">120m</option>
           </select>
+          <input
+            type="time"
+            class="add-task-time"
+            id="addTaskStartTime"
+            aria-label="Block start time (optional)"
+            title="Pin to a start time (optional)"
+            hidden
+          >
         </div>
 
         <!-- Task List -->

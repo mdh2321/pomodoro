@@ -4557,3 +4557,202 @@ body.focus-mode .timer-container {
 .task-note-indicator:hover {
   color: var(--color-primary);
 }
+
+/* ============================================
+   Derived timeline & blocks with tasks
+   ============================================ */
+
+/* Ghost projected start in the trailing meta — a forecast, not a plan */
+.task-item-eta {
+  color: var(--color-text-muted);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* First upcoming item: ~now in the accent */
+.task-item-eta--now {
+  color: var(--color-primary);
+  opacity: 1;
+}
+
+/* Pinned block: no tilde, one shade brighter */
+.task-item-eta--pinned {
+  color: var(--color-text-secondary);
+  opacity: 1;
+}
+
+/* Conflicted pin — the day already overran it. Quiet red, no badges. */
+.task-item-eta--conflict {
+  color: color-mix(in srgb, #ef4444 70%, var(--color-text-muted));
+  opacity: 1;
+}
+
+/* Block whisper after the name: member count / est sum / live progress */
+.task-block-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: var(--spacing-xs);
+}
+
+/* Members: flat checklist indented under their block, one level ever */
+.task-item--member {
+  padding-left: 34px;
+}
+
+.task-item--member + .task-item::before,
+.task-item--member + .task-item--member::before {
+  left: 60px;
+}
+
+/* No separator between a block and its first member — they're one thing */
+.task-item--block + .task-item--member::before {
+  opacity: 0;
+}
+
+.task-item--member .task-item-checkbox {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+}
+
+.task-item--member .task-item-name {
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+}
+
+.task-item--member.completed .task-item-name {
+  color: var(--color-text-muted);
+}
+
+/* Optional pin time in the add form — appears only in block mode */
+.add-task-time {
+  width: 86px;
+  padding: var(--spacing-sm) 2px;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: 0;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.add-task-time:focus {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-text-secondary);
+}
+
+.add-task-time::-webkit-calendar-picker-indicator {
+  opacity: 0.4;
+}
+
+.add-task-time[hidden] {
+  display: none;
+}
+
+/* In-session manifest: the block's members ride under the timer */
+.block-manifest {
+  width: 300px;
+  max-width: 86vw;
+  margin: 2px auto var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.block-manifest[hidden] {
+  display: none;
+}
+
+.block-manifest-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 4px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  position: relative;
+}
+
+/* Hairline separators between manifest rows */
+.block-manifest-row + .block-manifest-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 28px;
+  right: 4px;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-border) 55%, transparent);
+  pointer-events: none;
+}
+
+.block-manifest-check {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border: 1.5px solid color-mix(in srgb, var(--color-text-muted) 60%, transparent);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: border-color var(--transition-fast), background var(--transition-fast), transform 120ms ease;
+}
+
+.block-manifest-check:hover {
+  border-color: var(--color-primary);
+}
+
+.block-manifest-check:active {
+  transform: scale(0.88);
+}
+
+.block-manifest-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* Done member: filled check, struck-through muted name */
+.block-manifest-row.done {
+  color: var(--color-text-muted);
+}
+
+.block-manifest-row.done .block-manifest-check {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.block-manifest-row.done .block-manifest-check::before {
+  content: '';
+  width: 6px;
+  height: 3px;
+  border-left: 1.5px solid var(--color-background);
+  border-bottom: 1.5px solid var(--color-background);
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.block-manifest-row.done .block-manifest-name {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* Next member up: brighter, accent-bordered check */
+.block-manifest-row.up {
+  color: var(--color-text-primary);
+}
+
+.block-manifest-row.up .block-manifest-check {
+  border-color: var(--color-primary);
+}

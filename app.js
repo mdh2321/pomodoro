@@ -67,8 +67,9 @@ const state = {
   areas: [], // Array of { id, name, colorIndex, completed, totalSeconds, createdAt }
 
   // Tasks system
-  tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt, goalId }
+  tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt, goalId, isBlock, blockId, startTime }
   activeTaskId: null, // ID of task being worked on during Pomo
+  activeBlockId: null, // ID of the block owning the current session (session-transient)
 
   // Task settings
   showCompletedTasks: true, // Show struck-out completed tasks
@@ -298,9 +299,10 @@ function loadFromStorage() {
         state.statsView = data.statsView;
       }
 
-      // Restore tasks
+      // Restore tasks (old saves have no blockId/startTime — undefined is "not set")
       if (data.tasks && Array.isArray(data.tasks)) {
         state.tasks = data.tasks;
+        normalizeBlockOrder();
       }
 
       // Restore task settings
@@ -476,6 +478,7 @@ function startTimer() {
       updateTimerDisplay();
       updateProgressRing();
       updateBrowserTab();
+      updateActiveBlockRow();
     }
   }, 1000);
 }
@@ -633,6 +636,13 @@ function doneTimer() {
   state.overflowSeconds = 0;
   state.pausedFromOverflow = false;
 
+  // Block session over: unfinished members fall back to the main list
+  if (state.activeBlockId) {
+    finalizeBlockSession();
+    saveToStorage();
+    renderTasks();
+  }
+
   // Stop ambient sounds and hide control
   stopAmbientSound();
   updateSoundControlVisibility();
@@ -675,6 +685,13 @@ function abandonTimer() {
   state.overflowSeconds = 0;
   state.pausedFromOverflow = false;
 
+  // Block session over: unfinished members fall back to the main list
+  if (state.activeBlockId) {
+    finalizeBlockSession();
+    saveToStorage();
+    renderTasks();
+  }
+
   // Stop ambient sounds and hide control
   stopAmbientSound();
   updateSoundControlVisibility();
@@ -716,9 +733,17 @@ function completeTimer() {
   showBrowserNotification();
 
   // If flow mode is on and this was a work session, count up instead of stopping
+  // (a block session keeps its manifest through overflow — same extend affordance)
   if (state.timerEndBehavior === 'continue' && state.mode === 'work') {
     startOverflow();
     return;
+  }
+
+  // Block session hit 00:00 and stopped: leftovers fall back to the list
+  if (state.mode === 'work' && state.activeBlockId) {
+    finalizeBlockSession();
+    saveToStorage();
+    renderTasks();
   }
 
   state.status = 'completed';
@@ -750,6 +775,7 @@ function startOverflow() {
     updateTimerDisplay();
     updateProgressRing();
     updateBrowserTab();
+    updateActiveBlockRow();
 
     // Periodic save
     if (state.overflowSeconds % 30 === 0) {
@@ -866,6 +892,12 @@ function updateUI() {
 function updateCurrentTaskMeta() {
   const metaEl = document.getElementById('currentTaskMeta');
   if (!metaEl || !state.activeTaskId) return;
+  if (state.activeBlockId) {
+    // Block session meta is "N of M" — owned by updateCurrentTaskDisplay
+    const members = getBlockMembers(state.activeBlockId);
+    metaEl.textContent = `${members.filter(m => m.completed).length} of ${members.length}`;
+    return;
+  }
   const task = state.tasks.find(t => t.id === state.activeTaskId);
   if (!task) return;
   const actual = task.actualSeconds > 0 ? formatTimeSpent(task.actualSeconds) : '0m';
@@ -877,6 +909,35 @@ function updateCurrentTaskMeta() {
 function updateCurrentTaskDisplay() {
   const isActiveWorkSession = state.mode === 'work' &&
     (state.status === 'running' || state.status === 'paused' || state.status === 'overflow');
+
+  // Block session: the block is the subject; members ride below as a manifest
+  if (isActiveWorkSession && state.activeBlockId) {
+    const block = state.tasks.find(t => t.id === state.activeBlockId);
+    if (block) {
+      elements.currentTaskText.textContent = block.name;
+      elements.currentTaskDisplay.hidden = false;
+
+      const members = getBlockMembers(block.id);
+      const done = members.filter(m => m.completed).length;
+      const metaEl = document.getElementById('currentTaskMeta');
+      if (metaEl) metaEl.textContent = `${done} of ${members.length}`;
+
+      const areaEl = document.getElementById('currentTaskArea');
+      if (areaEl) {
+        const info = getTaskAreaInfo(block);
+        areaEl.hidden = !info;
+        if (info) {
+          areaEl.textContent = info.name;
+          areaEl.style.color = info.color;
+        }
+      }
+
+      renderBlockManifest();
+      return;
+    }
+  }
+
+  renderBlockManifest(); // hides the manifest outside a block session
   const nextTask = getNextIncompleteTask();
 
   if (isActiveWorkSession && nextTask) {
@@ -2384,6 +2445,8 @@ function addTask(name, estimatedMinutes = null, goalId = null, opts = {}) {
     notes: '',
     goalId: goalId || null,
     isBlock: !!opts.isBlock,
+    // Pinned wall-clock start ("HH:MM") — blocks only, always optional
+    startTime: (opts.isBlock && opts.startTime) ? opts.startTime : undefined,
     notNow: false
   };
 
@@ -2410,7 +2473,22 @@ function completeTaskById(taskId) {
 
   // If this was the active task during a Pomo
   const isInSession = state.status === 'running' || state.status === 'paused' || state.status === 'overflow';
-  if (state.activeTaskId === taskId && isInSession) {
+
+  if (task.isBlock) {
+    // Completing a block manually drops its unfinished members back to the list
+    state.tasks.forEach(t => {
+      if (t.blockId === task.id && !t.completed) t.blockId = undefined;
+    });
+    if (state.activeBlockId === task.id) {
+      state.activeBlockId = null;
+      if (isInSession && (state.status === 'running' || state.status === 'overflow')) {
+        // End the session with credit for time worked so far
+        pauseTimer();
+        doneTimer();
+      }
+    }
+    normalizeBlockOrder();
+  } else if (state.activeTaskId === taskId && isInSession) {
     if (state.taskCompletionBehavior === 'endSession' && (state.status === 'running' || state.status === 'overflow')) {
       // End the session (doneTimer requires paused state)
       pauseTimer();
@@ -2465,8 +2543,15 @@ function deleteTask(taskId) {
   };
 
   state.tasks = state.tasks.filter(t => t.id !== taskId);
+  // Deleting a block frees its members back to the main list
+  state.tasks.forEach(t => {
+    if (t.blockId === taskId) t.blockId = undefined;
+  });
   if (state.activeTaskId === taskId) {
     state.activeTaskId = null;
+  }
+  if (state.activeBlockId === taskId) {
+    state.activeBlockId = null;
   }
   saveToStorage();
   renderTasks();
@@ -2533,7 +2618,7 @@ function editTaskName(taskId, newName) {
 
 // Get the next incomplete task (first in list)
 function getNextIncompleteTask() {
-  return state.tasks.find(t => !t.completed && !t.notNow && !t.isBlock);
+  return state.tasks.find(t => !t.completed && !t.notNow && !t.isBlock && !t.blockId);
 }
 
 // Resolve a task's area: a manually linked local area wins,
@@ -2597,7 +2682,7 @@ function startFlowSession() {
 
 // Move a random task to the top — beats start-of-day inertia
 function pickRandomTask() {
-  const pool = state.tasks.filter(t => !t.completed && !t.isBlock && !t.notNow);
+  const pool = state.tasks.filter(t => !t.completed && !t.isBlock && !t.notNow && !t.blockId);
   if (pool.length === 0) return;
   const current = getNextIncompleteTask();
   let pick = pool[Math.floor(Math.random() * pool.length)];
@@ -2661,7 +2746,9 @@ function clearTasksForNewDay() {
     // For incomplete tasks, keep them if setting is on or they're linked to an area
     return state.keepIncompleteTasks || t.goalId;
   });
-  // Incomplete tasks rolling over retain their accrued time
+  // Incomplete tasks rolling over retain their accrued time.
+  // Drop any membership whose block didn't survive the rollover.
+  normalizeBlockOrder();
   saveToStorage();
   renderTasks();
 }
@@ -2762,6 +2849,229 @@ function formatTimeSpent(seconds) {
   return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
 
+// ============================================
+// Blocks & derived timeline
+// ============================================
+
+// Remaining minutes of open work on a task/block (shared by the daily
+// projection and the derived-timeline schedule). No estimate → contributes 0.
+function taskRemainingMinutes(task) {
+  if (!task.estimatedMinutes) return 0;
+  return Math.max(0, task.estimatedMinutes - Math.floor(task.actualSeconds / 60));
+}
+
+// Members of a block, in list order
+function getBlockMembers(blockId) {
+  return state.tasks.filter(t => t.blockId === blockId);
+}
+
+// Parse an "HH:MM" pin into a wall-clock Date for today
+function parseTimeToday(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  const d = new Date();
+  d.setHours(h || 0, m || 0, 0, 0);
+  return d;
+}
+
+// Compact clock like the projected finish, but without am/pm (a forecast glyph)
+function formatClock(date) {
+  return date
+    .toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+    .replace(/\s*[ap]\.?m\.?/i, '')
+    .trim();
+}
+
+// Live countdown shown on the active block's sidebar row
+function blockCountdownText() {
+  const isOverflow = state.status === 'overflow' ||
+    (state.status === 'paused' && state.pausedFromOverflow);
+  if (isOverflow) {
+    const s = state.overflowSeconds;
+    return `+${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }
+  const s = state.remainingSeconds;
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')} left`;
+}
+
+// Pure function: walk the list top-to-bottom and derive a projected start
+// time for every open, schedulable row. Returns a map keyed by task id.
+// Members (blockId set) and completed/not-now rows are skipped.
+function computeSchedule() {
+  const result = {};
+  let cursor = Date.now();
+
+  // If a work session is running, the cursor starts at its projected end.
+  const inWorkSession = state.mode === 'work' &&
+    (state.status === 'running' || state.status === 'paused' || state.status === 'overflow');
+  if (state.mode === 'work' && state.status === 'running') {
+    cursor = Date.now() + state.remainingSeconds * 1000;
+  }
+
+  let firstAssigned = false;
+  for (const task of state.tasks) {
+    if (task.completed || task.notNow || task.blockId) continue;
+
+    // The active row (task or block) is being worked now — it shows a live
+    // meta, not a ghost time, and its remaining time is already in the cursor.
+    if (inWorkSession && task.id === state.activeTaskId) {
+      firstAssigned = true;
+      continue;
+    }
+
+    // A pinned block clamps the cursor forward to its wall-clock time.
+    if (task.isBlock && task.startTime) {
+      const pinned = parseTimeToday(task.startTime);
+      let conflicted = false;
+      if (pinned.getTime() < cursor - 1000) {
+        conflicted = true; // the day already overran this pin
+      } else {
+        cursor = pinned.getTime();
+      }
+      result[task.id] = { time: new Date(pinned), pinned: true, conflicted, now: false };
+      cursor += taskRemainingMinutes(task) * 60000;
+      firstAssigned = true;
+      continue;
+    }
+
+    // Regular open item with an estimate (blocks without a pin included)
+    if (!task.estimatedMinutes) continue;
+    result[task.id] = { time: new Date(cursor), pinned: false, conflicted: false, now: !firstAssigned };
+    cursor += taskRemainingMinutes(task) * 60000;
+    firstAssigned = true;
+  }
+  return result;
+}
+
+// Keep members immediately adjacent to their block in the array, and drop
+// any dangling blockId (block gone / not a block / self-reference).
+function normalizeBlockOrder() {
+  const byId = new Map(state.tasks.map(t => [t.id, t]));
+  state.tasks.forEach(t => {
+    if (t.blockId) {
+      const b = byId.get(t.blockId);
+      if (!b || !b.isBlock || t.isBlock || t.blockId === t.id) t.blockId = undefined;
+    }
+  });
+
+  const result = [];
+  const placed = new Set();
+  for (const t of state.tasks) {
+    if (placed.has(t.id) || t.blockId) continue;
+    result.push(t);
+    placed.add(t.id);
+    if (t.isBlock) {
+      for (const m of state.tasks) {
+        if (m.blockId === t.id && !placed.has(m.id)) {
+          result.push(m);
+          placed.add(m.id);
+        }
+      }
+    }
+  }
+  // Safety net for anything left behind
+  for (const t of state.tasks) {
+    if (!placed.has(t.id)) { result.push(t); placed.add(t.id); }
+  }
+  state.tasks = result;
+}
+
+// End a block session: unfinished members drop back to the main list.
+function finalizeBlockSession() {
+  if (!state.activeBlockId) return;
+  const blockId = state.activeBlockId;
+  state.tasks.forEach(t => {
+    if (t.blockId === blockId && !t.completed) t.blockId = undefined;
+  });
+  state.activeBlockId = null;
+  normalizeBlockOrder();
+}
+
+// Start a session owned by a block: the timebox is the block's remaining
+// duration; members ride along as a checklist. Empty blocks are not startable.
+function startBlockSession(blockId) {
+  if (state.status !== 'idle' && state.status !== 'completed') return;
+  const block = state.tasks.find(t => t.id === blockId);
+  if (!block || !block.isBlock || block.completed) return;
+  if (getBlockMembers(blockId).length === 0) return;
+
+  clearInterval(state.intervalId);
+  state.intervalId = null;
+  state.mode = 'work';
+  state.status = 'idle';
+  state.overflowSeconds = 0;
+  state.pausedFromOverflow = false;
+
+  const rem = block.estimatedMinutes
+    ? Math.max(60, block.estimatedMinutes * 60 - block.actualSeconds)
+    : state.workMinutes * 60;
+  state.totalSeconds = rem;
+  state.remainingSeconds = rem;
+
+  state.activeBlockId = blockId;
+  state.activeTaskId = blockId;
+
+  saveToStorage();
+  startTimer();
+}
+
+// Render the member checklist beneath the timer during a block session
+function renderBlockManifest() {
+  const container = document.getElementById('blockManifest');
+  if (!container) return;
+
+  const inBlockSession = state.activeBlockId && state.mode === 'work' &&
+    (state.status === 'running' || state.status === 'paused' || state.status === 'overflow');
+  const members = inBlockSession ? getBlockMembers(state.activeBlockId) : [];
+
+  if (!inBlockSession || members.length === 0) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+
+  container.hidden = false;
+  container.innerHTML = '';
+  let firstOpen = true;
+  members.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'block-manifest-row';
+    if (m.completed) {
+      row.classList.add('done');
+    } else if (firstOpen) {
+      row.classList.add('up');
+      firstOpen = false;
+    }
+
+    const check = document.createElement('button');
+    check.className = 'block-manifest-check';
+    check.setAttribute('aria-label', m.completed ? 'Uncomplete task' : 'Complete task');
+
+    const name = document.createElement('span');
+    name.className = 'block-manifest-name';
+    name.textContent = m.name;
+
+    row.appendChild(check);
+    row.appendChild(name);
+
+    // Ticking a member never touches the timer — it is not the active task.
+    check.addEventListener('click', () => {
+      if (m.completed) uncompleteTaskById(m.id);
+      else completeTaskById(m.id);
+    });
+
+    container.appendChild(row);
+  });
+}
+
+// Refresh just the active block's sidebar row meta (live countdown) each tick
+function updateActiveBlockRow() {
+  if (!state.activeBlockId || !elements.taskList) return;
+  const row = elements.taskList.querySelector(`.task-item[data-task-id="${state.activeBlockId}"]`);
+  if (!row) return;
+  const eta = row.querySelector('.task-item-eta');
+  if (eta) eta.textContent = blockCountdownText();
+}
+
 // Render tasks in the sidebar
 function renderTasks() {
   const taskList = elements.taskList;
@@ -2770,12 +3080,23 @@ function renderTasks() {
   // Update progress bar
   updateDailyProgress();
 
+  // Derived timeline: projected start time for every open row
+  const schedule = computeSchedule();
+
   const nextTask = getNextIncompleteTask();
   const visibleTasks = [...state.tasks];
 
+  const inBlockSession = state.activeBlockId && state.mode === 'work' &&
+    (state.status === 'running' || state.status === 'paused' || state.status === 'overflow');
+
   const buildRow = (task) => {
-    const isNext = task.id === nextTask?.id && !task.completed;
-    const isActive = task.id === state.activeTaskId && state.status === 'running';
+    const isNext = task.id === nextTask?.id && !task.completed && !inBlockSession;
+    const isActive = task.id === state.activeTaskId &&
+      (state.status === 'running' || state.status === 'overflow' ||
+       (state.status === 'paused' && state.activeBlockId === task.id));
+    const isMember = !!task.blockId;
+    const isActiveBlock = task.isBlock && task.id === state.activeBlockId;
+    const members = task.isBlock ? getBlockMembers(task.id) : [];
 
     // Area accent (dot next to the checkbox): local area or Todoist project
     const areaInfo = getTaskAreaInfo(task);
@@ -2791,9 +3112,44 @@ function renderTasks() {
     if (isNext) taskEl.classList.add('next-task');
     if (isActive) taskEl.classList.add('active-task');
     if (task.isBlock) taskEl.classList.add('task-item--block');
+    if (isMember) taskEl.classList.add('task-item--member');
     if (task.notNow) taskEl.classList.add('task-item--later');
     if (areaColor) {
       taskEl.classList.add('has-area');
+    }
+
+    // Derived-timeline ghost / pinned / live meta for this row's leading meta
+    let etaHtml = '';
+    if (isActiveBlock) {
+      etaHtml = `<span class="task-item-eta task-item-eta--now">${blockCountdownText()}</span>
+        <span class="task-item-time-separator">·</span>`;
+    } else if (!task.completed && !task.notNow && schedule[task.id]) {
+      const s = schedule[task.id];
+      const cls = s.conflicted ? 'task-item-eta--conflict'
+        : s.pinned ? 'task-item-eta--pinned'
+        : s.now ? 'task-item-eta--now' : '';
+      const label = (s.now && !s.pinned) ? '~now'
+        : `${s.pinned ? '' : '~'}${formatClock(s.time)}`;
+      etaHtml = `<span class="task-item-eta ${cls}">${label}</span>
+        <span class="task-item-time-separator">·</span>`;
+    }
+
+    // Block whisper: member count, and an "est ~Xm" flag when members carry
+    // estimates (they never feed the projection — the block's duration does).
+    let blockCountHtml = '';
+    if (task.isBlock && members.length > 0) {
+      if (isActiveBlock) {
+        const done = members.filter(m => m.completed).length;
+        blockCountHtml = `<span class="task-block-count">${done} of ${members.length}</span>`;
+      } else {
+        // Whisper: member estimates never feed the projection, but their sum
+        // makes an overcommitted block visible at a glance.
+        const estSum = members
+          .filter(m => !m.completed)
+          .reduce((sum, m) => sum + (m.estimatedMinutes || 0), 0);
+        const estStr = estSum > 0 ? ` · est ~${estSum}m` : '';
+        blockCountHtml = `<span class="task-block-count">${members.length} task${members.length === 1 ? '' : 's'}${estStr}</span>`;
+      }
     }
 
     // Time display - always show
@@ -2819,12 +3175,14 @@ function renderTasks() {
       <div class="task-item-content" data-has-notes="${hasNotes}">
         <div class="task-item-name-row">
           <div class="task-item-name" contenteditable="false" title="${escapeHtml(task.name)}">${escapeHtml(task.name)}</div>
+          ${blockCountHtml}
           ${task.todoistId ? '<span class="task-todoist-badge" title="Synced from Todoist"><svg viewBox="0 0 256 256" width="12" height="12"><rect width="256" height="256" rx="32" fill="#E44332"/><path fill="#FFF" d="M54.1 120.8c4.5-2.6 100.4-58.3 102.5-59.6 2.2-1.3 2.3-5.2-.2-6.6l-8.8-5.1a8 8 0 0 0-7.9.1L43.2 99.4c-3.3 1.9-7.3 1.9-10.6 0L0 74v21.6l43.1 25.2c3.8 2.2 7.4 2.1 11 0"/><path fill="#FFF" d="M54.1 161.6c4.5-2.6 100.4-58.3 102.5-59.6 2.2-1.3 2.3-5.2-.2-6.6l-8.8-5.1a8 8 0 0 0-7.9.1l-85.9 49.8c-3.3 1.9-7.3 1.9-10.6 0L0 114.8v21.6l43.1 25.2c3.8 2.2 7.4 2.1 11 0"/><path fill="#FFF" d="M54.1 205c4.5-2.6 100.4-58.3 102.5-59.6 2.2-1.3 2.3-5.2-.2-6.6l-8.8-5.1a8 8 0 0 0-7.9.1l-85.9 49.8c-3.3 1.9-7.3 1.9-10.6 0L0 158.2v21.6l43.1 25.2c3.8 2.2 7.4 2.1 11 0"/></svg></span>' : ''}
           ${hasNotes ? '<button class="task-note-indicator" aria-label="Open notes" title="Open notes"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 3h8l4 4v14H7z"/><line x1="10" y1="12" x2="16" y2="12"/><line x1="10" y1="16" x2="16" y2="16"/></svg></button>' : ''}
         </div>
         <div class="task-item-meta">
+          ${etaHtml}
           ${areaInfo ? `<span class="task-area-label" style="color:${areaColor}" title="${escapeHtml(areaInfo.name)}">${escapeHtml(areaInfo.name)}</span>` : ''}
-          ${task.isBlock ? '' : `<span class="task-item-time-actual">${actualTime}</span>
+          ${(task.isBlock || isMember) ? '' : `<span class="task-item-time-actual">${actualTime}</span>
           <span class="task-item-time-separator">/</span>`}
           <select class="task-item-estimate-select" aria-label="${task.isBlock ? 'Block duration' : 'Estimated time'}">
             <option value="" ${!task.estimatedMinutes ? 'selected' : ''}>–</option>
@@ -2834,8 +3192,9 @@ function renderTasks() {
       </div>
       <div class="task-item-trailing">
         <div class="task-item-actions">
-          ${!task.completed && !task.isBlock ? '<button class="task-item-action play" aria-label="Start this task" title="Start this task"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg></button>' : ''}
-          ${!task.completed && !task.isBlock ? `<button class="task-item-action later" aria-label="${task.notNow ? 'Move back to today' : 'Not now'}" title="${task.notNow ? 'Move back to today' : 'Not now'}">${task.notNow ? '↑' : '↓'}</button>` : ''}
+          ${!task.completed && task.isBlock && members.length > 0 ? '<button class="task-item-action play" aria-label="Start this block" title="Start this block"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg></button>' : ''}
+          ${!task.completed && !task.isBlock && !isMember ? '<button class="task-item-action play" aria-label="Start this task" title="Start this task"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg></button>' : ''}
+          ${!task.completed && !task.isBlock && !isMember ? `<button class="task-item-action later" aria-label="${task.notNow ? 'Move back to today' : 'Not now'}" title="${task.notNow ? 'Move back to today' : 'Not now'}">${task.notNow ? '↑' : '↓'}</button>` : ''}
           ${areaLinkBtn}
           <button class="task-item-action notes" aria-label="${hasNotes ? 'Edit notes' : 'Add a note'}" title="${hasNotes ? 'Edit notes' : 'Add a note'}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 3h8l4 4v14H7z"/><line x1="10" y1="12" x2="16" y2="12"/><line x1="10" y1="16" x2="16" y2="16"/></svg></button>
           <button class="task-item-action delete" aria-label="Delete task">×</button>
@@ -2920,7 +3279,8 @@ function renderTasks() {
     if (playBtn) {
       playBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        startTaskSession(task.id);
+        if (task.isBlock) startBlockSession(task.id);
+        else startTaskSession(task.id);
       });
     }
 
@@ -2953,10 +3313,19 @@ function renderTasks() {
     taskList.appendChild(taskEl);
   };
 
-  // Main list, then the Not-Now shelf, then Done
-  const mainRows = visibleTasks.filter(t => !t.completed && !t.notNow);
-  const laterRows = visibleTasks.filter(t => !t.completed && t.notNow);
-  const doneRows = state.showCompletedTasks ? visibleTasks.filter(t => t.completed) : [];
+  // Main list, then the Not-Now shelf, then Done.
+  // Members follow their block: completed members stay struck-through under
+  // it (progress markers, per the mockup) instead of jumping to the Done shelf.
+  const mainBlockIds = new Set(
+    visibleTasks.filter(t => t.isBlock && !t.completed && !t.notNow).map(t => t.id)
+  );
+  const mainRows = visibleTasks.filter(t =>
+    t.blockId ? mainBlockIds.has(t.blockId) : (!t.completed && !t.notNow)
+  );
+  const laterRows = visibleTasks.filter(t => !t.completed && t.notNow && !t.blockId);
+  const doneRows = state.showCompletedTasks
+    ? visibleTasks.filter(t => t.completed && !(t.blockId && mainBlockIds.has(t.blockId)))
+    : [];
 
   const buildShelf = (label, rows, collapsedKey) => {
     const collapsed = state[collapsedKey];
@@ -3001,12 +3370,13 @@ function updateDailyProgress() {
   const progressText = document.getElementById('dailyProgressText');
   if (!progressBar || !progressText) return;
 
-  const incompleteTasks = state.tasks.filter(t => !t.completed);
-  const completedTasks = state.tasks.filter(t => t.completed);
+  // Members never count on their own — the owning block's duration is the
+  // truth — so they're excluded from every part of the projection.
+  const completedTasks = state.tasks.filter(t => t.completed && !t.blockId);
 
   // Total estimated for all tasks with estimates
   const totalEstimatedMinutes = state.tasks
-    .filter(t => t.estimatedMinutes)
+    .filter(t => t.estimatedMinutes && !t.blockId)
     .reduce((sum, t) => sum + t.estimatedMinutes, 0);
 
   // Completed time: use estimated time for completed tasks (completing = full credit)
@@ -3043,8 +3413,8 @@ function updateDailyProgress() {
   // Projected finish: now + remaining estimates of today's open items
   // (tasks and blocks; the Not-Now shelf doesn't count)
   const remainingMinutes = state.tasks
-    .filter(t => !t.completed && !t.notNow && t.estimatedMinutes)
-    .reduce((sum, t) => sum + Math.max(0, t.estimatedMinutes - Math.floor(t.actualSeconds / 60)), 0);
+    .filter(t => !t.completed && !t.notNow && t.estimatedMinutes && !t.blockId)
+    .reduce((sum, t) => sum + taskRemainingMinutes(t), 0);
 
   if (remainingMinutes > 0) {
     const finish = new Date(Date.now() + remainingMinutes * 60000);
@@ -3119,21 +3489,66 @@ function handleDrop(e) {
   e.preventDefault();
   e.stopPropagation();
 
+  const clearDragOver = () =>
+    document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
+
   const targetItem = e.target.closest('.task-item');
-  if (!targetItem || !draggedTaskId) return;
+  if (!targetItem || !draggedTaskId) { clearDragOver(); return; }
 
   const targetTaskId = targetItem.dataset.taskId;
-  if (draggedTaskId === targetTaskId) return;
+  if (draggedTaskId === targetTaskId) { clearDragOver(); return; }
+  if (state.status === 'running') { clearDragOver(); return; }
 
-  // Find indices in the actual state.tasks array
-  const fromIndex = state.tasks.findIndex(t => t.id === draggedTaskId);
-  const toIndex = state.tasks.findIndex(t => t.id === targetTaskId);
+  const dragged = state.tasks.find(t => t.id === draggedTaskId);
+  const target = state.tasks.find(t => t.id === targetTaskId);
+  if (!dragged || !target) { clearDragOver(); return; }
 
-  if (fromIndex !== -1 && toIndex !== -1) {
-    reorderTasks(fromIndex, toIndex);
+  const commit = () => {
+    normalizeBlockOrder();
+    // Resync the active task to the new top item when a session is paused
+    const nextTask = getNextIncompleteTask();
+    if (nextTask && state.mode === 'work' &&
+        (state.status === 'paused' || state.status === 'overflow') && !state.activeBlockId) {
+      state.activeTaskId = nextTask.id;
+    }
+    saveToStorage();
+    renderTasks();
+    updateCurrentTaskDisplay();
+    clearDragOver();
+  };
+
+  // Nest: drop an ordinary task onto a block → it becomes a member
+  if (target.isBlock && !dragged.isBlock) {
+    dragged.blockId = target.id;
+    dragged.notNow = false;
+    commit();
+    return;
   }
 
-  document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
+  // Re-nest: drop an ordinary task onto another block's member
+  if (target.blockId && !dragged.isBlock && target.blockId !== dragged.id) {
+    dragged.blockId = target.blockId;
+    dragged.notNow = false;
+    // sit right after the target member
+    const fromIndex = state.tasks.indexOf(dragged);
+    state.tasks.splice(fromIndex, 1);
+    const toIndex = state.tasks.indexOf(target);
+    state.tasks.splice(toIndex + 1, 0, dragged);
+    commit();
+    return;
+  }
+
+  // Unnest: a member dropped onto a plain (non-block, non-member) row leaves its block
+  if (dragged.blockId && !target.isBlock && !target.blockId) {
+    dragged.blockId = undefined;
+  }
+
+  // Default: reorder to the target's position
+  const fromIndex = state.tasks.indexOf(dragged);
+  state.tasks.splice(fromIndex, 1);
+  const toIndex = state.tasks.indexOf(target);
+  state.tasks.splice(toIndex, 0, dragged);
+  commit();
 }
 
 // Play completion ding sound
@@ -3176,6 +3591,11 @@ function trackTaskTime() {
 
 // Set active task when Pomo starts
 function setActiveTaskForPomo() {
+  // A block session pins the active id to the block — don't reassign to a task
+  if (state.activeBlockId) {
+    renderTasks();
+    return;
+  }
   if (state.mode === 'work') {
     const nextTask = getNextIncompleteTask();
     if (nextTask) {
@@ -3289,6 +3709,7 @@ function initTaskSidebarListeners() {
   // Add task form - Enter to add (from either input or estimate dropdown)
   let addBlockMode = false;
   const blockToggle = document.getElementById('addBlockToggle');
+  const startTimeInput = document.getElementById('addTaskStartTime');
 
   const submitNewTask = () => {
     let name = elements.addTaskInput.value.trim();
@@ -3304,9 +3725,13 @@ function initTaskSidebarListeners() {
     }
 
     if (name) {
-      addTask(name, estimate, null, { isBlock: addBlockMode });
+      const startTime = (addBlockMode && startTimeInput && startTimeInput.value)
+        ? startTimeInput.value
+        : undefined;
+      addTask(name, estimate, null, { isBlock: addBlockMode, startTime });
       elements.addTaskInput.value = '';
       elements.addTaskEstimate.value = '';
+      if (startTimeInput) startTimeInput.value = '';
     }
   };
 
@@ -3315,7 +3740,18 @@ function initTaskSidebarListeners() {
       addBlockMode = !addBlockMode;
       blockToggle.classList.toggle('active', addBlockMode);
       elements.addTaskInput.placeholder = addBlockMode ? 'Add a block…' : 'Add a task…';
+      // Blocks (and only blocks) may pin a wall-clock start time
+      if (startTimeInput) {
+        startTimeInput.hidden = !addBlockMode;
+        if (!addBlockMode) startTimeInput.value = '';
+      }
       elements.addTaskInput.focus();
+    });
+  }
+
+  if (startTimeInput) {
+    startTimeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitNewTask();
     });
   }
 
@@ -3340,6 +3776,16 @@ function initTaskSidebarListeners() {
 
   // Initial render
   renderTasks();
+
+  // Minute tick: the derived timeline and projected finish are wall-clock
+  // forecasts, so refresh them even when nothing else changes. Skips while
+  // the user is mid-edit or mid-drag (a re-render would eat their focus).
+  setInterval(() => {
+    if (draggedTaskId) return;
+    const active = document.activeElement;
+    if (active && elements.taskList.contains(active)) return;
+    renderTasks();
+  }, 60000);
 }
 
 // ============================================

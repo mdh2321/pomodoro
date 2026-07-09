@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pomo-v10';
+const CACHE_NAME = 'pomo-v11';
 const SHELL = [
   '/',
   '/app.js',
