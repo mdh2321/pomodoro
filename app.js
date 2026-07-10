@@ -2933,13 +2933,17 @@ function computeSchedule() {
       continue;
     }
 
-    // Regular open item with an estimate (blocks without a pin included)
+    // Regular open item with an estimate (blocks without a pin included).
+    // "~now" only applies when nothing is running — during a session the
+    // first upcoming item starts when the session ends, not now.
     if (!task.estimatedMinutes) continue;
-    result[task.id] = { time: new Date(cursor), pinned: false, conflicted: false, now: !firstAssigned };
+    result[task.id] = { time: new Date(cursor), pinned: false, conflicted: false, now: !firstAssigned && !inWorkSession };
     cursor += taskRemainingMinutes(task) * 60000;
     firstAssigned = true;
   }
-  return result;
+  // `end` is where the day lands after everything scheduled — pins push it
+  // out, so it can be later than a plain sum of estimates.
+  return { entries: result, end: cursor };
 }
 
 // Keep members immediately adjacent to their block in the array, and drop
