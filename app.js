@@ -2893,9 +2893,10 @@ function blockCountdownText() {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')} left`;
 }
 
-// Pure function: walk the list top-to-bottom and derive a projected start
-// time for every open, schedulable row. Returns a map keyed by task id.
-// Members (blockId set) and completed/not-now rows are skipped.
+// Pure function: walk the list top-to-bottom and derive a projected
+// completion time for every open, schedulable row. Returns { entries, end }
+// where entries is keyed by task id. Members (blockId set) and
+// completed/not-now rows are skipped.
 function computeSchedule() {
   const result = {};
   let cursor = Date.now();
@@ -2927,18 +2928,18 @@ function computeSchedule() {
       } else {
         cursor = pinned.getTime();
       }
-      result[task.id] = { time: new Date(pinned), pinned: true, conflicted, now: false };
       cursor += taskRemainingMinutes(task) * 60000;
+      result[task.id] = { time: new Date(cursor), pinned: true, conflicted, now: false };
       firstAssigned = true;
       continue;
     }
 
     // Regular open item with an estimate (blocks without a pin included).
-    // "~now" only applies when nothing is running — during a session the
+    // "now" only applies when nothing is running — during a session the
     // first upcoming item starts when the session ends, not now.
     if (!task.estimatedMinutes) continue;
-    result[task.id] = { time: new Date(cursor), pinned: false, conflicted: false, now: !firstAssigned && !inWorkSession };
     cursor += taskRemainingMinutes(task) * 60000;
+    result[task.id] = { time: new Date(cursor), pinned: false, conflicted: false, now: !firstAssigned && !inWorkSession };
     firstAssigned = true;
   }
   // `end` is where the day lands after everything scheduled — pins push it
@@ -3127,13 +3128,12 @@ function renderTasks() {
     if (isActiveBlock) {
       etaHtml = `<span class="task-item-eta task-item-eta--now">${blockCountdownText()}</span>
         <span class="task-item-time-separator">·</span>`;
-    } else if (!task.completed && !task.notNow && schedule[task.id]) {
-      const s = schedule[task.id];
+    } else if (!task.completed && !task.notNow && schedule.entries[task.id]) {
+      const s = schedule.entries[task.id];
       const cls = s.conflicted ? 'task-item-eta--conflict'
         : s.pinned ? 'task-item-eta--pinned'
         : s.now ? 'task-item-eta--now' : '';
-      const label = (s.now && !s.pinned) ? '~now'
-        : `${s.pinned ? '' : '~'}${formatClock(s.time)}`;
+      const label = `done ${s.pinned ? '' : '~'}${formatClock(s.time)}`;
       etaHtml = `<span class="task-item-eta ${cls}">${label}</span>
         <span class="task-item-time-separator">·</span>`;
     }
@@ -3366,6 +3366,7 @@ function editTaskEstimate(taskId, estimatedMinutes) {
   task.estimatedMinutes = estimatedMinutes;
   saveToStorage();
   updateDailyProgress();
+  renderTasks();
 }
 
 // Calculate and update daily progress bar
