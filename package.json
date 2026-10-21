@@ -4,7 +4,8 @@
   "description": "Pomo - A minimal, distraction-free pomodoro timer for deep work",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test tests/*.test.cjs"
   },
   "dependencies": {
     "express": "^4.21.0"

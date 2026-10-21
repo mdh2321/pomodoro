@@ -69,6 +69,7 @@ const state = {
   // Tasks system
   tasks: [], // Array of { id, name, estimatedMinutes, actualSeconds, completed, createdAt, goalId, isBlock, blockId, startTime }
   activeTaskId: null, // ID of task being worked on during Pomo
+  focusTaskId: '', // Empty explicitly means a task-free session.
   activeBlockId: null, // ID of the block owning the current session (session-transient)
 
   // Task settings
@@ -77,6 +78,8 @@ const state = {
   keepIncompleteTasks: true, // Keep incomplete tasks on new day (vs clear all)
   notNowCollapsed: false, // Hide the Not-Now shelf's tasks
   doneCollapsed: true, // Hide the Done shelf's tasks
+  plannedCollapsed: false,
+  unplannedCollapsed: false,
   lastVisitDate: null, // For clearing done tasks on new day
 
   // Sidebar state
@@ -321,6 +324,14 @@ function loadFromStorage() {
       if (typeof data.doneCollapsed === 'boolean') {
         state.doneCollapsed = data.doneCollapsed;
       }
+      state.plannedCollapsed = !!data.plannedCollapsed;
+      state.unplannedCollapsed = !!data.unplannedCollapsed;
+      for (const task of state.tasks) {
+        if (task.startTime && !task.scheduledDate) {
+          if (data.lastVisitDate === getTodayDate()) task.scheduledDate = getTodayDate();
+          else task.startTime = undefined;
+        }
+      }
       if (data.lastVisitDate) {
         state.lastVisitDate = data.lastVisitDate;
       }
@@ -402,6 +413,8 @@ function saveToStorage() {
       keepIncompleteTasks: state.keepIncompleteTasks,
       notNowCollapsed: state.notNowCollapsed,
       doneCollapsed: state.doneCollapsed,
+      plannedCollapsed: state.plannedCollapsed,
+      unplannedCollapsed: state.unplannedCollapsed,
       lastVisitDate: state.lastVisitDate,
       // Daily goal & streaks
       dailyGoalMinutes: state.dailyGoalMinutes,
@@ -500,6 +513,7 @@ function pauseTimer() {
 
   state.pausedFromOverflow = state.status === 'overflow';
   state.status = 'paused';
+  saveToStorage();
   stopAmbientSound();
   updateSoundControlVisibility();
   updateUI();
@@ -886,6 +900,7 @@ function updateUI() {
   updateTaskDraggable();
   updateCurrentTaskDisplay();
   updateSoundControlVisibility();
+  window.PomoPlanner?.render();
 }
 
 // Update the "Xm / Ym" meta beside the current task name
@@ -938,7 +953,7 @@ function updateCurrentTaskDisplay() {
   }
 
   renderBlockManifest(); // hides the manifest outside a block session
-  const nextTask = getNextIncompleteTask();
+  const nextTask = state.tasks.find(t => t.id === state.activeTaskId && !t.completed);
 
   if (isActiveWorkSession && nextTask) {
     elements.currentTaskText.textContent = nextTask.name;
@@ -956,11 +971,6 @@ function updateCurrentTaskDisplay() {
       }
     }
 
-    // Update activeTaskId to always track the current top incomplete task
-    if (state.activeTaskId !== nextTask.id) {
-      state.activeTaskId = nextTask.id;
-      renderTasks();
-    }
   } else {
     elements.currentTaskDisplay.hidden = true;
   }
@@ -1472,7 +1482,7 @@ async function playAmbientSound(soundType) {
     const config = SOUNDS[soundType];
     if (config) {
       const buffer = await loadAudioFile(config.file);
-      if (buffer) {
+      if (buffer && state.currentSound === soundType && (state.status === 'running' || state.status === 'overflow')) {
         playLoadedAudio(buffer, config.volume);
       }
     }
@@ -2414,12 +2424,17 @@ function generateTaskId() {
 function openSidebar() {
   state.sidebarOpen = true;
   elements.taskSidebar.classList.add('open');
+  document.body.classList.add('tasks-open');
+  elements.sidebarPanel.inert = false;
+  window.PomoPlanner?.showTasks();
 }
 
 // Close sidebar
 function closeSidebar() {
   state.sidebarOpen = false;
   elements.taskSidebar.classList.remove('open');
+  document.body.classList.remove('tasks-open');
+  elements.sidebarPanel.inert = true;
 }
 
 // Toggle sidebar
@@ -2447,10 +2462,20 @@ function addTask(name, estimatedMinutes = null, goalId = null, opts = {}) {
     isBlock: !!opts.isBlock,
     // Pinned wall-clock start ("HH:MM") — blocks only, always optional
     startTime: (opts.isBlock && opts.startTime) ? opts.startTime : undefined,
+    scheduledDate: (opts.isBlock && opts.startTime) ? getTodayDate() : undefined,
     notNow: false
   };
 
   state.tasks.push(task);
+  if (task.startTime) {
+    const placed = PomoSchedule.place(state.tasks, task.id, PomoSchedule.minute(task.startTime), getTodayDate());
+    if (placed.ok) state.tasks = placed.tasks;
+    else {
+      task.startTime = undefined; task.scheduledDate = undefined;
+      window.PomoPlanner?.open();
+      document.getElementById('plannerStatus').textContent = placed.error + ' The block was kept unplanned.';
+    }
+  }
   saveToStorage();
   renderTasks();
   renderAreas();
@@ -2614,6 +2639,7 @@ function editTaskName(taskId, newName) {
 
   task.name = newName.trim();
   saveToStorage();
+  window.PomoPlanner?.render();
 }
 
 // Get the next incomplete task (first in list)
@@ -2644,6 +2670,8 @@ function startTaskSession(taskId) {
   if (state.status !== 'idle' && state.status !== 'completed') return;
   const task = state.tasks.find(t => t.id === taskId);
   if (!task || task.completed || task.isBlock) return;
+  state.focusTaskId = taskId;
+  state.activeBlockId = null;
 
   // Bring to the top; it becomes the session's task
   const idx = state.tasks.indexOf(task);
@@ -2711,6 +2739,7 @@ function toggleNotNow(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
   task.notNow = !task.notNow;
+  if (task.notNow) { task.startTime = undefined; task.scheduledDate = undefined; task.blockId = undefined; }
   if (state.activeTaskId === taskId && task.notNow) {
     state.activeTaskId = null;
   }
@@ -2727,12 +2756,6 @@ function reorderTasks(fromIndex, toIndex) {
   const task = state.tasks.splice(fromIndex, 1)[0];
   state.tasks.splice(toIndex, 0, task);
 
-  // Update active task to the new top incomplete task
-  const nextTask = getNextIncompleteTask();
-  if (nextTask && state.mode === 'work' && (state.status === 'paused' || state.status === 'overflow')) {
-    state.activeTaskId = nextTask.id;
-  }
-
   saveToStorage();
   renderTasks();
   updateCurrentTaskDisplay();
@@ -2740,6 +2763,7 @@ function reorderTasks(fromIndex, toIndex) {
 
 // Clear tasks for new day (respects keepIncompleteTasks setting)
 function clearTasksForNewDay() {
+  state.tasks.forEach(t => { t.startTime = undefined; t.scheduledDate = undefined; });
   // Always remove completed tasks
   state.tasks = state.tasks.filter(t => {
     if (t.completed) return false;
@@ -2980,24 +3004,20 @@ function normalizeBlockOrder() {
   state.tasks = result;
 }
 
-// End a block session: unfinished members drop back to the main list.
+// Ending focus does not change the plan or detach the block's tasks.
 function finalizeBlockSession() {
   if (!state.activeBlockId) return;
-  const blockId = state.activeBlockId;
-  state.tasks.forEach(t => {
-    if (t.blockId === blockId && !t.completed) t.blockId = undefined;
-  });
   state.activeBlockId = null;
   normalizeBlockOrder();
 }
 
 // Start a session owned by a block: the timebox is the block's remaining
-// duration; members ride along as a checklist. Empty blocks are not startable.
+// duration; members ride along as an optional checklist.
 function startBlockSession(blockId) {
   if (state.status !== 'idle' && state.status !== 'completed') return;
   const block = state.tasks.find(t => t.id === blockId);
   if (!block || !block.isBlock || block.completed) return;
-  if (getBlockMembers(blockId).length === 0) return;
+  state.focusTaskId = blockId;
 
   clearInterval(state.intervalId);
   state.intervalId = null;
@@ -3084,11 +3104,9 @@ function renderTasks() {
 
   // Update progress bar
   updateDailyProgress();
+  window.PomoPlanner?.render();
 
-  // Derived timeline: projected start time for every open row
-  const schedule = computeSchedule();
-
-  const nextTask = getNextIncompleteTask();
+  const nextTask = state.tasks.find(t => t.id === state.focusTaskId);
   const visibleTasks = [...state.tasks];
 
   const inBlockSession = state.activeBlockId && state.mode === 'work' &&
@@ -3105,7 +3123,7 @@ function renderTasks() {
 
     // Area accent (dot next to the checkbox): local area or Todoist project
     const areaInfo = getTaskAreaInfo(task);
-    const areaColor = areaInfo ? areaInfo.color : '';
+    const areaColor = window.PomoPlanner?.color(task) || (areaInfo ? areaInfo.color : '');
 
     const taskEl = document.createElement('div');
     taskEl.className = 'task-item';
@@ -3123,19 +3141,15 @@ function renderTasks() {
       taskEl.classList.add('has-area');
     }
 
-    // Derived-timeline ghost / pinned / live meta for this row's leading meta
+    // A time is only shown when explicitly allocated on today's calendar.
+    const allocation = PomoSchedule.owner(task, state.tasks, getTodayDate());
     let etaHtml = '';
-    if (isActiveBlock) {
-      etaHtml = `<span class="task-item-eta task-item-eta--now">${blockCountdownText()}</span>
-        <span class="task-item-time-separator">·</span>`;
-    } else if (!task.completed && !task.notNow && schedule.entries[task.id]) {
-      const s = schedule.entries[task.id];
-      const cls = s.conflicted ? 'task-item-eta--conflict'
-        : s.pinned ? 'task-item-eta--pinned'
-        : s.now ? 'task-item-eta--now' : '';
-      const label = `done ${s.pinned ? '' : '~'}${formatClock(s.time)}`;
-      etaHtml = `<span class="task-item-eta ${cls}">${label}</span>
-        <span class="task-item-time-separator">·</span>`;
+    if (allocation) {
+      const start = PomoSchedule.minute(allocation.startTime);
+      const label = `${task.blockId ? 'Block ' : ''}${allocation.startTime}–${PomoSchedule.time(start + PomoSchedule.duration(allocation))}`;
+      etaHtml = `<button type="button" class="task-schedule-time" data-schedule-edit="${task.id}">${label}</button>`;
+    } else if (!task.notNow && !task.completed) {
+      etaHtml = '<span class="task-unplanned-label">No time set</span>';
     }
 
     // Block whisper: member count, and an "est ~Xm" flag when members carry
@@ -3161,7 +3175,7 @@ function renderTasks() {
     const estTime = task.estimatedMinutes ? `${task.estimatedMinutes}m` : '-';
 
     // Build estimate options
-    const estimateOptions = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 90, 120];
+    const estimateOptions = [...new Set([5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120, 150, 180, task.estimatedMinutes].filter(Boolean))].sort((a,b)=>a-b);
     const optionsHtml = estimateOptions.map(m =>
       `<option value="${m}" ${task.estimatedMinutes === m ? 'selected' : ''}>${m}m</option>`
     ).join('');
@@ -3174,6 +3188,7 @@ function renderTasks() {
     const areaLinkBtn = hasActiveAreas ? '<button class="task-item-action area-link" aria-label="Link to area">⊕</button>' : '';
 
     taskEl.innerHTML = `
+      <button type="button" class="task-planner-grip" data-planner-drag="${task.id}" aria-label="Drag ${escapeHtml(task.name).replace(/"/g, '&quot;')} to calendar" title="Drag to calendar">⠿</button>
       ${areaColor ? `<span class="task-area-bar" style="background:${areaColor}"></span>` : ''}
       <button class="task-item-checkbox" aria-label="${task.completed ? 'Uncomplete' : 'Complete'} task"></button>
       <div class="task-item-content" data-has-notes="${hasNotes}">
@@ -3186,8 +3201,8 @@ function renderTasks() {
         <div class="task-item-meta">
           ${etaHtml}
           ${areaInfo ? `<span class="task-area-label" style="color:${areaColor}" title="${escapeHtml(areaInfo.name)}">${escapeHtml(areaInfo.name)}</span>` : ''}
-          ${(task.isBlock || isMember) ? '' : `<span class="task-item-time-actual">${actualTime}</span>
-          <span class="task-item-time-separator">/</span>`}
+          <span class="task-item-time-actual" title="Time tracked">${actualTime} tracked</span>
+          <span class="task-item-time-separator">/</span>
           <select class="task-item-estimate-select" aria-label="${task.isBlock ? 'Block duration' : 'Estimated time'}">
             <option value="" ${!task.estimatedMinutes ? 'selected' : ''}>–</option>
             ${optionsHtml}
@@ -3195,8 +3210,9 @@ function renderTasks() {
         </div>
       </div>
       <div class="task-item-trailing">
+        <button type="button" class="task-calendar-btn" aria-label="${PomoSchedule.owner(task, state.tasks, getTodayDate()) ? 'Edit schedule' : 'Add to calendar'}" title="${PomoSchedule.owner(task, state.tasks, getTodayDate()) ? 'Edit schedule' : 'Add to first available gap'}">${PomoSchedule.owner(task, state.tasks, getTodayDate()) ? '▦' : '＋'}</button>
         <div class="task-item-actions">
-          ${!task.completed && task.isBlock && members.length > 0 ? '<button class="task-item-action play" aria-label="Start this block" title="Start this block"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg></button>' : ''}
+          ${!task.completed && task.isBlock ? '<button class="task-item-action play" aria-label="Start this block" title="Start this block"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg></button>' : ''}
           ${!task.completed && !task.isBlock && !isMember ? '<button class="task-item-action play" aria-label="Start this task" title="Start this task"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11-6.86a1.04 1.04 0 0 0 0-1.76l-11-6.86A1.04 1.04 0 0 0 8 5.14z"/></svg></button>' : ''}
           ${!task.completed && !task.isBlock && !isMember ? `<button class="task-item-action later" aria-label="${task.notNow ? 'Move back to today' : 'Not now'}" title="${task.notNow ? 'Move back to today' : 'Not now'}">${task.notNow ? '↑' : '↓'}</button>` : ''}
           ${areaLinkBtn}
@@ -3207,6 +3223,10 @@ function renderTasks() {
     `;
 
     // Event listeners
+    taskEl.querySelector('.task-calendar-btn').addEventListener('click', () => {
+      if (PomoSchedule.owner(task, state.tasks, getTodayDate())) window.PomoPlanner?.edit(task.id);
+      else window.PomoPlanner?.schedule(task.id);
+    });
     const checkbox = taskEl.querySelector('.task-item-checkbox');
     checkbox.addEventListener('click', () => {
       if (task.completed) {
@@ -3215,6 +3235,8 @@ function renderTasks() {
         completeTaskById(task.id);
       }
     });
+
+    taskEl.querySelector('[data-schedule-edit]')?.addEventListener('click', () => window.PomoPlanner?.edit(task.id));
 
     // Click the name to edit it in place
     const nameEl = taskEl.querySelector('.task-item-name');
@@ -3335,6 +3357,7 @@ function renderTasks() {
     const collapsed = state[collapsedKey];
     const header = document.createElement('button');
     header.className = 'not-now-header';
+    header.dataset.section = collapsedKey;
     header.setAttribute('aria-expanded', String(!collapsed));
     header.innerHTML = `<span class="not-now-chevron">${collapsed ? '▸' : '▾'}</span> ${label} · ${rows.length}`;
     header.addEventListener('click', () => {
@@ -3348,7 +3371,8 @@ function renderTasks() {
     }
   };
 
-  mainRows.forEach(buildRow);
+  buildShelf('Unplanned', mainRows.filter(t => !PomoSchedule.owner(t, state.tasks, getTodayDate())), 'unplannedCollapsed');
+  buildShelf('Planned', mainRows.filter(t => PomoSchedule.owner(t, state.tasks, getTodayDate())), 'plannedCollapsed');
 
   if (laterRows.length > 0) {
     buildShelf('Not now', laterRows, 'notNowCollapsed');
@@ -3363,6 +3387,11 @@ function editTaskEstimate(taskId, estimatedMinutes) {
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
 
+  if (PomoSchedule.owner(task, state.tasks, getTodayDate()) === task && window.PomoPlanner) {
+    window.PomoPlanner.resize(taskId, estimatedMinutes || 30);
+    return;
+  }
+
   task.estimatedMinutes = estimatedMinutes;
   saveToStorage();
   updateDailyProgress();
@@ -3375,14 +3404,11 @@ function updateDailyProgress() {
   const progressText = document.getElementById('dailyProgressText');
   if (!progressBar || !progressText) return;
 
-  // Members never count on their own — the owning block's duration is the
-  // truth — so they're excluded from every part of the projection.
-  const completedTasks = state.tasks.filter(t => t.completed && !t.blockId);
-
-  // Total estimated for all tasks with estimates
-  const totalEstimatedMinutes = state.tasks
-    .filter(t => t.estimatedMinutes && !t.blockId)
-    .reduce((sum, t) => sum + t.estimatedMinutes, 0);
+  // Task estimates (including members) count once; container reservations are
+  // shown in the planner total, not counted again as task work.
+  const todayTasks = state.tasks.filter(t => !t.isBlock && !t.notNow);
+  const completedTasks = todayTasks.filter(t => t.completed);
+  const totalEstimatedMinutes = todayTasks.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
 
   // Completed time: use estimated time for completed tasks (completing = full credit)
   // This avoids gaps where actual < estimated
@@ -3415,20 +3441,12 @@ function updateDailyProgress() {
   const totalStr = totalEstimatedMinutes > 0 ? formatDuration(totalEstimatedMinutes) : '-';
   let text = `${completedStr} / ${totalStr}`;
 
-  // Projected finish: now + remaining estimates of today's open items
-  // (tasks and blocks; the Not-Now shelf doesn't count)
-  const remainingMinutes = state.tasks
-    .filter(t => !t.completed && !t.notNow && t.estimatedMinutes && !t.blockId)
-    .reduce((sum, t) => sum + taskRemainingMinutes(t), 0);
-
-  if (remainingMinutes > 0) {
-    const finish = new Date(Date.now() + remainingMinutes * 60000);
-    const finishStr = finish.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).replace(' ', '');
-    text += ` · ~${finishStr}`;
-    progressText.title = `${formatDuration(remainingMinutes)} of estimated work left — done around ${finishStr}`;
-  } else {
-    progressText.title = '';
-  }
+  progressText.title = 'Completed / accounted task time for today. Block reservations are counted separately in the planner.';
+  progressBar.parentElement.setAttribute('role', 'progressbar');
+  progressBar.parentElement.setAttribute('aria-label', 'Completed task time');
+  progressBar.parentElement.setAttribute('aria-valuemin', '0');
+  progressBar.parentElement.setAttribute('aria-valuemax', '100');
+  progressBar.parentElement.setAttribute('aria-valuenow', String(percentage));
 
   progressText.textContent = text;
 }
@@ -3510,12 +3528,6 @@ function handleDrop(e) {
 
   const commit = () => {
     normalizeBlockOrder();
-    // Resync the active task to the new top item when a session is paused
-    const nextTask = getNextIncompleteTask();
-    if (nextTask && state.mode === 'work' &&
-        (state.status === 'paused' || state.status === 'overflow') && !state.activeBlockId) {
-      state.activeTaskId = nextTask.id;
-    }
     saveToStorage();
     renderTasks();
     updateCurrentTaskDisplay();
@@ -3525,6 +3537,7 @@ function handleDrop(e) {
   // Nest: drop an ordinary task onto a block → it becomes a member
   if (target.isBlock && !dragged.isBlock) {
     dragged.blockId = target.id;
+    dragged.startTime = undefined; dragged.scheduledDate = undefined;
     dragged.notNow = false;
     commit();
     return;
@@ -3533,6 +3546,7 @@ function handleDrop(e) {
   // Re-nest: drop an ordinary task onto another block's member
   if (target.blockId && !dragged.isBlock && target.blockId !== dragged.id) {
     dragged.blockId = target.blockId;
+    dragged.startTime = undefined; dragged.scheduledDate = undefined;
     dragged.notNow = false;
     // sit right after the target member
     const fromIndex = state.tasks.indexOf(dragged);
@@ -3602,9 +3616,10 @@ function setActiveTaskForPomo() {
     return;
   }
   if (state.mode === 'work') {
-    const nextTask = getNextIncompleteTask();
+    const nextTask = state.tasks.find(t => t.id === state.focusTaskId && !t.completed && !t.notNow);
     if (nextTask) {
       state.activeTaskId = nextTask.id;
+      state.activeBlockId = nextTask.isBlock ? nextTask.id : null;
     } else {
       state.activeTaskId = null;
     }
@@ -3786,7 +3801,7 @@ function initTaskSidebarListeners() {
   // forecasts, so refresh them even when nothing else changes. Skips while
   // the user is mid-edit or mid-drag (a re-render would eat their focus).
   setInterval(() => {
-    if (draggedTaskId) return;
+    if (draggedTaskId || window.PomoPlanner?.isDragging()) return;
     const active = document.activeElement;
     if (active && elements.taskList.contains(active)) return;
     renderTasks();
@@ -4031,6 +4046,15 @@ function initEventListeners() {
 // ============================================
 
 const TODOIST_API = 'https://api.todoist.com/api/v1';
+let todoistController = new AbortController();
+let todoistGeneration = 0;
+function cancelTodoistSync() {
+  todoistController.abort();
+  todoistController = new AbortController();
+  todoistGeneration += 1;
+  state.todoist.syncStatus = 'idle';
+  state.todoist.lastError = null;
+}
 
 // Todoist's named palette → hex
 const TODOIST_COLORS = {
@@ -4042,6 +4066,7 @@ const TODOIST_COLORS = {
 };
 
 async function todoistFetchProjects() {
+  const generation = todoistGeneration;
   let all = [];
   let cursor = null;
   while (true) {
@@ -4049,6 +4074,7 @@ async function todoistFetchProjects() {
     const resp = await todoistFetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
+    if (generation !== todoistGeneration || !state.todoist.enabled) throw new DOMException('Sync is paused', 'AbortError');
     const page = Array.isArray(data) ? data : (data.results || data.items || []);
     all = all.concat(page);
     cursor = data.next_cursor || null;
@@ -4062,11 +4088,12 @@ async function todoistFetchProjects() {
 }
 
 function todoistFetch(endpoint, options = {}) {
+  if (!state.todoist.enabled || !state.todoist.apiToken) return Promise.reject(new DOMException('Sync is paused', 'AbortError'));
   const headers = {
     'Authorization': `Bearer ${state.todoist.apiToken}`,
     ...options.headers
   };
-  return fetch(`${TODOIST_API}${endpoint}`, { ...options, headers });
+  return fetch(`${TODOIST_API}${endpoint}`, { ...options, headers, signal: todoistController.signal });
 }
 
 async function todoistCloseTask(todoistId) {
@@ -4096,6 +4123,9 @@ async function todoistValidateToken() {
 
 async function syncWithTodoist() {
   if (!state.todoist.enabled || !state.todoist.apiToken) return;
+  if (state.todoist.syncStatus === 'syncing') return;
+  const generation = todoistGeneration;
+  const current = () => generation === todoistGeneration && state.todoist.enabled;
 
   state.todoist.syncStatus = 'syncing';
   updateTodoistUI();
@@ -4106,10 +4136,12 @@ async function syncWithTodoist() {
     //    transient empty/failed response never wipes the existing list.
     try {
       const fetched = await todoistFetchProjects();
+      if (!current()) return;
       if (fetched && Object.keys(fetched).length > 0) {
         state.todoistProjects = fetched;
       }
     } catch (e) {
+      if (!current() || e.name === 'AbortError') return;
       console.warn('Todoist projects fetch failed (colors may be stale):', e);
     }
 
@@ -4124,6 +4156,7 @@ async function syncWithTodoist() {
         throw new Error(errBody.error || `HTTP ${resp.status}`);
       }
       const data = await resp.json();
+      if (!current()) return;
       const page = Array.isArray(data) ? data : (data.results || data.items || []);
       allTasks = allTasks.concat(page);
       cursor = data.next_cursor || null;
@@ -4165,6 +4198,7 @@ async function syncWithTodoist() {
     for (const task of state.tasks) {
       if (task.todoistId && task.completed && todoistIds.has(task.todoistId)) {
         await todoistFetch(`/tasks/${task.todoistId}/close`, { method: 'POST' });
+        if (!current()) return;
       }
     }
 
@@ -4182,6 +4216,7 @@ async function syncWithTodoist() {
     saveToStorage();
     renderTasks();
   } catch (e) {
+    if (!current() || e.name === 'AbortError') return;
     state.todoist.syncStatus = 'error';
     state.todoist.lastError = e.message;
     console.warn('Todoist sync failed:', e);
@@ -4249,20 +4284,20 @@ function initTodoistListeners() {
   enableToggle.addEventListener('change', () => {
     state.todoist.enabled = enableToggle.checked;
     if (!state.todoist.enabled) {
-      // Remove all Todoist-synced tasks
-      state.tasks = state.tasks.filter(t => !t.todoistId);
-      state.todoist.syncStatus = 'idle';
-      state.todoist.lastSyncTime = null;
+      // Keep local tasks and time; stop requests and reject late responses.
+      cancelTodoistSync();
       renderTasks();
     }
     saveToStorage();
     updateTodoistUI();
+    window.PomoPlanner?.render();
     if (state.todoist.enabled && state.todoist.apiToken) {
       syncWithTodoist();
     }
   });
 
   tokenInput.addEventListener('change', async () => {
+    cancelTodoistSync();
     const token = tokenInput.value.trim();
     if (!token) {
       state.todoist.apiToken = null;
@@ -4273,9 +4308,12 @@ function initTodoistListeners() {
     }
     state.todoist.apiToken = token;
     saveToStorage();
+    if (!state.todoist.enabled) return;
+    const generation = todoistGeneration;
 
     // Validate
     const valid = await todoistValidateToken();
+    if (generation !== todoistGeneration || !state.todoist.enabled) return;
     if (valid) {
       state.todoist.syncStatus = 'idle';
       updateTodoistUI();

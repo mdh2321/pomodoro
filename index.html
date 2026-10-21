@@ -7,14 +7,15 @@
   <title>Pomo</title>
 
   <!-- PWA -->
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pomo">
-  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="theme-color" content="#0d9488">
 
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="planner.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍅</text></svg>">
 </head>
 <body>
@@ -118,6 +119,12 @@
       </div>
     </div>
 
+    <label class="focus-task-picker">Focus on
+      <select id="focusTaskSelect" aria-label="Task for focus session">
+        <option value="">No task · just focus</option>
+      </select>
+    </label>
+
     <!-- Current Task Display (visible during active sessions) -->
     <div class="current-task-display" id="currentTaskDisplay" hidden>
       <span class="current-task-area" id="currentTaskArea" hidden></span>
@@ -212,6 +219,7 @@
           <button class="sidebar-tab-btn" data-tab="areas" id="areasTabBtn">Areas</button>
         </div>
         <div class="sidebar-header-actions">
+          <button class="add-task-mode" id="openPlannerBtn" aria-label="Open today's planner" title="Today planner">▦</button>
           <button class="add-task-mode" id="randomTaskBtn" aria-label="Pick a random task" title="Can't choose? Pick one for me">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
           </button>
@@ -297,6 +305,29 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <button class="planner-edge" id="plannerEdge" aria-label="Open today's planner" aria-expanded="false">‹ Today</button>
+  <aside class="planner-panel" id="plannerPanel" aria-label="Today planner" inert>
+    <header class="planner-header"><h2>Today</h2><div><button type="button" id="plannerTasksBtn">Tasks</button><button type="button" id="closePlannerBtn" aria-label="Close planner">›</button></div></header>
+    <div class="planner-toolbar"><div><span id="plannerDate"></span><small id="plannerTotal"></small></div><button type="button" id="newPlannerBlock">＋ Block</button></div>
+    <div class="planner-rule"><span>Overlaps push later items</span><span>15 min snap</span></div>
+    <div class="planner-scroll" id="plannerScroll"><div class="planner-grid" id="plannerGrid" aria-label="Today's calendar"><div id="plannerHours"></div><div id="plannerEvents"></div><div class="planner-guide" id="plannerGuide" hidden></div></div></div>
+    <footer class="planner-footer"><span id="plannerStatus" role="status">Drag a task beside its time to plan it.</span><button type="button" id="plannerUndo" hidden>Undo</button></footer>
+  </aside>
+  <div class="modal-overlay" id="scheduleOverlay" aria-hidden="true">
+    <form class="modal schedule-editor" id="scheduleForm" role="dialog" aria-modal="true" aria-labelledby="scheduleTitle">
+      <div class="modal-header"><h2 id="scheduleTitle">Schedule</h2><button type="button" class="modal-close" id="scheduleClose" aria-label="Close schedule editor">×</button></div>
+      <div class="modal-content">
+        <label>Name<input id="scheduleName" required maxlength="100"></label>
+        <label>Placement<select id="schedulePlacement"></select></label>
+        <div class="schedule-pair"><label id="scheduleStartLabel">Start<input id="scheduleStart" type="time" step="300"></label><label>Duration (minutes)<input id="scheduleDuration" type="number" min="5" max="1440" step="5" required></label></div>
+        <label>Colour<select id="scheduleColor"><option value="">Use area colour</option><option value="violet">Violet</option><option value="teal">Teal</option><option value="amber">Amber</option><option value="clay">Clay</option></select></label>
+        <div id="scheduleMembers"></div>
+        <p id="scheduleError" role="alert"></p>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn btn--secondary" id="scheduleUnplan">Unplan</button><button type="submit" class="btn btn--primary">Save</button></div>
+    </form>
   </div>
 
   <!-- Analytics Modal -->
@@ -589,10 +620,12 @@
     <button class="undo-toast-btn" id="undoBtn">Undo</button>
   </div>
 
+  <script src="planner-core.js"></script>
   <script src="app.js"></script>
+  <script src="planner.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
+      navigator.serviceWorker.register('sw.js');
     }
   </script>
 </body>
